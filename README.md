@@ -11,7 +11,7 @@ Features:
 API:
 
 Get message (Long Polling):
-"http://example.com:8987/r/{id}"
+`http://example.com:8987/r/{id}`
 
 Send message:
-"http://example.com:8987/w/{id}?d=some-data"
+`http://example.com:8987/w/{id}?d=some-data`
