@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/gorilla/mux"
-	listener2 "github.com/ipoluyanov/xchg/internal/listener"
+	listener2 "github.com/ipoluianov/xchg/internal/listener"
 	"net/http"
 )
 

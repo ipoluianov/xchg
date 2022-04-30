@@ -3,8 +3,8 @@ package app
 import (
 	"flag"
 	"fmt"
-	"github.com/ipoluyanov/xchg/internal/http_server"
-	"github.com/ipoluyanov/xchg/internal/logger"
+	"github.com/ipoluianov/xchg/internal/http_server"
+	"github.com/ipoluianov/xchg/internal/logger"
 	"github.com/kardianos/osext"
 	"github.com/kardianos/service"
 	"log"

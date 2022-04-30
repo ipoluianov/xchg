@@ -3,8 +3,8 @@ package http_server
 import (
 	"context"
 	"github.com/gorilla/mux"
-	"github.com/ipoluyanov/xchg/internal/listener"
-	"github.com/ipoluyanov/xchg/internal/logger"
+	"github.com/ipoluianov/xchg/internal/listener"
+	"github.com/ipoluianov/xchg/internal/logger"
 	"github.com/sethvargo/go-limiter"
 	"github.com/sethvargo/go-limiter/memorystore"
 	"log"

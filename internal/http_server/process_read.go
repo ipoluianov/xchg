@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"github.com/gorilla/mux"
-	listener2 "github.com/ipoluyanov/xchg/internal/listener"
-	"github.com/ipoluyanov/xchg/internal/logger"
+	listener2 "github.com/ipoluianov/xchg/internal/listener"
+	"github.com/ipoluianov/xchg/internal/logger"
 	"net/http"
 	"time"
 )

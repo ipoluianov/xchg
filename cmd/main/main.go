@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/ipoluyanov/xchg/internal/app"
-	"github.com/ipoluyanov/xchg/internal/logger"
+	"github.com/ipoluianov/xchg/internal/app"
+	"github.com/ipoluianov/xchg/internal/logger"
 )
 
 func main() {
