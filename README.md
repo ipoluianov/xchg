@@ -18,6 +18,6 @@ Send message:
 
 ## Config
 
-using_proxy - set `true` if you use proxy (nginx, etc ...)
-purge_interval - TODO:
-max_requests_per_ip_in_second - no comments
+- using_proxy - set `true` if you use proxy (nginx, etc ...)
+- purge_interval - TODO:
+- max_requests_per_ip_in_second - no comments
