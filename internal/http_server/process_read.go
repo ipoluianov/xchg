@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/gorilla/mux"
-	listener2 "github.com/ipoluianov/xchg/internal/listener"
+	"github.com/ipoluianov/xchg/internal/listener"
 	"github.com/ipoluianov/xchg/internal/logger"
 	"net/http"
 	"time"
@@ -12,7 +12,7 @@ import (
 
 func (c *HttpServer) processR(w http.ResponseWriter, r *http.Request) {
 	var err error
-	var message *listener2.Message
+	var message *listener.Message
 
 	logger.Println("read begin")
 
@@ -28,12 +28,12 @@ func (c *HttpServer) processR(w http.ResponseWriter, r *http.Request) {
 
 		// find listener
 		listenerFound := false
-		var listener *listener2.Listener
+		var l *listener.Listener
 		c.mtx.Lock()
-		listener, listenerFound = c.listeners[id]
+		l, listenerFound = c.listeners[id]
 		if !listenerFound {
-			listener = listener2.NewListener(id)
-			c.listeners[id] = listener
+			l = listener.NewListener(id)
+			c.listeners[id] = l
 		}
 		c.mtx.Unlock()
 
@@ -44,7 +44,7 @@ func (c *HttpServer) processR(w http.ResponseWriter, r *http.Request) {
 		waitingIterationCount := waitingDurationInMilliseconds / waitingTick
 
 		for i := 0; i < waitingIterationCount; i++ {
-			message, valid = listener.Pull()
+			message, valid = l.Pull()
 			if !valid {
 				time.Sleep(time.Duration(waitingTick) * time.Millisecond)
 				continue

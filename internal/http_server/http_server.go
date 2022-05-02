@@ -29,7 +29,7 @@ func NewHttpServer(config Config) *HttpServer {
 
 	// Configuration
 	usingProxy := config.UsingProxy
-	purgeInterval := time.Minute
+	purgeInterval := 5 * time.Second
 	if config.PurgeInterval > 0 {
 		purgeInterval = config.PurgeInterval
 	}
