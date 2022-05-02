@@ -39,7 +39,7 @@ func (c *HttpServer) processR(w http.ResponseWriter, r *http.Request) {
 
 		var valid bool
 
-		waitingDurationInMilliseconds := 60000
+		waitingDurationInMilliseconds := 10000
 		waitingTick := 100
 		waitingIterationCount := waitingDurationInMilliseconds / waitingTick
 

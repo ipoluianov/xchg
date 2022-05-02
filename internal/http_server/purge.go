@@ -15,14 +15,15 @@ func (c *HttpServer) purgeRoutine() {
 		}
 
 		c.mtx.Lock()
-		logger.Println("purging begin")
 		for id, l := range c.listeners {
 			if time.Now().Sub(l.LastGetDT()) > 10*time.Second {
 				logger.Println("purging", id)
 				delete(c.listeners, id)
 			}
 		}
-		logger.Println("purging end")
+
+		logger.Println("statistics. count:", len(c.listeners))
+
 		c.mtx.Unlock()
 	}
 }
