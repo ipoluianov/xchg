@@ -3,9 +3,9 @@ package http_server
 import (
 	"context"
 	"errors"
-	"fmt"
 	"github.com/gorilla/mux"
 	listener2 "github.com/ipoluianov/xchg/internal/listener"
+	"github.com/ipoluianov/xchg/internal/logger"
 	"net/http"
 )
 
@@ -16,9 +16,10 @@ func (c *HttpServer) processW(w http.ResponseWriter, r *http.Request) {
 
 	// get properties
 	ipAddr := c.getRealAddr(r)
+	logger.Println("write addr:", ipAddr)
 
-	tokens, rem, _, limiterOK, _ := c.limiterStore.Take(ctx, ipAddr)
-	fmt.Println("limiter tokens", tokens, "remain", rem)
+	_, _, _, limiterOK, _ := c.limiterStore.Take(ctx, ipAddr)
+	//fmt.Println("limiter tokens", tokens, "remain", rem)
 	if !limiterOK {
 		err = errors.New("too frequent requests")
 	} else {
