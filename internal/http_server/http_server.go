@@ -3,8 +3,8 @@ package http_server
 import (
 	"context"
 	"github.com/gorilla/mux"
+	"github.com/ipoluianov/gomisc/logger"
 	"github.com/ipoluianov/xchg/internal/listener"
-	"github.com/ipoluianov/xchg/internal/logger"
 	"github.com/sethvargo/go-limiter"
 	"github.com/sethvargo/go-limiter/memorystore"
 	"log"
@@ -74,6 +74,7 @@ func (c *HttpServer) Start() {
 	go func() {
 		err := c.srv.ListenAndServe()
 		if err != nil {
+
 			logger.Println("[HttpServer]", "[error]", "HttpServer thListen error: ", err)
 		}
 	}()
