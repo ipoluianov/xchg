@@ -24,10 +24,6 @@ func NewListener(id string) *Listener {
 	return &c
 }
 
-func (c *Listener) Id() string {
-	return c.id
-}
-
 func (c *Listener) PushMessage(data []byte) error {
 	return c.Push(NewMessage(data))
 }
