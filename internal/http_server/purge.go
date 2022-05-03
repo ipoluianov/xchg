@@ -1,7 +1,7 @@
 package http_server
 
 import (
-	"github.com/ipoluianov/xchg/internal/logger"
+	"github.com/ipoluianov/gomisc/logger"
 	"time"
 )
 
