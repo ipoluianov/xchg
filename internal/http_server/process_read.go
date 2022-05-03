@@ -3,7 +3,6 @@ package http_server
 import (
 	"context"
 	"errors"
-	"github.com/gorilla/mux"
 	"github.com/ipoluianov/gomisc/logger"
 	"github.com/ipoluianov/xchg/internal/listener"
 	"net/http"
@@ -24,16 +23,16 @@ func (c *HttpServer) processR(w http.ResponseWriter, r *http.Request) {
 		err = errors.New("too frequent requests")
 	} else {
 
-		id := mux.Vars(r)["id"]
+		address := r.FormValue("a")
 
 		// find listener
 		listenerFound := false
 		var l *listener.Listener
 		c.mtx.Lock()
-		l, listenerFound = c.listeners[id]
+		l, listenerFound = c.listeners[address]
 		if !listenerFound {
-			l = listener.NewListener(id)
-			c.listeners[id] = l
+			l = listener.NewListener(address)
+			c.listeners[address] = l
 		}
 		c.mtx.Unlock()
 

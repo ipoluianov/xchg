@@ -62,10 +62,21 @@ func NewHttpServer(config Config) *HttpServer {
 
 func (c *HttpServer) Start() {
 	c.r = mux.NewRouter()
-	c.r.HandleFunc("/r/{id}", c.processR)
-	c.r.HandleFunc("/w/{id}", c.processW)
-	c.r.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(404)
+	c.r.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		function := r.FormValue("f")
+		switch function {
+		case "w":
+			c.processW(w, r)
+		case "r":
+			c.processR(w, r)
+		case "i":
+			c.processI(w, r)
+		default:
+			{
+				w.WriteHeader(404)
+				_, _ = w.Write([]byte("unknown function"))
+			}
+		}
 	})
 	c.srv = &http.Server{
 		Addr: ":8987",
