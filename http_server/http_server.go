@@ -10,27 +10,24 @@ import (
 	"github.com/sethvargo/go-limiter/memorystore"
 	"log"
 	"net/http"
-	"sync"
 	"time"
 )
 
 type HttpServer struct {
-	srv                *http.Server
-	mtx                sync.Mutex
-	listeners          map[string]*core.Listener
-	limiterStore       limiter.Store
-	config             config.Config
-	stopPurgeRoutineCh chan struct{}
+	core         *core.Core
+	srv          *http.Server
+	limiterStore limiter.Store
+	config       config.Config
 }
 
 func NewHttpServer(conf config.Config) *HttpServer {
 	var err error
 	var c HttpServer
 
+	c.core = core.NewCore(conf)
 	c.config = conf
 
 	// Setup limiter
-	c.listeners = make(map[string]*core.Listener)
 	c.limiterStore, err = memorystore.New(&memorystore.Config{
 		Tokens:   c.config.Http.MaxRequestsPerIPInSecond,
 		Interval: 1 * time.Second,
@@ -38,10 +35,6 @@ func NewHttpServer(conf config.Config) *HttpServer {
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	// sweeper
-	c.stopPurgeRoutineCh = make(chan struct{})
-	go c.purgeRoutine()
 
 	return &c
 }
@@ -63,7 +56,6 @@ func (c *HttpServer) Start() {
 func (c *HttpServer) Stop() error {
 	ctx := context.Background()
 	_ = c.limiterStore.Close(ctx)
-	close(c.stopPurgeRoutineCh)
 	return c.srv.Close()
 }
 

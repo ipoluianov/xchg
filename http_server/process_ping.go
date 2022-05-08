@@ -5,7 +5,6 @@ import (
 	"errors"
 	"github.com/ipoluianov/gomisc/http_tools"
 	"github.com/ipoluianov/gomisc/logger"
-	"github.com/ipoluianov/xchg/core"
 	"net/http"
 )
 
@@ -21,17 +20,7 @@ func (c *HttpServer) processP(ctx context.Context, w http.ResponseWriter, r *htt
 		err = errors.New("too frequent requests")
 	} else {
 		address := r.FormValue("a")
-
-		var l *core.Listener
-		listenerFound := false
-		c.mtx.Lock()
-		l, listenerFound = c.listeners[address]
-		if !listenerFound {
-			err = errors.New("no route to host")
-		} else {
-			listenerInfo = l.LastGetDT().String()
-		}
-		c.mtx.Unlock()
+		listenerInfo, err = c.core.Ping(r.Context(), address)
 	}
 
 	if err == nil {

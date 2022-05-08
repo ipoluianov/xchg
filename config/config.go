@@ -14,6 +14,7 @@ type Http struct {
 }
 
 type Core struct {
+	MaxAddressSize  int `json:"max_address_size"`
 	PurgeIntervalMs int `json:"purge_interval_ms"`
 }
 
@@ -23,10 +24,12 @@ type Config struct {
 }
 
 func LoadFromFile(filePath string) (conf Config, err error) {
+	conf.Core.PurgeIntervalMs = 5000
+	conf.Core.MaxAddressSize = 256
+
 	conf.Http.HttpPort = 8987
 	conf.Http.UsingProxy = false
 	conf.Http.MaxRequestsPerIPInSecond = 10
-	conf.Core.PurgeIntervalMs = 5000
 
 	var fi os.FileInfo
 	var bs []byte
@@ -53,6 +56,10 @@ func LoadFromFile(filePath string) (conf Config, err error) {
 		if err != nil {
 			return
 		}
+	}
+
+	if conf.Core.MaxAddressSize < 1 || conf.Core.MaxAddressSize > 1024 {
+		err = errors.New("wrong conf.Core.MaxAddressSize")
 	}
 
 	if conf.Core.PurgeIntervalMs < 0 || conf.Core.PurgeIntervalMs > 3600000 {

@@ -6,17 +6,13 @@ import (
 	"errors"
 	"github.com/ipoluianov/gomisc/http_tools"
 	"github.com/ipoluianov/gomisc/logger"
+	"github.com/ipoluianov/xchg/core"
 	"net/http"
-	"time"
 )
 
 func (c *HttpServer) processI(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	var err error
-	type Info struct {
-		DT            time.Time `json:"dt"`
-		ListenerCount int       `json:"lc"`
-	}
-	var info Info
+	var info core.Info
 
 	ipAddr := http_tools.GetRealAddr(r, c.config.Http.UsingProxy)
 	_, _, _, limiterOK, _ := c.limiterStore.Take(ctx, ipAddr)
@@ -24,10 +20,7 @@ func (c *HttpServer) processI(ctx context.Context, w http.ResponseWriter, r *htt
 	if !limiterOK {
 		err = errors.New("too frequent requests")
 	} else {
-		c.mtx.Lock()
-		info.DT = time.Now()
-		info.ListenerCount = len(c.listeners)
-		c.mtx.Unlock()
+		info, err = c.core.Info(r.Context())
 	}
 
 	var bs []byte

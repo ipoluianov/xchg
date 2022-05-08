@@ -5,7 +5,6 @@ import (
 	"errors"
 	"github.com/ipoluianov/gomisc/http_tools"
 	"github.com/ipoluianov/gomisc/logger"
-	listener2 "github.com/ipoluianov/xchg/core"
 	"net/http"
 )
 
@@ -23,20 +22,7 @@ func (c *HttpServer) processW(ctx context.Context, w http.ResponseWriter, r *htt
 	} else {
 		data := r.FormValue("d")
 		address := r.FormValue("a")
-
-		// find core
-		listenerFound := false
-		var listener *listener2.Listener
-		c.mtx.Lock()
-		listener, listenerFound = c.listeners[address]
-		c.mtx.Unlock()
-
-		// push message
-		if listenerFound && listener != nil {
-			err = listener.PushMessage([]byte(data))
-		} else {
-			err = errors.New("no route to host")
-		}
+		err = c.core.Write(r.Context(), address, []byte(data))
 	}
 
 	// Write result
