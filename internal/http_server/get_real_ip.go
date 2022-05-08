@@ -11,7 +11,7 @@ func (c *HttpServer) getRealAddr(r *http.Request) string {
 	if parts := strings.Split(r.RemoteAddr, ":"); len(parts) == 2 {
 		remoteIP = parts[0]
 	}
-	if c.config.UsingProxy {
+	if c.config.Http.UsingProxy {
 		if xff := strings.Trim(r.Header.Get("X-Forwarded-For"), ","); len(xff) > 0 {
 			addresses := strings.Split(xff, ",")
 			lastFwd := addresses[len(addresses)-1]

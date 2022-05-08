@@ -2,6 +2,7 @@ package http_server
 
 import (
 	"context"
+	"fmt"
 	"github.com/ipoluianov/gomisc/logger"
 	"github.com/ipoluianov/xchg/internal/listener"
 	"github.com/sethvargo/go-limiter"
@@ -26,25 +27,34 @@ func NewHttpServer(config Config) *HttpServer {
 	var c HttpServer
 
 	// Configuration
-	usingProxy := config.UsingProxy
+	httpPort := 8987
+	if config.Http.HttpPort > 0 {
+		httpPort = config.Http.HttpPort
+	}
+	usingProxy := config.Http.UsingProxy
 	purgeInterval := 5 * time.Second
-	if config.PurgeInterval > 0 {
-		purgeInterval = config.PurgeInterval
+	if config.Core.PurgeInterval > 0 {
+		purgeInterval = config.Core.PurgeInterval
 	}
 	maxRequestsPerIPInSecond := uint64(10)
-	if config.MaxRequestsPerIPInSecond > 0 {
-		maxRequestsPerIPInSecond = config.MaxRequestsPerIPInSecond
+	if config.Http.MaxRequestsPerIPInSecond > 0 {
+		maxRequestsPerIPInSecond = config.Http.MaxRequestsPerIPInSecond
 	}
 	c.config = Config{
-		UsingProxy:               usingProxy,
-		PurgeInterval:            purgeInterval,
-		MaxRequestsPerIPInSecond: maxRequestsPerIPInSecond,
+		Core: ConfigCore{
+			PurgeInterval: purgeInterval,
+		},
+		Http: ConfigHttp{
+			HttpPort:                 httpPort,
+			UsingProxy:               usingProxy,
+			MaxRequestsPerIPInSecond: maxRequestsPerIPInSecond,
+		},
 	}
 
 	// Setup limiter
 	c.listeners = make(map[string]*listener.Listener)
 	c.limiterStore, err = memorystore.New(&memorystore.Config{
-		Tokens:   c.config.MaxRequestsPerIPInSecond,
+		Tokens:   c.config.Http.MaxRequestsPerIPInSecond,
 		Interval: 1 * time.Second,
 	})
 	if err != nil {
@@ -60,7 +70,7 @@ func NewHttpServer(config Config) *HttpServer {
 
 func (c *HttpServer) Start() {
 	c.srv = &http.Server{
-		Addr: ":8987",
+		Addr: ":" + fmt.Sprint(c.config.Http.HttpPort),
 	}
 	c.srv.Handler = c
 	go func() {

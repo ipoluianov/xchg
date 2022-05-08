@@ -164,7 +164,7 @@ func (p *program) Stop(_ service.Service) error {
 
 func Start() {
 	logger.Println("Application Started")
-	server = http_server.NewHttpServer(http_server.Config{UsingProxy: false})
+	server = http_server.NewHttpServer(http_server.Config{})
 	server.Start()
 }
 

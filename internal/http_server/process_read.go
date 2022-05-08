@@ -43,6 +43,10 @@ func (c *HttpServer) processR(ctx context.Context, w http.ResponseWriter, r *htt
 
 		for i := 0; i < waitingIterationCount; i++ {
 			message, valid = l.Pull()
+			if r.Context().Err() != nil {
+				break
+			}
+
 			if !valid {
 				time.Sleep(time.Duration(waitingTick) * time.Millisecond)
 				continue
