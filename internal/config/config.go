@@ -55,5 +55,17 @@ func LoadFromFile(filePath string) (conf Config, err error) {
 		}
 	}
 
+	if conf.Core.PurgeIntervalMs < 0 || conf.Core.PurgeIntervalMs > 3600000 {
+		err = errors.New("wrong conf.Core.PurgeIntervalMs")
+	}
+
+	if conf.Http.HttpPort < 1 || conf.Http.HttpPort > 65535 {
+		err = errors.New("wrong conf.Http.HttpPort")
+	}
+
+	if conf.Http.MaxRequestsPerIPInSecond < 1 || conf.Http.MaxRequestsPerIPInSecond > 1000000 {
+		err = errors.New("wrong conf.Http.MaxRequestsPerIPInSecond")
+	}
+
 	return
 }
