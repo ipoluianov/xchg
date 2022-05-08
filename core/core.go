@@ -33,7 +33,7 @@ func (c *Core) Stop() {
 	close(c.stopPurgeRoutineCh)
 }
 
-func (c *Core) Read(ctx context.Context, address string) (message *Message, err error) {
+func (c *Core) Read(ctx context.Context, address string, timeout time.Duration) (message *Message, err error) {
 	// find core
 	listenerFound := false
 	var l *Listener
@@ -47,11 +47,11 @@ func (c *Core) Read(ctx context.Context, address string) (message *Message, err 
 
 	var valid bool
 
-	waitingDurationInMilliseconds := 10000
-	waitingTick := 100
+	waitingDurationInMilliseconds := timeout.Milliseconds()
+	waitingTick := int64(100)
 	waitingIterationCount := waitingDurationInMilliseconds / waitingTick
 
-	for i := 0; i < waitingIterationCount; i++ {
+	for i := int64(0); i < waitingIterationCount; i++ {
 		message, valid = l.Pull()
 		if ctx.Err() != nil {
 			break
@@ -125,7 +125,7 @@ func (c *Core) purgeRoutine() {
 
 		c.mtx.Lock()
 		for id, l := range c.listeners {
-			if time.Now().Sub(l.LastGetDT()) > 10*time.Second {
+			if time.Now().Sub(l.LastGetDT()) > time.Duration(c.config.Core.KeepDataTimeMs)*time.Millisecond {
 				logger.Println("purging", id)
 				delete(c.listeners, id)
 			}

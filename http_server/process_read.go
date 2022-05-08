@@ -7,6 +7,7 @@ import (
 	"github.com/ipoluianov/gomisc/logger"
 	"github.com/ipoluianov/xchg/core"
 	"net/http"
+	"time"
 )
 
 func (c *HttpServer) processR(ctx context.Context, w http.ResponseWriter, r *http.Request) {
@@ -22,7 +23,7 @@ func (c *HttpServer) processR(ctx context.Context, w http.ResponseWriter, r *htt
 		err = errors.New("too frequent requests")
 	} else {
 		address := r.FormValue("a")
-		message, err = c.core.Read(r.Context(), address)
+		message, err = c.core.Read(r.Context(), address, time.Duration(c.config.Http.LongPollingTimeoutMs)*time.Millisecond)
 	}
 
 	if err == nil && message != nil {

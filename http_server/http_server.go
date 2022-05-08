@@ -44,6 +44,7 @@ func (c *HttpServer) Start() {
 		Addr: ":" + fmt.Sprint(c.config.Http.HttpPort),
 	}
 	c.srv.Handler = c
+	c.core.Start()
 	go func() {
 		err := c.srv.ListenAndServe()
 		if err != nil {
@@ -56,6 +57,7 @@ func (c *HttpServer) Start() {
 func (c *HttpServer) Stop() error {
 	ctx := context.Background()
 	_ = c.limiterStore.Close(ctx)
+	c.core.Stop()
 	return c.srv.Close()
 }
 
