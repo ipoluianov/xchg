@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/ipoluianov/gomisc/logger"
+	"github.com/ipoluianov/xchg/internal/config"
 	"github.com/ipoluianov/xchg/internal/listener"
 	"github.com/sethvargo/go-limiter"
 	"github.com/sethvargo/go-limiter/memorystore"
@@ -18,38 +19,15 @@ type HttpServer struct {
 	mtx                sync.Mutex
 	listeners          map[string]*listener.Listener
 	limiterStore       limiter.Store
-	config             Config
+	config             config.Config
 	stopPurgeRoutineCh chan struct{}
 }
 
-func NewHttpServer(config Config) *HttpServer {
+func NewHttpServer(conf config.Config) *HttpServer {
 	var err error
 	var c HttpServer
 
-	// Configuration
-	httpPort := 8987
-	if config.Http.HttpPort > 0 {
-		httpPort = config.Http.HttpPort
-	}
-	usingProxy := config.Http.UsingProxy
-	purgeInterval := 5 * time.Second
-	if config.Core.PurgeInterval > 0 {
-		purgeInterval = config.Core.PurgeInterval
-	}
-	maxRequestsPerIPInSecond := uint64(10)
-	if config.Http.MaxRequestsPerIPInSecond > 0 {
-		maxRequestsPerIPInSecond = config.Http.MaxRequestsPerIPInSecond
-	}
-	c.config = Config{
-		Core: ConfigCore{
-			PurgeInterval: purgeInterval,
-		},
-		Http: ConfigHttp{
-			HttpPort:                 httpPort,
-			UsingProxy:               usingProxy,
-			MaxRequestsPerIPInSecond: maxRequestsPerIPInSecond,
-		},
-	}
+	c.config = conf
 
 	// Setup limiter
 	c.listeners = make(map[string]*listener.Listener)

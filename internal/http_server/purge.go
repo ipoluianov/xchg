@@ -6,7 +6,7 @@ import (
 )
 
 func (c *HttpServer) purgeRoutine() {
-	ticker := time.NewTicker(c.config.Core.PurgeInterval)
+	ticker := time.NewTicker(time.Duration(c.config.Core.PurgeIntervalMs) * time.Millisecond)
 	for {
 		select {
 		case <-c.stopPurgeRoutineCh:

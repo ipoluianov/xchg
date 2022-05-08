@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/ipoluianov/gomisc/logger"
+	"github.com/ipoluianov/xchg/internal/config"
 	"github.com/ipoluianov/xchg/internal/http_server"
 	"github.com/kardianos/osext"
 	"github.com/kardianos/service"
@@ -162,10 +163,18 @@ func (p *program) Stop(_ service.Service) error {
 
 /////////////////////////////
 
-func Start() {
+func Start() error {
 	logger.Println("Application Started")
-	server = http_server.NewHttpServer(http_server.Config{})
+
+	conf, err := config.LoadFromFile(logger.CurrentExePath() + "/" + "config.json")
+	if err != nil {
+		logger.Println("configuration error:", err)
+		return err
+	}
+
+	server = http_server.NewHttpServer(conf)
 	server.Start()
+	return nil
 }
 
 func Stop() {
@@ -174,14 +183,17 @@ func Stop() {
 
 func RunConsole() {
 	logger.Println("[app]", "Running as console application")
-	Start()
+	err := Start()
+	if err != nil {
+		logger.Println("error:", err)
+		return
+	}
 	_, _ = fmt.Scanln()
 	logger.Println("[app]", "Console application exit")
 }
 
 func RunAsServiceF() error {
-	Start()
-	return nil
+	return Start()
 }
 
 func StopServiceF() {
