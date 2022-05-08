@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/ipoluianov/gomisc/http_tools"
-	"github.com/ipoluianov/gomisc/logger"
 	"github.com/ipoluianov/xchg/core"
 	"net/http"
 )
@@ -33,6 +32,4 @@ func (c *HttpServer) processI(ctx context.Context, w http.ResponseWriter, r *htt
 		w.WriteHeader(404)
 		_, _ = w.Write([]byte(err.Error()))
 	}
-
-	logger.Println("processR from [", ipAddr, "]")
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"github.com/ipoluianov/gomisc/http_tools"
-	"github.com/ipoluianov/gomisc/logger"
 	"net/http"
 )
 
@@ -31,6 +30,4 @@ func (c *HttpServer) processP(ctx context.Context, w http.ResponseWriter, r *htt
 		w.WriteHeader(404)
 		_, _ = w.Write([]byte(err.Error()))
 	}
-
-	logger.Println("processR from [", ipAddr, "]")
 }
