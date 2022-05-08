@@ -1,11 +1,3 @@
-github.com/gorilla/mux v1.8.0 h1:i40aqfkR1h2SlN9hojwV5ZA91wcXFOvkdNIeFDP5koI=
-github.com/gorilla/mux v1.8.0/go.mod h1:DVbg23sWSpFRCP0SfiEN6jmj59UnW/n46BH5rLB71So=
-github.com/ipoluianov/gomisc v0.0.0-20220503110209-e9a3263f23a6 h1:g9hcq4OIDy+T9XOA2epT93UwXnVeK7JenBnaEP6Dik4=
-github.com/ipoluianov/gomisc v0.0.0-20220503110209-e9a3263f23a6/go.mod h1:zoX4j2UPpp/HgZxSb0eNp2eDN/OIh5YCCwaFjYSk7jY=
-github.com/ipoluianov/gomisc v0.0.3 h1:H9Zd1Hyg6VJnyCRSwGOT4muqJofTTgL5GX0dQJ7SnKs=
-github.com/ipoluianov/gomisc v0.0.3/go.mod h1:3rlYbwz/L3LSguP2M+Png08EAWoXFxPXJ65uLhweiiU=
-github.com/ipoluianov/gomisc v0.0.4 h1:Kfiw/4xzX/1pfLz21rSvNMub35j13nPN8QtIsyNlAAQ=
-github.com/ipoluianov/gomisc v0.0.4/go.mod h1:3rlYbwz/L3LSguP2M+Png08EAWoXFxPXJ65uLhweiiU=
 github.com/ipoluianov/gomisc v0.0.5 h1:dDkM50loHGKBy1qahbtWLfknYjesMP3NvJ1f7MR33z8=
 github.com/ipoluianov/gomisc v0.0.5/go.mod h1:3rlYbwz/L3LSguP2M+Png08EAWoXFxPXJ65uLhweiiU=
 github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0 h1:iQTw/8FWTuc7uiaSepXwyf3o52HaUYcV+Tu66S3F5GA=

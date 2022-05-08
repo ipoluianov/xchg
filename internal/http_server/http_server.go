@@ -2,7 +2,6 @@ package http_server
 
 import (
 	"context"
-	"github.com/gorilla/mux"
 	"github.com/ipoluianov/gomisc/logger"
 	"github.com/ipoluianov/xchg/internal/listener"
 	"github.com/sethvargo/go-limiter"
@@ -15,7 +14,6 @@ import (
 
 type HttpServer struct {
 	srv                *http.Server
-	r                  *mux.Router
 	mtx                sync.Mutex
 	listeners          map[string]*listener.Listener
 	limiterStore       limiter.Store
@@ -61,27 +59,10 @@ func NewHttpServer(config Config) *HttpServer {
 }
 
 func (c *HttpServer) Start() {
-	c.r = mux.NewRouter()
-	c.r.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		function := r.FormValue("f")
-		switch function {
-		case "w":
-			c.processW(w, r)
-		case "r":
-			c.processR(w, r)
-		case "i":
-			c.processI(w, r)
-		default:
-			{
-				w.WriteHeader(404)
-				_, _ = w.Write([]byte("unknown function"))
-			}
-		}
-	})
 	c.srv = &http.Server{
 		Addr: ":8987",
 	}
-	c.srv.Handler = c.r
+	c.srv.Handler = c
 	go func() {
 		err := c.srv.ListenAndServe()
 		if err != nil {
@@ -96,4 +77,24 @@ func (c *HttpServer) Stop() error {
 	_ = c.limiterStore.Close(ctx)
 	close(c.stopPurgeRoutineCh)
 	return c.srv.Close()
+}
+
+func (c *HttpServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	function := r.FormValue("f")
+	ctx := context.Background()
+	switch function {
+	case "w":
+		c.processW(ctx, w, r)
+	case "r":
+		c.processR(ctx, w, r)
+	case "i":
+		c.processI(ctx, w, r)
+	case "p":
+		c.processP(ctx, w, r)
+	default:
+		{
+			w.WriteHeader(400)
+			_, _ = w.Write([]byte("need 'f'"))
+		}
+	}
 }

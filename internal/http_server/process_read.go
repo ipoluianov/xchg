@@ -9,13 +9,12 @@ import (
 	"time"
 )
 
-func (c *HttpServer) processR(w http.ResponseWriter, r *http.Request) {
+func (c *HttpServer) processR(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	var err error
 	var message *listener.Message
 
 	logger.Println("read begin")
 
-	ctx := context.Background()
 	ipAddr := c.getRealAddr(r)
 	_, _, _, limiterOK, _ := c.limiterStore.Take(ctx, ipAddr)
 
@@ -65,5 +64,5 @@ func (c *HttpServer) processR(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("no data"))
 	}
 
-	logger.Println("processR from [", ipAddr, "]")
+	logger.Println("processR end from [", ipAddr, "]")
 }

@@ -2,39 +2,41 @@ package http_server
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"github.com/ipoluianov/gomisc/logger"
+	"github.com/ipoluianov/xchg/internal/listener"
 	"net/http"
-	"time"
 )
 
-func (c *HttpServer) processI(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+func (c *HttpServer) processP(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	var err error
-	type Info struct {
-		DT            time.Time `json:"dt"`
-		ListenerCount int       `json:"lc"`
-	}
-	var info Info
 
 	ipAddr := c.getRealAddr(r)
 	_, _, _, limiterOK, _ := c.limiterStore.Take(ctx, ipAddr)
 
+	listenerInfo := ""
+
 	if !limiterOK {
 		err = errors.New("too frequent requests")
 	} else {
+		address := r.FormValue("a")
+
+		var l *listener.Listener
+		listenerFound := false
 		c.mtx.Lock()
-		info.DT = time.Now()
-		info.ListenerCount = len(c.listeners)
+		l, listenerFound = c.listeners[address]
+		if !listenerFound {
+			err = errors.New("no route to host")
+		} else {
+			listenerInfo = l.LastGetDT().String()
+		}
 		c.mtx.Unlock()
 	}
 
-	var bs []byte
-	bs, err = json.MarshalIndent(info, "", " ")
 	if err == nil {
 		w.WriteHeader(200)
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		_, _ = w.Write(bs)
+		_, _ = w.Write([]byte(listenerInfo))
 	} else {
 		w.WriteHeader(404)
 		_, _ = w.Write([]byte(err.Error()))

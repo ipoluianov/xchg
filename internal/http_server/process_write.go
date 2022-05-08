@@ -8,10 +8,8 @@ import (
 	"net/http"
 )
 
-func (c *HttpServer) processW(w http.ResponseWriter, r *http.Request) {
+func (c *HttpServer) processW(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	var err error
-
-	ctx := context.Background()
 
 	// get properties
 	ipAddr := c.getRealAddr(r)
