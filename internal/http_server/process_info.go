@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/ipoluianov/gomisc/http_tools"
 	"github.com/ipoluianov/gomisc/logger"
 	"net/http"
 	"time"
@@ -17,7 +18,7 @@ func (c *HttpServer) processI(ctx context.Context, w http.ResponseWriter, r *htt
 	}
 	var info Info
 
-	ipAddr := c.getRealAddr(r)
+	ipAddr := http_tools.GetRealAddr(r, c.config.Http.UsingProxy)
 	_, _, _, limiterOK, _ := c.limiterStore.Take(ctx, ipAddr)
 
 	if !limiterOK {

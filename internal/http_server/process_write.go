@@ -3,6 +3,7 @@ package http_server
 import (
 	"context"
 	"errors"
+	"github.com/ipoluianov/gomisc/http_tools"
 	"github.com/ipoluianov/gomisc/logger"
 	listener2 "github.com/ipoluianov/xchg/internal/listener"
 	"net/http"
@@ -12,7 +13,7 @@ func (c *HttpServer) processW(ctx context.Context, w http.ResponseWriter, r *htt
 	var err error
 
 	// get properties
-	ipAddr := c.getRealAddr(r)
+	ipAddr := http_tools.GetRealAddr(r, c.config.Http.UsingProxy)
 	logger.Println("write addr:", ipAddr)
 
 	_, _, _, limiterOK, _ := c.limiterStore.Take(ctx, ipAddr)

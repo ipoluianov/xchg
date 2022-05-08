@@ -3,6 +3,7 @@ package http_server
 import (
 	"context"
 	"errors"
+	"github.com/ipoluianov/gomisc/http_tools"
 	"github.com/ipoluianov/gomisc/logger"
 	"github.com/ipoluianov/xchg/internal/listener"
 	"net/http"
@@ -15,7 +16,7 @@ func (c *HttpServer) processR(ctx context.Context, w http.ResponseWriter, r *htt
 
 	logger.Println("read begin")
 
-	ipAddr := c.getRealAddr(r)
+	ipAddr := http_tools.GetRealAddr(r, c.config.Http.UsingProxy)
 	_, _, _, limiterOK, _ := c.limiterStore.Take(ctx, ipAddr)
 
 	if !limiterOK {
