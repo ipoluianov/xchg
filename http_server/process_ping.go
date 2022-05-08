@@ -5,7 +5,7 @@ import (
 	"errors"
 	"github.com/ipoluianov/gomisc/http_tools"
 	"github.com/ipoluianov/gomisc/logger"
-	"github.com/ipoluianov/xchg/internal/listener"
+	"github.com/ipoluianov/xchg/core"
 	"net/http"
 )
 
@@ -22,7 +22,7 @@ func (c *HttpServer) processP(ctx context.Context, w http.ResponseWriter, r *htt
 	} else {
 		address := r.FormValue("a")
 
-		var l *listener.Listener
+		var l *core.Listener
 		listenerFound := false
 		c.mtx.Lock()
 		l, listenerFound = c.listeners[address]

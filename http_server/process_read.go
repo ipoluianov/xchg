@@ -5,14 +5,14 @@ import (
 	"errors"
 	"github.com/ipoluianov/gomisc/http_tools"
 	"github.com/ipoluianov/gomisc/logger"
-	"github.com/ipoluianov/xchg/internal/listener"
+	core2 "github.com/ipoluianov/xchg/core"
 	"net/http"
 	"time"
 )
 
 func (c *HttpServer) processR(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	var err error
-	var message *listener.Message
+	var message *core2.Message
 
 	logger.Println("read begin")
 
@@ -25,13 +25,13 @@ func (c *HttpServer) processR(ctx context.Context, w http.ResponseWriter, r *htt
 
 		address := r.FormValue("a")
 
-		// find listener
+		// find core
 		listenerFound := false
-		var l *listener.Listener
+		var l *core2.Listener
 		c.mtx.Lock()
 		l, listenerFound = c.listeners[address]
 		if !listenerFound {
-			l = listener.NewListener(address)
+			l = core2.NewListener(address)
 			c.listeners[address] = l
 		}
 		c.mtx.Unlock()

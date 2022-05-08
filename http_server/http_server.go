@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 	"github.com/ipoluianov/gomisc/logger"
-	"github.com/ipoluianov/xchg/internal/config"
-	"github.com/ipoluianov/xchg/internal/listener"
+	"github.com/ipoluianov/xchg/config"
+	"github.com/ipoluianov/xchg/core"
 	"github.com/sethvargo/go-limiter"
 	"github.com/sethvargo/go-limiter/memorystore"
 	"log"
@@ -17,7 +17,7 @@ import (
 type HttpServer struct {
 	srv                *http.Server
 	mtx                sync.Mutex
-	listeners          map[string]*listener.Listener
+	listeners          map[string]*core.Listener
 	limiterStore       limiter.Store
 	config             config.Config
 	stopPurgeRoutineCh chan struct{}
@@ -30,7 +30,7 @@ func NewHttpServer(conf config.Config) *HttpServer {
 	c.config = conf
 
 	// Setup limiter
-	c.listeners = make(map[string]*listener.Listener)
+	c.listeners = make(map[string]*core.Listener)
 	c.limiterStore, err = memorystore.New(&memorystore.Config{
 		Tokens:   c.config.Http.MaxRequestsPerIPInSecond,
 		Interval: 1 * time.Second,

@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/ipoluianov/xchg/internal/app"
+	"github.com/ipoluianov/xchg/app"
 )
 
 func main() {
