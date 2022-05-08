@@ -27,7 +27,7 @@ func (c *HttpServer) processP(ctx context.Context, w http.ResponseWriter, r *htt
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		_, _ = w.Write([]byte(listenerInfo))
 	} else {
-		w.WriteHeader(404)
+		w.WriteHeader(204)
 		_, _ = w.Write([]byte(err.Error()))
 	}
 }
