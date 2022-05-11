@@ -20,7 +20,7 @@ func NewListener(id string) *Listener {
 	c.id = id
 	c.messages = make([]*Message, 0)
 	c.maxMessagesQueueSize = 10
-	c.maxMessageDataSize = 1024
+	c.maxMessageDataSize = 1024 * 1024
 	return &c
 }
 
