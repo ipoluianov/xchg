@@ -86,6 +86,55 @@ func (c *Core) Read(ctx context.Context, address string, timeout time.Duration) 
 	return
 }
 
+func (c *Core) Execute(ctx context.Context, listenToAddress string, sendToAddress string, data []byte, timeout time.Duration) (message *Message, err error) {
+	// find core
+	listenerFound := false
+	var l *Listener
+	c.mtx.Lock()
+	l, listenerFound = c.listeners[listenToAddress]
+	if !listenerFound {
+		l = NewListener(listenToAddress)
+		c.listeners[listenToAddress] = l
+	}
+	c.statReceivedReadRequests++
+	c.mtx.Unlock()
+
+	err = c.Write(ctx, sendToAddress, data)
+	if err != nil {
+		return nil, err
+	}
+
+	var valid bool
+
+	waitingDurationInMilliseconds := timeout.Milliseconds()
+	waitingTick := int64(100)
+	waitingIterationCount := waitingDurationInMilliseconds / waitingTick
+
+	for i := int64(0); i < waitingIterationCount; i++ {
+		message, valid = l.Pull()
+		if ctx.Err() != nil {
+			break
+		}
+
+		if !valid {
+			time.Sleep(time.Duration(waitingTick) * time.Millisecond)
+			continue
+		}
+		break
+	}
+
+	if message != nil {
+		c.mtx.Lock()
+		c.statReceivedReadBytes += len(message.Data)
+		c.mtx.Unlock()
+	}
+
+	if !valid {
+		err = errors.New("no data")
+	}
+	return
+}
+
 func (c *Core) Write(_ context.Context, address string, data []byte) (err error) {
 	// find core
 	listenerFound := false
