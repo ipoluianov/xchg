@@ -2,6 +2,7 @@ package core
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 )
@@ -36,7 +37,7 @@ func (c *Listener) Push(message *Message) error {
 		return errors.New("queue overflow")
 	}
 	if len(message.Data) > c.maxMessageDataSize {
-		return errors.New("too much data")
+		return errors.New("too much data: " + fmt.Sprint(len(message.Data)))
 	}
 
 	c.messages = append(c.messages, message)
