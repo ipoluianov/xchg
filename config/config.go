@@ -32,7 +32,7 @@ func LoadFromFile(filePath string) (conf Config, err error) {
 
 	conf.Http.HttpPort = 8987
 	conf.Http.UsingProxy = false
-	conf.Http.MaxRequestsPerIPInSecond = 10
+	conf.Http.MaxRequestsPerIPInSecond = 20
 	conf.Http.LongPollingTimeoutMs = 10000
 
 	var fi os.FileInfo
