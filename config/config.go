@@ -28,7 +28,7 @@ type Config struct {
 func LoadFromFile(filePath string) (conf Config, err error) {
 	conf.Core.PurgeIntervalMs = 5000
 	conf.Core.MaxAddressSize = 256
-	conf.Core.KeepDataTimeMs = 10000
+	conf.Core.KeepDataTimeMs = 5000
 
 	conf.Http.HttpPort = 8987
 	conf.Http.UsingProxy = false

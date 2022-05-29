@@ -2,9 +2,19 @@ package core
 
 import (
 	"context"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/sha256"
+	"crypto/x509"
+	"encoding/base64"
+	"encoding/binary"
 	"errors"
+	"fmt"
 	"github.com/ipoluianov/gomisc/logger"
 	"github.com/ipoluianov/xchg/config"
+	"io"
 	"sync"
 	"time"
 )
@@ -14,6 +24,8 @@ type Core struct {
 	config             config.Config
 	listeners          map[string]*Listener
 	stopPurgeRoutineCh chan struct{}
+
+	serverSecret []byte
 
 	statReceivedWriteBytes    int
 	statReceivedWriteRequests int
@@ -29,6 +41,8 @@ func NewCore(conf config.Config) *Core {
 	var c Core
 	c.config = conf
 	c.listeners = make(map[string]*Listener)
+	c.serverSecret = make([]byte, 32)
+	_, _ = rand.Read(c.serverSecret)
 	return &c
 }
 
@@ -42,7 +56,58 @@ func (c *Core) Stop() {
 	close(c.stopPurgeRoutineCh)
 }
 
-func (c *Core) Read(ctx context.Context, address string, timeout time.Duration) (message *Message, err error) {
+func (c *Core) GenerateAndEncryptSymmetricKeyForNode(addr string, nodePublicKey string) (result string, err error) {
+	var publicKeyBS []byte
+	publicKeyBS, err = base64.StdEncoding.DecodeString(nodePublicKey)
+	if err != nil {
+		return
+	}
+
+	var rsaPublicKey *rsa.PublicKey
+	rsaPublicKey, err = x509.ParsePKCS1PublicKey(publicKeyBS)
+	if err != nil {
+		return
+	}
+
+	addrSecret := c.calcAddrKey(addr)
+	addrSecretHex := base64.StdEncoding.EncodeToString(addrSecret)
+	fmt.Println("---------", addrSecretHex)
+	var encBytes []byte
+	encBytes, err = rsa.EncryptPKCS1v15(rand.Reader, rsaPublicKey, []byte(addrSecretHex))
+	if err != nil {
+		return
+	}
+	encBytes64 := base64.StdEncoding.EncodeToString(encBytes)
+	result = encBytes64
+	return
+}
+
+func (c *Core) calcAddrKey(addr string) []byte {
+	addrSecretForSHA := make([]byte, len(c.serverSecret)+len(addr))
+	copy(addrSecretForSHA, c.serverSecret)
+	copy(addrSecretForSHA[len(c.serverSecret):], addr)
+	addrSecretCalculated := sha256.Sum256(addrSecretForSHA)
+	return addrSecretCalculated[:]
+}
+
+func (c *Core) Read(ctx context.Context, address string, data string, timeout time.Duration) (message *Message, err error) {
+
+	aesKey := c.calcAddrKey(address)
+	var encryptedMessage []byte
+	encryptedMessage, err = base64.StdEncoding.DecodeString(data)
+	if err != nil {
+		return nil, err
+	}
+	var counterBS []byte
+	counterBS, err = c.decryptAES(encryptedMessage, aesKey)
+	if err != nil {
+		return nil, err
+	}
+	if len(counterBS) != 8 {
+		return nil, errors.New("wrong counter len")
+	}
+	counter := binary.LittleEndian.Uint64(counterBS)
+
 	// find core
 	listenerFound := false
 	var l *Listener
@@ -54,6 +119,12 @@ func (c *Core) Read(ctx context.Context, address string, timeout time.Duration) 
 	}
 	c.statReceivedReadRequests++
 	c.mtx.Unlock()
+
+	fmt.Println("counter", counter, l.lastCounter)
+	if counter <= l.lastCounter {
+		return nil, errors.New("[wrong counter]")
+	}
+	l.lastCounter = counter
 
 	var valid bool
 
@@ -75,13 +146,64 @@ func (c *Core) Read(ctx context.Context, address string, timeout time.Duration) 
 	}
 
 	if message != nil {
+		//fmt.Println("XCHG - excData after read", message.Data, aesKey)
+		message.Data, err = c.encryptAES(message.Data, aesKey)
+		if err != nil {
+			panic(err)
+		}
+
+		message.Data = []byte(base64.StdEncoding.EncodeToString(message.Data))
+
 		c.mtx.Lock()
 		c.statReceivedReadBytes += len(message.Data)
 		c.mtx.Unlock()
 	}
 
 	if !valid {
-		err = errors.New("no data")
+		err = nil
+	}
+	return
+}
+
+func (c *Core) encryptAES(decryptedMessage []byte, key []byte) (encryptedMessage []byte, err error) {
+	var ch cipher.Block
+	ch, err = aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+	var gcm cipher.AEAD
+	gcm, err = cipher.NewGCM(ch)
+	nonce := make([]byte, gcm.NonceSize())
+	_, err = io.ReadFull(rand.Reader, nonce)
+	if err != nil {
+		return nil, err
+	}
+	encryptedMessage = gcm.Seal(nonce, nonce, decryptedMessage, nil)
+	return
+}
+
+func (c *Core) decryptAES(message []byte, key []byte) (decryptedMessage []byte, err error) {
+	fmt.Println("AES KEY:", key)
+	fmt.Println("AES MESSAGE:", message, len(message))
+	ch, err := aes.NewCipher(key)
+	if err != nil {
+		fmt.Println("111", err)
+		return nil, err
+	}
+	gcm, err := cipher.NewGCM(ch)
+	if err != nil {
+		fmt.Println("222", err)
+		return nil, err
+	}
+	nonceSize := gcm.NonceSize()
+	if len(message) < nonceSize {
+		return nil, errors.New("wrong nonce")
+	}
+	nonce, ciphertext := message[:nonceSize], message[nonceSize:]
+	decryptedMessage, err = gcm.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		fmt.Println("3331", err)
+		return nil, err
 	}
 	return
 }
@@ -98,8 +220,10 @@ func (c *Core) Write(_ context.Context, address string, data []byte) (err error)
 
 	// push message
 	if listenerFound && listener != nil {
+		fmt.Println("XCHG --- write - ok")
 		err = listener.PushMessage(data)
 	} else {
+		fmt.Println("XCHG --- write - no listener")
 		err = errors.New("no route to host")
 	}
 	return

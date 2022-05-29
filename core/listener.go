@@ -9,6 +9,7 @@ import (
 
 type Listener struct {
 	id                   string
+	lastCounter          uint64
 	maxMessagesQueueSize int
 	maxMessageDataSize   int
 	messages             []*Message
@@ -19,6 +20,7 @@ type Listener struct {
 func NewListener(id string) *Listener {
 	var c Listener
 	c.id = id
+	c.lastCounter = 0
 	c.messages = make([]*Message, 0)
 	c.maxMessagesQueueSize = 10
 	c.maxMessageDataSize = 10 * 1024 * 1024

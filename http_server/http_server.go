@@ -69,6 +69,8 @@ func (c *HttpServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		c.processW(ctx, w, r)
 	case "r":
 		c.processR(ctx, w, r)
+	case "init":
+		c.processK(ctx, w, r)
 	case "i":
 		c.processI(ctx, w, r)
 	case "p":
