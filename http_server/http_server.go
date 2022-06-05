@@ -3,6 +3,7 @@ package http_server
 import (
 	"context"
 	"fmt"
+	"github.com/ipoluianov/gomisc/http_tools"
 	"github.com/ipoluianov/gomisc/logger"
 	"github.com/ipoluianov/xchg/config"
 	"github.com/ipoluianov/xchg/core"
@@ -62,19 +63,24 @@ func (c *HttpServer) Stop() error {
 }
 
 func (c *HttpServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	function := r.FormValue("f")
 	ctx := context.Background()
+
+	// Limiter
+	////////////////////////////////////////////////////////////
+	ipAddr := http_tools.GetRealAddr(r, c.config.Http.UsingProxy)
+	_, _, _, limiterOK, _ := c.limiterStore.Take(ctx, ipAddr)
+	if !limiterOK {
+		w.WriteHeader(404)
+		_, _ = w.Write([]byte("too frequent request"))
+		return
+	}
+	////////////////////////////////////////////////////////////
+
+	function := r.FormValue("f")
 	switch function {
-	case "w":
-		c.processW(ctx, w, r)
-	case "r":
-		c.processR(ctx, w, r)
-	case "init":
-		c.processK(ctx, w, r)
-	case "i":
-		c.processI(ctx, w, r)
-	case "p":
-		c.processP(ctx, w, r)
+	// client
+	case "b":
+		c.processB(ctx, w, r)
 	default:
 		{
 			w.WriteHeader(400)

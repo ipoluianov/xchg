@@ -23,7 +23,6 @@ func (c *HttpServer) processK(ctx context.Context, w http.ResponseWriter, r *htt
 		publicKey64 := r.FormValue("public_key")
 		address := r.FormValue("a")
 		logger.Println("init from a:", address, "public_key", publicKey64)
-		encryptedSymKey, err = c.core.GenerateAndEncryptSymmetricKeyForNode(address, publicKey64)
 	}
 
 	// Write result

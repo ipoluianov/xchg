@@ -8,8 +8,8 @@ import (
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
-	"encoding/base64"
 	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"github.com/ipoluianov/gomisc/logger"
@@ -20,9 +20,15 @@ import (
 )
 
 type Core struct {
-	mtx                sync.Mutex
-	config             config.Config
-	listeners          map[string]*Listener
+	mtx              sync.Mutex
+	config           config.Config
+	listenersByAddr  map[string]*Listener
+	listenersByIndex map[uint64]*Listener
+	calls            map[uint64]*Request
+
+	nextListenerId    uint64
+	nextTransactionId uint64
+
 	stopPurgeRoutineCh chan struct{}
 
 	serverSecret []byte
@@ -40,8 +46,10 @@ type Core struct {
 func NewCore(conf config.Config) *Core {
 	var c Core
 	c.config = conf
-	c.listeners = make(map[string]*Listener)
+	c.listenersByAddr = make(map[string]*Listener)
+	c.listenersByIndex = make(map[uint64]*Listener)
 	c.serverSecret = make([]byte, 32)
+	c.calls = make(map[uint64]*Request)
 	_, _ = rand.Read(c.serverSecret)
 	return &c
 }
@@ -56,112 +64,221 @@ func (c *Core) Stop() {
 	close(c.stopPurgeRoutineCh)
 }
 
-func (c *Core) GenerateAndEncryptSymmetricKeyForNode(addr string, nodePublicKey string) (result string, err error) {
-	var publicKeyBS []byte
-	publicKeyBS, err = base64.StdEncoding.DecodeString(nodePublicKey)
-	if err != nil {
-		return
-	}
+func (c *Core) InitServer1(_ context.Context, data []byte) (result []byte, err error) {
+	fmt.Println("InitServer1")
+	publicKey := data
+	addrSecret := c.calcAddrKey(publicKey)
+	fmt.Println("AES: ", hex.EncodeToString(addrSecret))
 
 	var rsaPublicKey *rsa.PublicKey
-	rsaPublicKey, err = x509.ParsePKCS1PublicKey(publicKeyBS)
+	rsaPublicKey, err = x509.ParsePKCS1PublicKey(publicKey)
 	if err != nil {
+		logger.Println(err)
+		return
+	}
+	result, err = rsa.EncryptPKCS1v15(rand.Reader, rsaPublicKey, addrSecret)
+	if err != nil {
+		logger.Println(err)
 		return
 	}
 
-	addrSecret := c.calcAddrKey(addr)
-	addrSecretHex := base64.StdEncoding.EncodeToString(addrSecret)
-	fmt.Println("---------", addrSecretHex)
-	var encBytes []byte
-	encBytes, err = rsa.EncryptPKCS1v15(rand.Reader, rsaPublicKey, []byte(addrSecretHex))
-	if err != nil {
-		return
-	}
-	encBytes64 := base64.StdEncoding.EncodeToString(encBytes)
-	result = encBytes64
 	return
 }
 
-func (c *Core) calcAddrKey(addr string) []byte {
-	addrSecretForSHA := make([]byte, len(c.serverSecret)+len(addr))
+func (c *Core) InitServer2(_ context.Context, data []byte) (result []byte, err error) {
+	fmt.Println("InitServer2")
+	// Input: [PK_LEN uint32, PK []byte, ENCRYPTED([PK_ENC []byte])]
+	// Getting public key
+	if len(data) < 4 {
+		err = errors.New("wrong data len (< 4)")
+		return
+	}
+	publicKeyLength := binary.LittleEndian.Uint32(data)
+	data = data[4:]
+	if len(data) < int(publicKeyLength) {
+		err = errors.New("wrong data len (< publicKeyLength)")
+		return
+	}
+	publicKey := data[0:publicKeyLength]
+
+	// Getting Encrypted Public Key
+	encryptedPublicKey := data[publicKeyLength:]
+	if len(encryptedPublicKey) < 1 {
+		err = errors.New("len(encryptedPublicKey) < 1")
+		return
+	}
+
+	// Decrypting public key
+	aesKey := c.calcAddrKey(publicKey)
+	var decryptedPublicKey []byte
+	decryptedPublicKey, err = c.decryptAES(encryptedPublicKey, aesKey)
+	if err != nil {
+		fmt.Println("AES DECRYPT ERROR:", encryptedPublicKey, hex.EncodeToString(aesKey))
+		return
+	}
+
+	// Check public key
+	if len(decryptedPublicKey) != len(publicKey) {
+		err = errors.New("len(decryptedPublicKey) != len(publicKey)")
+		return
+	}
+	for i := 0; i < len(publicKey); i++ {
+		if decryptedPublicKey[i] != publicKey[i] {
+			err = errors.New("decryptedPublicKey != publicKey")
+			return
+		}
+	}
+
+	// The ownership of the public key has been proven
+	// Searching listener
+	c.mtx.Lock()
+	listenerFound := false
+	var l *Listener
+	l, listenerFound = c.listenersByAddr[string(publicKey)]
+	if !listenerFound {
+		c.nextListenerId++
+		listenerId := c.nextListenerId
+		l = NewListener(listenerId, publicKey)
+		c.listenersByAddr[string(publicKey)] = l
+		c.listenersByIndex[listenerId] = l
+	}
+	c.mtx.Unlock()
+
+	// Everything is ok - sending response
+	// ENCRYPTED([ID uint64, COUNTER uint64])
+	result = make([]byte, 16)
+	binary.LittleEndian.PutUint64(result[0:], l.id)
+	binary.LittleEndian.PutUint64(result[8:], l.lastCounter)
+	result, err = c.encryptAES(result, aesKey)
+	if err != nil {
+		return
+	}
+
+	fmt.Println("Init2 ok", hex.EncodeToString(result))
+	return
+}
+
+func (c *Core) calcAddrKey(publicKey []byte) []byte {
+	addrSecretForSHA := make([]byte, len(c.serverSecret)+len(publicKey))
 	copy(addrSecretForSHA, c.serverSecret)
-	copy(addrSecretForSHA[len(c.serverSecret):], addr)
+	copy(addrSecretForSHA[len(c.serverSecret):], publicKey)
 	addrSecretCalculated := sha256.Sum256(addrSecretForSHA)
 	return addrSecretCalculated[:]
 }
 
-func (c *Core) Read(ctx context.Context, address string, data string, timeout time.Duration) (message *Message, err error) {
+func (c *Core) GetNextRequest(ctx context.Context, data []byte) (result []byte, err error) {
+	fmt.Println("GetNextRequest")
+	// Input: [LID uint64, ENCRYPTED([COUNTER])
+	if len(data) < 8 {
+		err = errors.New("len(data) < 8")
+		return
+	}
 
-	aesKey := c.calcAddrKey(address)
-	var encryptedMessage []byte
-	encryptedMessage, err = base64.StdEncoding.DecodeString(data)
-	if err != nil {
-		return nil, err
-	}
-	var counterBS []byte
-	counterBS, err = c.decryptAES(encryptedMessage, aesKey)
-	if err != nil {
-		return nil, err
-	}
-	if len(counterBS) != 8 {
-		return nil, errors.New("wrong counter len")
-	}
-	counter := binary.LittleEndian.Uint64(counterBS)
+	LID := binary.LittleEndian.Uint64(data)
 
-	// find core
-	listenerFound := false
+	var lFound bool
 	var l *Listener
 	c.mtx.Lock()
-	l, listenerFound = c.listeners[address]
-	if !listenerFound {
-		l = NewListener(address)
-		c.listeners[address] = l
-	}
-	c.statReceivedReadRequests++
+	l, lFound = c.listenersByIndex[LID]
 	c.mtx.Unlock()
 
-	fmt.Println("counter", counter, l.lastCounter)
+	if !lFound {
+		err = errors.New("no listener found")
+		return
+	}
+
+	aesKey := c.calcAddrKey(l.publicKey)
+
+	encryptedCounter := data[8:]
+	var counterBS []byte
+	counterBS, err = c.decryptAES(encryptedCounter, aesKey)
+	if err != nil {
+		return
+	}
+	if len(counterBS) != 8 {
+		err = errors.New("len(counterBS) != 8")
+		return
+	}
+	counter := binary.LittleEndian.Uint64(counterBS)
 	if counter <= l.lastCounter {
 		return nil, errors.New("[wrong counter]")
 	}
 	l.lastCounter = counter
 
-	var valid bool
-
-	waitingDurationInMilliseconds := timeout.Milliseconds()
+	waitingDurationInMilliseconds := int64(c.config.Http.LongPollingTimeoutMs)
 	waitingTick := int64(100)
 	waitingIterationCount := waitingDurationInMilliseconds / waitingTick
 
+	var request *Request
+
 	for i := int64(0); i < waitingIterationCount; i++ {
-		message, valid = l.Pull()
+		request = l.Pull()
 		if ctx.Err() != nil {
 			break
 		}
-
-		if !valid {
+		if request == nil {
 			time.Sleep(time.Duration(waitingTick) * time.Millisecond)
 			continue
 		}
 		break
 	}
 
-	if message != nil {
-		//fmt.Println("XCHG - excData after read", message.Data, aesKey)
-		message.Data, err = c.encryptAES(message.Data, aesKey)
+	if request != nil {
+		// ENCRYPTED(TransactionID uint64, data []byte)
+		result = make([]byte, len(request.Data)+8)
+		binary.LittleEndian.PutUint64(result, request.transactionId)
+		copy(result[8:], request.Data)
+		result, err = c.encryptAES(result, aesKey)
 		if err != nil {
-			panic(err)
+			return
 		}
-
-		message.Data = []byte(base64.StdEncoding.EncodeToString(message.Data))
-
-		c.mtx.Lock()
-		c.statReceivedReadBytes += len(message.Data)
-		c.mtx.Unlock()
 	}
 
-	if !valid {
-		err = nil
+	//fmt.Println("no data")
+
+	return
+}
+
+func (c *Core) PutResponse(_ context.Context, data []byte) (err error) {
+	// [LID uint64, ENCRYPTED([TransactionID uint64, data []byte])
+
+	fmt.Println("PutResponse")
+
+	if len(data) < 8 {
+		err = errors.New("len(data) < 8")
+		fmt.Println("PutResponse1")
+		return
 	}
+
+	LID := binary.LittleEndian.Uint64(data)
+
+	var lFound bool
+	var l *Listener
+	c.mtx.Lock()
+	l, lFound = c.listenersByIndex[LID]
+	c.mtx.Unlock()
+
+	if !lFound {
+		fmt.Println("PutResponse2")
+		err = errors.New("no listener found")
+		return
+	}
+
+	aesKey := c.calcAddrKey(l.publicKey)
+	//fmt.Println("PutResponse3", aesKey)
+
+	encryptedData := data[8:]
+	var decryptedData []byte
+	decryptedData, err = c.decryptAES(encryptedData, aesKey)
+	if len(decryptedData) < 8 {
+		err = errors.New("len(decryptedData) < 8")
+		return
+	}
+
+	//fmt.Println("PutResponse4", decryptedData)
+
+	transactionId := binary.LittleEndian.Uint64(decryptedData)
+	l.SetResponse(transactionId, decryptedData[8:])
 	return
 }
 
@@ -183,16 +300,14 @@ func (c *Core) encryptAES(decryptedMessage []byte, key []byte) (encryptedMessage
 }
 
 func (c *Core) decryptAES(message []byte, key []byte) (decryptedMessage []byte, err error) {
-	fmt.Println("AES KEY:", key)
-	fmt.Println("AES MESSAGE:", message, len(message))
+	//fmt.Println("AES KEY:", key)
+	//fmt.Println("AES MESSAGE:", message, len(message))
 	ch, err := aes.NewCipher(key)
 	if err != nil {
-		fmt.Println("111", err)
 		return nil, err
 	}
 	gcm, err := cipher.NewGCM(ch)
 	if err != nil {
-		fmt.Println("222", err)
 		return nil, err
 	}
 	nonceSize := gcm.NonceSize()
@@ -202,46 +317,64 @@ func (c *Core) decryptAES(message []byte, key []byte) (decryptedMessage []byte, 
 	nonce, ciphertext := message[:nonceSize], message[nonceSize:]
 	decryptedMessage, err = gcm.Open(nil, nonce, ciphertext, nil)
 	if err != nil {
-		fmt.Println("3331", err)
 		return nil, err
 	}
 	return
 }
 
-func (c *Core) Write(_ context.Context, address string, data []byte) (err error) {
-	// find core
-	listenerFound := false
-	var listener *Listener
+func (c *Core) Call(_ context.Context, data []byte) (response []byte, err error) {
+	// [LID uint64, data []byte]
+
+	//fmt.Println("CALL")
+
+	if len(data) < 8 {
+		err = errors.New("len(data) < 8")
+		return
+	}
+
+	LID := binary.LittleEndian.Uint64(data)
+	var lFound bool
+	var l *Listener
 	c.mtx.Lock()
-	listener, listenerFound = c.listeners[address]
-	c.statReceivedWriteBytes += len(data)
-	c.statReceivedWriteRequests++
+	l, lFound = c.listenersByIndex[LID]
 	c.mtx.Unlock()
 
-	// push message
-	if listenerFound && listener != nil {
-		fmt.Println("XCHG --- write - ok")
-		err = listener.PushMessage(data)
+	if !lFound {
+		err = errors.New("no listener found")
+		return
+	}
+
+	if lFound && l != nil {
+		c.mtx.Lock()
+		msg := NewMessage(c.nextTransactionId, data[8:])
+		c.nextTransactionId++
+		c.mtx.Unlock()
+		fmt.Println("calling 1")
+		response, err = l.ExecRequest(msg)
+		fmt.Println("calling 2")
 	} else {
-		fmt.Println("XCHG --- write - no listener")
 		err = errors.New("no route to host")
 	}
 	return
 }
 
-func (c *Core) Ping(_ context.Context, address string) (listenerInfo string, err error) {
+func (c *Core) Ping(_ context.Context, data []byte) (result []byte, err error) {
+	//fmt.Println("Ping", base64.StdEncoding.EncodeToString(data))
 	var l *Listener
 	listenerFound := false
 	c.mtx.Lock()
-	l, listenerFound = c.listeners[address]
+	l, listenerFound = c.listenersByAddr[string(data)]
 	if !listenerFound {
 		err = errors.New("no route to host")
+		//fmt.Println("Ping: no route!!!!!!!!!!")
 	} else {
-		listenerInfo = l.LastGetDT().String()
+		result = make([]byte, 8)
+		binary.LittleEndian.PutUint64(result, l.id)
 	}
 
-	//c.statReceivedPingBytes = 0
-	c.statReceivedPingRequests++
+	/*for _, l = range c.listenersByAddr {
+		fmt.Println("Addr:", base64.StdEncoding.EncodeToString(l.publicKey))
+	}*/
 
 	c.mtx.Unlock()
 	return
@@ -264,7 +397,7 @@ type Info struct {
 func (c *Core) Info(_ context.Context) (info Info, err error) {
 	c.mtx.Lock()
 	info.DT = time.Now()
-	info.ListenerCount = len(c.listeners)
+	info.ListenerCount = len(c.listenersByAddr)
 	info.StatReceivedWriteBytes = c.statReceivedWriteBytes
 	info.StatReceivedWriteRequests = c.statReceivedWriteRequests
 	info.StatReceivedReadBytes = c.statReceivedReadBytes
@@ -288,13 +421,13 @@ func (c *Core) purgeRoutine() {
 		}
 
 		c.mtx.Lock()
-		for id, l := range c.listeners {
+		for lid, l := range c.listenersByIndex {
 			if time.Now().Sub(l.LastGetDT()) > time.Duration(c.config.Core.KeepDataTimeMs)*time.Millisecond {
-				logger.Println("purging", id)
-				delete(c.listeners, id)
+				logger.Println("purging", lid, l.publicKey)
+				delete(c.listenersByIndex, lid)
+				delete(c.listenersByAddr, string(l.publicKey))
 			}
 		}
-
 		c.mtx.Unlock()
 	}
 }
