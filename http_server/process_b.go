@@ -64,10 +64,7 @@ func (c *HttpServer) processB(ctx context.Context, w http.ResponseWriter, r *htt
 		c.writeError(w, err)
 		return
 	}
-
 	response64 := base64.StdEncoding.EncodeToString(result)
-	//fmt.Println("RESP: ", response64)
-
 	w.WriteHeader(200)
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	_, _ = w.Write([]byte(response64))
