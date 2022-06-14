@@ -81,6 +81,8 @@ func (c *HttpServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// client
 	case "b":
 		c.processB(ctx, w, r)
+	case "i":
+		c.processI(ctx, w, r)
 	default:
 		{
 			w.WriteHeader(400)

@@ -3,8 +3,6 @@ package http_server
 import (
 	"context"
 	"encoding/json"
-	"errors"
-	"github.com/ipoluianov/gomisc/http_tools"
 	"github.com/ipoluianov/xchg/core"
 	"net/http"
 )
@@ -13,14 +11,7 @@ func (c *HttpServer) processI(ctx context.Context, w http.ResponseWriter, r *htt
 	var err error
 	var info core.Info
 
-	ipAddr := http_tools.GetRealAddr(r, c.config.Http.UsingProxy)
-	_, _, _, limiterOK, _ := c.limiterStore.Take(ctx, ipAddr)
-
-	if !limiterOK {
-		err = errors.New("too frequent requests")
-	} else {
-		info, err = c.core.Info(r.Context())
-	}
+	info, err = c.core.Info(r.Context())
 
 	var bs []byte
 	bs, err = json.MarshalIndent(info, "", " ")

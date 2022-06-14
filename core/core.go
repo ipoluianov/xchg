@@ -325,7 +325,7 @@ func (c *Core) decryptAES(message []byte, key []byte) (decryptedMessage []byte, 
 func (c *Core) Call(_ context.Context, data []byte) (response []byte, err error) {
 	// [LID uint64, data []byte]
 
-	//fmt.Println("CALL")
+	fmt.Println("CALL")
 
 	if len(data) < 8 {
 		err = errors.New("len(data) < 8")
@@ -333,6 +333,7 @@ func (c *Core) Call(_ context.Context, data []byte) (response []byte, err error)
 	}
 
 	LID := binary.LittleEndian.Uint64(data)
+	fmt.Println("CALL LID", LID)
 	var lFound bool
 	var l *Listener
 	c.mtx.Lock()
@@ -340,6 +341,7 @@ func (c *Core) Call(_ context.Context, data []byte) (response []byte, err error)
 	c.mtx.Unlock()
 
 	if !lFound {
+		fmt.Println("CALL no LID found", LID)
 		err = errors.New("no listener found")
 		return
 	}
@@ -347,6 +349,7 @@ func (c *Core) Call(_ context.Context, data []byte) (response []byte, err error)
 	if lFound && l != nil {
 		c.mtx.Lock()
 		msg := NewMessage(c.nextTransactionId, data[8:])
+		fmt.Println("CALL LID found", LID, c.nextTransactionId)
 		c.nextTransactionId++
 		c.mtx.Unlock()
 		fmt.Println("calling 1")
@@ -360,13 +363,15 @@ func (c *Core) Call(_ context.Context, data []byte) (response []byte, err error)
 
 func (c *Core) Ping(_ context.Context, data []byte) (result []byte, err error) {
 	//fmt.Println("Ping", base64.StdEncoding.EncodeToString(data))
+	//fmt.Println("Public key:", )
+
 	var l *Listener
 	listenerFound := false
 	c.mtx.Lock()
 	l, listenerFound = c.listenersByAddr[string(data)]
 	if !listenerFound {
 		err = errors.New("no route to host")
-		//fmt.Println("Ping: no route!!!!!!!!!!")
+		fmt.Println("Ping: no route!!!!!!!!!!")
 	} else {
 		result = make([]byte, 8)
 		binary.LittleEndian.PutUint64(result, l.id)

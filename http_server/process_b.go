@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"net/http"
 )
 
@@ -54,6 +55,8 @@ func (c *HttpServer) processB(ctx context.Context, w http.ResponseWriter, r *htt
 		result, err = c.core.Call(ctx, data)
 	case FunctionCodePing:
 		result, err = c.core.Ping(ctx, data)
+	default:
+		fmt.Println("Wrong function", functionCode)
 	}
 
 	// Sending result
