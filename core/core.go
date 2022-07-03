@@ -168,7 +168,7 @@ func (c *Core) calcAddrKey(publicKey []byte) []byte {
 }
 
 func (c *Core) GetNextRequest(ctx context.Context, data []byte) (result []byte, err error) {
-	fmt.Println("GetNextRequest")
+	//fmt.Println("GetNextRequest")
 	// Input: [LID uint64, ENCRYPTED([COUNTER])
 	if len(data) < 8 {
 		err = errors.New("len(data) < 8")
@@ -243,7 +243,7 @@ func (c *Core) GetNextRequest(ctx context.Context, data []byte) (result []byte, 
 func (c *Core) PutResponse(_ context.Context, data []byte) (err error) {
 	// [LID uint64, ENCRYPTED([TransactionID uint64, data []byte])
 
-	fmt.Println("PutResponse")
+	//fmt.Println("PutResponse")
 
 	if len(data) < 8 {
 		err = errors.New("len(data) < 8")
@@ -326,7 +326,7 @@ func (c *Core) decryptAES(message []byte, key []byte) (decryptedMessage []byte, 
 func (c *Core) Call(_ context.Context, data []byte) (response []byte, err error) {
 	// [LID uint64, data []byte]
 
-	fmt.Println("CALL")
+	//fmt.Println("CALL")
 
 	if len(data) < 8 {
 		err = errors.New("len(data) < 8")
@@ -334,7 +334,7 @@ func (c *Core) Call(_ context.Context, data []byte) (response []byte, err error)
 	}
 
 	LID := binary.LittleEndian.Uint64(data)
-	fmt.Println("CALL LID", LID)
+	//fmt.Println("CALL LID", LID)
 	var lFound bool
 	var l *Listener
 	c.mtx.Lock()
@@ -342,7 +342,7 @@ func (c *Core) Call(_ context.Context, data []byte) (response []byte, err error)
 	c.mtx.Unlock()
 
 	if !lFound {
-		fmt.Println("CALL no LID found", LID)
+		//fmt.Println("CALL no LID found", LID)
 		err = errors.New("no listener found")
 		return
 	}
@@ -350,12 +350,12 @@ func (c *Core) Call(_ context.Context, data []byte) (response []byte, err error)
 	if lFound && l != nil {
 		c.mtx.Lock()
 		msg := NewMessage(c.nextTransactionId, data[8:])
-		fmt.Println("CALL LID found", LID, c.nextTransactionId)
+		//fmt.Println("CALL LID found", LID, c.nextTransactionId)
 		c.nextTransactionId++
 		c.mtx.Unlock()
-		fmt.Println("calling 1")
+		//fmt.Println("calling 1")
 		response, err = l.ExecRequest(msg)
-		fmt.Println("calling 2")
+		//fmt.Println("calling 2")
 	} else {
 		err = errors.New("no route to host")
 	}
