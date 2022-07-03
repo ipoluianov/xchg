@@ -12,11 +12,12 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/ipoluianov/gomisc/logger"
-	"github.com/ipoluianov/xchg/config"
 	"io"
 	"sync"
 	"time"
+
+	"github.com/ipoluianov/gomisc/logger"
+	"github.com/ipoluianov/xchg/config"
 )
 
 type Core struct {
@@ -148,7 +149,7 @@ func (c *Core) InitServer2(_ context.Context, data []byte) (result []byte, err e
 	// ENCRYPTED([ID uint64, COUNTER uint64])
 	result = make([]byte, 16)
 	binary.LittleEndian.PutUint64(result[0:], l.id)
-	binary.LittleEndian.PutUint64(result[8:], l.lastCounter)
+	binary.LittleEndian.PutUint64(result[8:], uint64(l.snakeCounter.LastProcessed()))
 	result, err = c.encryptAES(result, aesKey)
 	if err != nil {
 		return
@@ -200,10 +201,10 @@ func (c *Core) GetNextRequest(ctx context.Context, data []byte) (result []byte, 
 		return
 	}
 	counter := binary.LittleEndian.Uint64(counterBS)
-	if counter <= l.lastCounter {
+	err = l.snakeCounter.TestAndDeclare(int(counter))
+	if err != nil {
 		return nil, errors.New("[wrong counter]")
 	}
-	l.lastCounter = counter
 
 	waitingDurationInMilliseconds := int64(c.config.Http.LongPollingTimeoutMs)
 	waitingTick := int64(100)

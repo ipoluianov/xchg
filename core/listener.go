@@ -8,9 +8,10 @@ import (
 )
 
 type Listener struct {
-	id                   uint64
-	publicKey            []byte
-	lastCounter          uint64
+	id           uint64
+	publicKey    []byte
+	snakeCounter *SnakeCounter
+	//lastCounter          uint64
 	maxMessagesQueueSize int
 	maxMessageDataSize   int
 
@@ -26,7 +27,7 @@ func NewListener(id uint64, publicKey []byte) *Listener {
 	var c Listener
 	c.id = id
 	c.publicKey = publicKey
-	c.lastCounter = 0
+	c.snakeCounter = NewSnakeCounter(100, 0)
 	c.unsentRequests = make([]*Request, 0)
 	c.sentRequests = make([]*Request, 0)
 	c.maxMessagesQueueSize = 10
