@@ -30,8 +30,8 @@ func NewListener(id uint64, publicKey []byte) *Listener {
 	c.snakeCounter = NewSnakeCounter(100, 0)
 	c.unsentRequests = make([]*Request, 0)
 	c.sentRequests = make([]*Request, 0)
-	c.maxMessagesQueueSize = 10
-	c.maxMessageDataSize = 10 * 1024 * 1024
+	c.maxMessagesQueueSize = 1000           // TODO:
+	c.maxMessageDataSize = 10 * 1024 * 1024 // TODO:
 	return &c
 }
 
