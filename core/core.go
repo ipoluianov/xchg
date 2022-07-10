@@ -200,16 +200,18 @@ func (c *Core) GetNextRequest(ctx context.Context, data []byte) (result []byte, 
 	aesKey := c.calcAddrKey(l.publicKey)
 
 	encryptedCounter := data[8:]
-	var counterBS []byte
-	counterBS, err = c.decryptAES(encryptedCounter, aesKey)
+	var request []byte
+	request, err = c.decryptAES(encryptedCounter, aesKey)
 	if err != nil {
 		return
 	}
-	if len(counterBS) != 8 {
-		err = errors.New("len(counterBS) != 8")
+	if len(request) != 16 {
+		err = errors.New("len(request) != 16")
 		return
 	}
-	counter := binary.LittleEndian.Uint64(counterBS)
+	counter := binary.LittleEndian.Uint64(request)
+	maxResponseSizeBytes := int(binary.LittleEndian.Uint32(request[8:]))
+	_ = maxResponseSizeBytes
 	err = l.snakeCounter.TestAndDeclare(int(counter))
 	if err != nil {
 		return nil, errors.New("[wrong counter]")
@@ -219,32 +221,41 @@ func (c *Core) GetNextRequest(ctx context.Context, data []byte) (result []byte, 
 	waitingTick := int64(100)
 	waitingIterationCount := waitingDurationInMilliseconds / waitingTick
 
-	var request *Request
+	var frames []*Request
 
 	for i := int64(0); i < waitingIterationCount; i++ {
-		request = l.Pull()
+		frames = l.Pull(maxResponseSizeBytes)
 		if ctx.Err() != nil {
 			break
 		}
-		if request == nil {
+		if len(frames) < 1 {
 			time.Sleep(time.Duration(waitingTick) * time.Millisecond)
 			continue
 		}
 		break
 	}
 
-	if request != nil {
-		// ENCRYPTED(TransactionID uint64, data []byte)
-		result = make([]byte, len(request.Data)+8)
-		binary.LittleEndian.PutUint64(result, request.transactionId)
-		copy(result[8:], request.Data)
-		result, err = c.encryptAES(result, aesKey)
+	{
+		sizeOfResponse := 0
+		for _, frame := range frames {
+			sizeOfResponse += 4
+			sizeOfResponse += 8
+			sizeOfResponse += len(frame.Data)
+		}
+		framesBS := make([]byte, sizeOfResponse)
+		offset := 0
+		for _, frame := range frames {
+			binary.LittleEndian.PutUint32(framesBS[offset:], uint32(len(frame.Data)+12))
+			binary.LittleEndian.PutUint64(framesBS[offset+4:], frame.transactionId)
+			copy(framesBS[offset+12:], frame.Data)
+			offset += 12
+			offset += len(frame.Data)
+		}
+		result, err = c.encryptAES(framesBS, aesKey)
 		if err != nil {
 			return
 		}
 	}
-
-	//fmt.Println("no data")
 
 	return
 }

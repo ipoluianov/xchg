@@ -107,14 +107,17 @@ func (c *Listener) SetResponse(transactionId uint64, responseData []byte) {
 	c.mtx.Unlock()
 }
 
-func (c *Listener) Pull() (message *Request) {
+func (c *Listener) Pull(maxResponseSizeBytes int) (messages []*Request) {
+	messages = make([]*Request, 0)
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 	c.lastGetDT = time.Now()
-	if len(c.unsentRequests) > 0 {
-		message = c.unsentRequests[0]
+
+	for len(c.unsentRequests) > 0 {
+		r := c.unsentRequests[0]
+		messages = append(messages, r)
 		c.unsentRequests = c.unsentRequests[1:]
-		c.sentRequests = append(c.sentRequests, message)
+		c.sentRequests = append(c.sentRequests, r)
 	}
 	return
 }
