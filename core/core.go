@@ -44,6 +44,15 @@ type Core struct {
 	statReceivedInfoRequests  int
 }
 
+const (
+	FunctionCodeInitServer1 = byte(0x00)
+	FunctionCodeInitServer2 = byte(0x01)
+	FunctionCodeGetRequest  = byte(0x02)
+	FunctionCodePutResponse = byte(0x03)
+	FunctionCodeCall        = byte(0x04)
+	FunctionCodePing        = byte(0x05)
+)
+
 func NewCore(conf config.Config) *Core {
 	var c Core
 	c.config = conf
@@ -436,4 +445,32 @@ func (c *Core) purgeRoutine() {
 		}
 		c.mtx.Unlock()
 	}
+}
+
+func (c *Core) ProcessFrame(ctx context.Context, data []byte) (result []byte, err error) {
+	if len(data) < 1 {
+		return
+	}
+
+	functionCode := data[0]
+	data = data[1:]
+
+	// Executing function
+	switch functionCode {
+	case FunctionCodeInitServer1:
+		result, err = c.InitServer1(ctx, data)
+	case FunctionCodeInitServer2:
+		result, err = c.InitServer2(ctx, data)
+	case FunctionCodeGetRequest:
+		result, err = c.GetNextRequest(ctx, data)
+	case FunctionCodePutResponse:
+		err = c.PutResponse(ctx, data)
+	case FunctionCodeCall:
+		result, err = c.Call(ctx, data)
+	case FunctionCodePing:
+		result, err = c.Ping(ctx, data)
+	default:
+		fmt.Println("Wrong function", functionCode)
+	}
+	return
 }

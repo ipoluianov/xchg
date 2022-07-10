@@ -1,57 +1,98 @@
 package binserver
 
 import (
+	"context"
 	"encoding/binary"
 	"net"
+	"sync"
+
+	"github.com/ipoluianov/xchg/core"
 )
 
 type Connection struct {
-	conn net.Conn
+	conn         net.Conn
+	core         *core.Core
+	mtx          sync.Mutex
+	started      bool
+	stopping     bool
+	closed       bool
+	maxFrameSize int
 }
 
-func NewConnection(conn net.Conn) *Connection {
+func NewConnection(conn net.Conn, core *core.Core) *Connection {
 	var c Connection
 	c.conn = conn
+	c.core = core
+	c.maxFrameSize = 1024 * 1024 // TODO:
 	return &c
 }
 
 func (c *Connection) Start() {
-	go c.thReceive()
+	c.mtx.Lock()
+	if !c.started {
+		go c.thReceive()
+		c.started = true
+	}
+	c.mtx.Unlock()
 }
 
 func (c *Connection) Stop() {
+	c.mtx.Lock()
+	if !c.stopping {
+		c.stopping = true
+		if c.conn != nil {
+			c.conn.Close()
+			c.conn = nil
+		}
+	}
+	c.mtx.Unlock()
 }
 
 func (c *Connection) thReceive() {
 	var n int
 	var err error
-	incomingData := make([]byte, 0) // Max Frame size
-	rcvBuffer := make([]byte, 1024)
+	incomingData := make([]byte, c.maxFrameSize)
+	incomingDataOffset := 0
+
 	for {
-		n, err = c.conn.Read(rcvBuffer)
+		n, err = c.conn.Read(incomingData[incomingDataOffset:])
 		if n < 1 {
 			break
 		}
 		if err != nil {
 			break
 		}
-		incomingData = append(incomingData, rcvBuffer[:n]...)
+		incomingDataOffset += n
 		processedLen := 0
 		for {
 			// Find Signature
-			for processedLen < len(incomingData) && incomingData[processedLen] != 0xAA {
+			for processedLen < incomingDataOffset && incomingData[processedLen] != 0xAA {
 				processedLen++
 			}
-			if processedLen < len(incomingData)-8 && incomingData[processedLen] == 0xAA {
-				frameLen := binary.LittleEndian.Uint32(incomingData[processedLen:])
-				if frameLen < 8 || frameLen > 100*1024 {
+			// Find valid frame
+			if processedLen < incomingDataOffset-8 && incomingData[processedLen] == 0xAA {
+				frameLen := int(binary.LittleEndian.Uint32(incomingData[processedLen+4:]))
+
+				if frameLen < 8 || frameLen > c.maxFrameSize {
 					processedLen++
 					continue
 				}
-				if int(frameLen) <= len(incomingData[processedLen:]) {
-					processedLen += int(frameLen)
+
+				if frameLen > len(incomingData[processedLen:]) {
+					break // Not enough data
 				}
+
+				frame := make([]byte, frameLen)
+				copy(frame, incomingData[processedLen:processedLen+frameLen])
+				processedLen += frameLen
+
+				ctx := context.Background()
+
+				var result []byte
+				result, err = c.core.ProcessFrame(ctx, frame)
+				c.conn.Write(result)
 			}
 		}
 	}
+	c.closed = true
 }

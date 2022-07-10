@@ -2,16 +2,18 @@ package http_server
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
+	"log"
+	"net/http"
+	"time"
+
 	"github.com/ipoluianov/gomisc/http_tools"
 	"github.com/ipoluianov/gomisc/logger"
 	"github.com/ipoluianov/xchg/config"
 	"github.com/ipoluianov/xchg/core"
 	"github.com/sethvargo/go-limiter"
 	"github.com/sethvargo/go-limiter/memorystore"
-	"log"
-	"net/http"
-	"time"
 )
 
 type HttpServer struct {
@@ -21,11 +23,11 @@ type HttpServer struct {
 	config       config.Config
 }
 
-func NewHttpServer(conf config.Config) *HttpServer {
+func NewHttpServer(conf config.Config, core *core.Core) *HttpServer {
 	var err error
 	var c HttpServer
 
-	c.core = core.NewCore(conf)
+	c.core = core
 	c.config = conf
 
 	// Setup limiter
@@ -64,29 +66,45 @@ func (c *HttpServer) Stop() error {
 
 func (c *HttpServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
+	var result []byte
 
 	// Limiter
 	////////////////////////////////////////////////////////////
 	ipAddr := http_tools.GetRealAddr(r, c.config.Http.UsingProxy)
 	_, _, _, limiterOK, _ := c.limiterStore.Take(ctx, ipAddr)
 	if !limiterOK {
-		w.WriteHeader(404)
-		_, _ = w.Write([]byte("too frequent request"))
+		errString := []byte("too frequent request")
+		result = make([]byte, 1+len(errString))
+		result[0] = 1 // Error
+		copy(result, errString)
 		return
 	}
 	////////////////////////////////////////////////////////////
 
-	function := r.FormValue("f")
-	switch function {
-	// client
-	case "b":
-		c.processB(ctx, w, r)
-	case "i":
-		c.processI(ctx, w, r)
-	default:
-		{
-			w.WriteHeader(400)
-			_, _ = w.Write([]byte("need 'f'"))
+	data64 := r.FormValue("d")
+	data, err := base64.StdEncoding.DecodeString(data64)
+	if err != nil {
+		errString := []byte(err.Error())
+		result = make([]byte, 1+len(errString))
+		result[0] = 1 // Error
+		copy(result[1:], errString)
+	} else {
+		var processResult []byte
+		processResult, err = c.core.ProcessFrame(ctx, data)
+		if err != nil {
+			errString := []byte(err.Error())
+			result = make([]byte, 1+len(errString))
+			result[0] = 1 // Error
+			copy(result[1:], errString)
+		} else {
+			result = make([]byte, 1+len(processResult))
+			result[0] = 0 // Success
+			copy(result[1:], processResult)
 		}
 	}
+
+	response64 := base64.StdEncoding.EncodeToString(result)
+	w.WriteHeader(200)
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	_, _ = w.Write([]byte(response64))
 }

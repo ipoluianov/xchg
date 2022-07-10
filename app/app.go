@@ -3,16 +3,17 @@ package app
 import (
 	"flag"
 	"fmt"
+	"log"
+	"os"
+
 	"github.com/ipoluianov/gomisc/logger"
+	binserver "github.com/ipoluianov/xchg/bin_server"
 	"github.com/ipoluianov/xchg/config"
+	"github.com/ipoluianov/xchg/core"
 	"github.com/ipoluianov/xchg/http_server"
 	"github.com/kardianos/osext"
 	"github.com/kardianos/service"
-	"log"
-	"os"
 )
-
-var server *http_server.HttpServer
 
 var ServiceName string
 var ServiceDisplayName string
@@ -163,6 +164,10 @@ func (p *program) Stop(_ service.Service) error {
 
 /////////////////////////////
 
+var c *core.Core
+var httpServer *http_server.HttpServer
+var binServer *binserver.Server
+
 func Start() error {
 	logger.Println("Application Started")
 
@@ -172,13 +177,20 @@ func Start() error {
 		return err
 	}
 
-	server = http_server.NewHttpServer(conf)
-	server.Start()
+	c = core.NewCore(conf)
+
+	httpServer = http_server.NewHttpServer(conf, c)
+	httpServer.Start()
+
+	binServer = binserver.NewServer(c)
+	binServer.Start()
+
 	return nil
 }
 
 func Stop() {
-	_ = server.Stop()
+	_ = httpServer.Stop()
+	binServer.Stop()
 }
 
 func RunConsole() {

@@ -4,21 +4,25 @@ import (
 	"fmt"
 	"net"
 	"sync"
+
+	"github.com/ipoluianov/xchg/core"
 )
 
 type Server struct {
 	mtx         sync.Mutex
 	connections []*Connection
+	core        *core.Core
 }
 
-func NewServer() *Server {
+func NewServer(core *core.Core) *Server {
 	var c Server
+	c.core = core
 	c.connections = make([]*Connection, 0)
 	return &c
 }
 
 func (c *Server) Start() {
-
+	go c.thListen()
 }
 
 func (c *Server) Stop() {
@@ -39,7 +43,7 @@ func (c *Server) thListen() {
 		if err != nil {
 			break
 		}
-		connection := NewConnection(conn)
+		connection := NewConnection(conn, c.core)
 		c.mtx.Lock()
 		c.connections = append(c.connections, connection)
 		c.mtx.Unlock()
