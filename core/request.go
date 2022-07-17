@@ -2,7 +2,7 @@ package core
 
 import "time"
 
-type Request struct {
+type Transaction struct {
 	// Request
 	transactionId uint64
 	dt            time.Time
@@ -13,8 +13,8 @@ type Request struct {
 	ResponseData     []byte
 }
 
-func NewMessage(transactionId uint64, data []byte) *Request {
-	var c Request
+func NewTransaction(transactionId uint64, data []byte) *Transaction {
+	var c Transaction
 	c.dt = time.Now()
 	c.transactionId = transactionId
 	c.Data = data

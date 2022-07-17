@@ -1,7 +1,5 @@
-github.com/ipoluianov/gomisc v0.0.5 h1:dDkM50loHGKBy1qahbtWLfknYjesMP3NvJ1f7MR33z8=
-github.com/ipoluianov/gomisc v0.0.5/go.mod h1:3rlYbwz/L3LSguP2M+Png08EAWoXFxPXJ65uLhweiiU=
-github.com/ipoluianov/gomisc v0.0.6 h1:yCTfVETQiU81cRithsCRsq0WAe1a1WL1VIq7EUujO3Q=
-github.com/ipoluianov/gomisc v0.0.6/go.mod h1:3rlYbwz/L3LSguP2M+Png08EAWoXFxPXJ65uLhweiiU=
+github.com/ipoluianov/gomisc v0.0.10 h1:FB6yvnAtwDNWDyplNFl8QKsmsIERr3OpyZ+hn2pcsD4=
+github.com/ipoluianov/gomisc v0.0.10/go.mod h1:3rlYbwz/L3LSguP2M+Png08EAWoXFxPXJ65uLhweiiU=
 github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0 h1:iQTw/8FWTuc7uiaSepXwyf3o52HaUYcV+Tu66S3F5GA=
 github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0/go.mod h1:1NbS8ALrpOvjt0rHPNLyCIeMtbizbir8U//inJ+zuB8=
 github.com/kardianos/service v1.2.1 h1:AYndMsehS+ywIS6RB9KOlcXzteWUzxgMgBymJD7+BYk=

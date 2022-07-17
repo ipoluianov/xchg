@@ -15,9 +15,12 @@ type Http struct {
 }
 
 type Core struct {
-	MaxAddressSize  int `json:"max_address_size"`
-	PurgeIntervalMs int `json:"purge_interval_ms"`
-	KeepDataTimeMs  int `json:"keep_data_time_ms"`
+	MaxAddressSize    int `json:"max_address_size"`
+	PurgeIntervalMs   int `json:"purge_interval_ms"`
+	KeepDataTimeMs    int `json:"keep_data_time_ms"`
+	MaxListenersCount int `json:"max_listeners_count"`
+	MaxFrameSize      int `json:"max_frame_size"`
+	MaxQueueSize      int `json:"max_queue_size"`
 }
 
 type Config struct {
@@ -29,6 +32,9 @@ func LoadFromFile(filePath string) (conf Config, err error) {
 	conf.Core.PurgeIntervalMs = 5000
 	conf.Core.MaxAddressSize = 256
 	conf.Core.KeepDataTimeMs = 5000
+	conf.Core.MaxFrameSize = 1 * 1024 * 1024
+	conf.Core.MaxQueueSize = 10
+	conf.Core.MaxListenersCount = 1000
 
 	conf.Http.HttpPort = 8987
 	conf.Http.UsingProxy = false

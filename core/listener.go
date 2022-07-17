@@ -5,37 +5,42 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	"github.com/ipoluianov/gomisc/snake_counter"
+	"github.com/ipoluianov/xchg/config"
 )
 
 type Listener struct {
-	id           uint64
-	publicKey    []byte
-	snakeCounter *SnakeCounter
-	//lastCounter          uint64
+	id                   uint64
+	publicKey            []byte
+	snakeCounter         *snake_counter.SnakeCounter
 	maxMessagesQueueSize int
 	maxMessageDataSize   int
 
 	nextTransactionId uint64
-	unsentRequests    []*Request
-	sentRequests      []*Request
+	unsentRequests    []*Transaction
+	sentRequests      []*Transaction
 
 	mtx       sync.Mutex
 	lastGetDT time.Time
+
+	config config.Config
 }
 
-func NewListener(id uint64, publicKey []byte) *Listener {
+func NewListener(id uint64, publicKey []byte, config config.Config) *Listener {
 	var c Listener
+	c.config = config
 	c.id = id
 	c.publicKey = publicKey
-	c.snakeCounter = NewSnakeCounter(100, 0)
-	c.unsentRequests = make([]*Request, 0)
-	c.sentRequests = make([]*Request, 0)
-	c.maxMessagesQueueSize = 1000           // TODO:
-	c.maxMessageDataSize = 10 * 1024 * 1024 // TODO:
+	c.snakeCounter = snake_counter.NewSnakeCounter(100, 0)
+	c.unsentRequests = make([]*Transaction, 0)
+	c.sentRequests = make([]*Transaction, 0)
+	c.maxMessagesQueueSize = config.Core.MaxQueueSize
+	c.maxMessageDataSize = config.Core.MaxFrameSize
 	return &c
 }
 
-func (c *Listener) ExecRequest(msg *Request) (responseData []byte, err error) {
+func (c *Listener) ExecRequest(msg *Transaction) (responseData []byte, err error) {
 	err = c.Push(msg)
 	if err != nil {
 		return
@@ -43,7 +48,7 @@ func (c *Listener) ExecRequest(msg *Request) (responseData []byte, err error) {
 
 	timeout := 3 * time.Second
 	waitingDurationInMilliseconds := timeout.Milliseconds()
-	waitingTick := int64(100)
+	waitingTick := int64(5)
 	waitingIterationCount := waitingDurationInMilliseconds / waitingTick
 
 	for i := int64(0); i < waitingIterationCount; i++ {
@@ -76,7 +81,7 @@ func (c *Listener) ExecRequest(msg *Request) (responseData []byte, err error) {
 	return
 }
 
-func (c *Listener) Push(message *Request) error {
+func (c *Listener) Push(message *Transaction) error {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
@@ -97,18 +102,16 @@ func (c *Listener) SetResponse(transactionId uint64, responseData []byte) {
 	// find request
 	for _, req := range c.sentRequests {
 		if req.transactionId == transactionId {
-			//fmt.Println("Listener SetResponse", transactionId)
 			req.ResponseData = responseData
 			req.ResponseReceived = true
-			//c.messages = append(c.messages[:reqIndex], c.messages[reqIndex+1])
 			break
 		}
 	}
 	c.mtx.Unlock()
 }
 
-func (c *Listener) Pull(maxResponseSizeBytes int) (messages []*Request) {
-	messages = make([]*Request, 0)
+func (c *Listener) Pull(maxResponseSizeBytes int) (messages []*Transaction) {
+	messages = make([]*Transaction, 0)
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 	c.lastGetDT = time.Now()
