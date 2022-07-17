@@ -81,6 +81,10 @@ func (c *HttpServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		result = make([]byte, 1+len(errString))
 		result[0] = 1 // Error
 		copy(result, errString)
+		response64 := base64.StdEncoding.EncodeToString(result)
+		w.WriteHeader(502)
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		_, _ = w.Write([]byte(response64))
 		return
 	}
 	////////////////////////////////////////////////////////////
@@ -108,10 +112,12 @@ func (c *HttpServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				copy(result[1:], processResult)
 			}
 		}
+
 		response64 := base64.StdEncoding.EncodeToString(result)
 		w.WriteHeader(200)
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		_, _ = w.Write([]byte(response64))
+		//fmt.Println("RESP", response64)
 	} else {
 		c.processServiceFunction(f, w)
 	}

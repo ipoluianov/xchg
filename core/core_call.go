@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"fmt"
 )
 
 type CallStat struct {
@@ -70,5 +71,10 @@ func (c *Core) Call(_ context.Context, data []byte) (response []byte, err error)
 		c.statistics.Call.ProcessedWithError++
 	}
 	c.mtx.Unlock()
+
+	if len(response) == 0 {
+		fmt.Println("NULL RESPO")
+	}
+
 	return
 }
