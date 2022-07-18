@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
-	"fmt"
+	"time"
 )
 
 type CallStat struct {
@@ -13,6 +13,8 @@ type CallStat struct {
 	ErrorsNoListener   int64 `json:"errors_no_listener"`
 	Processed          int64 `json:"processed"`
 	ProcessedWithError int64 `json:"processed_with_error"`
+
+	TempDuration float64 `json:"duration"`
 }
 
 // Call remote function
@@ -20,6 +22,7 @@ type CallStat struct {
 // LID = [0:8]
 // Data = [8:]
 func (c *Core) Call(_ context.Context, data []byte) (response []byte, err error) {
+	dt1 := time.Now()
 	c.mtx.Lock()
 	c.statistics.Call.Received++
 	c.mtx.Unlock()
@@ -59,10 +62,12 @@ func (c *Core) Call(_ context.Context, data []byte) (response []byte, err error)
 	c.nextTransactionId++
 	c.mtx.Unlock()
 	msg := NewTransaction(transactionId, transactionData)
+	dt2 := time.Now()
 
 	// Run transaction
 	response, err = l.ExecRequest(msg)
 
+	dt3 := time.Now()
 	// Check transaction execution result
 	c.mtx.Lock()
 	if err == nil {
@@ -70,11 +75,12 @@ func (c *Core) Call(_ context.Context, data []byte) (response []byte, err error)
 	} else {
 		c.statistics.Call.ProcessedWithError++
 	}
+	dt4 := time.Now()
+	d1 := dt2.Sub(dt1)
+	d2 := dt4.Sub(dt3)
+	dSec := d1.Seconds() + d2.Seconds()
+	c.statistics.Call.TempDuration = dSec
 	c.mtx.Unlock()
-
-	if len(response) == 0 {
-		fmt.Println("NULL RESPO")
-	}
 
 	return
 }
