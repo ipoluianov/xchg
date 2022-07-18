@@ -98,7 +98,7 @@ func (c *Core) Pull(ctx context.Context, data []byte) (result []byte, err error)
 
 	// Prepare time durations
 	waitingDurationInMilliseconds := int64(c.config.Http.LongPollingTimeoutMs)
-	waitingTick := int64(20)
+	waitingTick := int64(1)
 	waitingIterationCount := waitingDurationInMilliseconds / waitingTick
 
 	// Get enqueued transactions
