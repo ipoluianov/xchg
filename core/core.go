@@ -22,6 +22,7 @@ type Core struct {
 	nextTransactionId uint64
 
 	stopPurgeRoutineCh chan struct{}
+	stopStatRoutineCh  chan struct{}
 
 	serverSecret []byte
 
@@ -68,7 +69,9 @@ func NewCore(conf config.Config) *Core {
 func (c *Core) Start() {
 	// sweeper
 	c.stopPurgeRoutineCh = make(chan struct{})
+	c.stopStatRoutineCh = make(chan struct{})
 	go c.purgeRoutine()
+	go c.statRoutine()
 }
 
 func (c *Core) Stop() {
@@ -100,10 +103,21 @@ func (c *Core) purgeRoutine() {
 				delete(c.listenersByAddr, string(l.publicKey))
 			}
 		}
+		c.mtx.Unlock()
+	}
+}
 
+func (c *Core) statRoutine() {
+	ticker := time.NewTicker(1000 * time.Millisecond)
+	for {
+		select {
+		case <-c.stopPurgeRoutineCh:
+			return
+		case <-ticker.C:
+		}
+
+		c.mtx.Lock()
 		duration := time.Now().Sub(c.lastStatisticsTick)
-
-		c.statistics.Core.RateCall = float64(c.statistics.Call.Received-c.lastStatistics.Call.Received) / duration.Seconds()
 
 		c.statistics.Core.RateCall = float64(c.statistics.Call.Received-c.lastStatistics.Call.Received) / duration.Seconds()
 		c.statistics.Core.RatePing = float64(c.statistics.Ping.Received-c.lastStatistics.Ping.Received) / duration.Seconds()
