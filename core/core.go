@@ -34,7 +34,13 @@ type Core struct {
 type CoreStat struct {
 	ErrorsWrongFunction int64 `json:"errors_wrong_function"`
 
-	RateCall float64 `json:"rate_call"`
+	RateCall  float64 `json:"rate_call"`
+	RatePing  float64 `json:"rate_ping"`
+	RateInfo  float64 `json:"rate_info"`
+	RatePull  float64 `json:"rate_pull"`
+	RatePut   float64 `json:"rate_put"`
+	RateInit1 float64 `json:"rate_init1"`
+	RateInit2 float64 `json:"rate_init2"`
 }
 
 const (
@@ -96,7 +102,16 @@ func (c *Core) purgeRoutine() {
 		}
 
 		duration := time.Now().Sub(c.lastStatisticsTick)
+
 		c.statistics.Core.RateCall = float64(c.statistics.Call.Received-c.lastStatistics.Call.Received) / duration.Seconds()
+
+		c.statistics.Core.RateCall = float64(c.statistics.Call.Received-c.lastStatistics.Call.Received) / duration.Seconds()
+		c.statistics.Core.RatePing = float64(c.statistics.Ping.Received-c.lastStatistics.Ping.Received) / duration.Seconds()
+		c.statistics.Core.RateInfo = float64(c.statistics.Info.Received-c.lastStatistics.Info.Received) / duration.Seconds()
+		c.statistics.Core.RatePull = float64(c.statistics.Pull.Received-c.lastStatistics.Pull.Received) / duration.Seconds()
+		c.statistics.Core.RatePut = float64(c.statistics.Put.Received-c.lastStatistics.Put.Received) / duration.Seconds()
+		c.statistics.Core.RateInit1 = float64(c.statistics.Init1.Received-c.lastStatistics.Init1.Received) / duration.Seconds()
+		c.statistics.Core.RateInit2 = float64(c.statistics.Init2.Received-c.lastStatistics.Init2.Received) / duration.Seconds()
 
 		c.lastStatistics = c.statistics
 		c.lastStatisticsTick = time.Now()
