@@ -23,5 +23,11 @@ func TuneFDs() {
 	if err != nil {
 		logger.Println("TuneFDs Getrlimit2 error: ", err)
 	}
+	var rLimit syscall.Rlimit
+	err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rLimit)
+	if err != nil {
+		logger.Println("TuneFDs Getrlimit2 error: ", err)
+	}
+	logger.Println("New limits:", rLimit)
 	logger.Println("TimeFDs end")
 }
