@@ -12,6 +12,7 @@ type PutStat struct {
 	Received         int64 `json:"received"`
 	ErrorsDataLen1   int64 `json:"errors_datalen_1"`
 	ErrorsNoListener int64 `json:"errors_no_listener"`
+	ErrorsNoAESKey   int64 `json:"errors_no_aes_key"`
 	ErrorsDecrypt    int64 `json:"errors_decrypt"`
 	ErrorsDataLen2   int64 `json:"errors_datalen_2"`
 	Success          int64 `json:"success"`
@@ -50,12 +51,19 @@ func (c *Core) Put(_ context.Context, data []byte) (err error) {
 	}
 
 	// Calculate AES-keyby PublicKey
-	aesKey := c.calcAddrKey(l.publicKey)
+	//aesKey := c.calcAddrKey(l.publicKey)
+	if len(l.aesKey) != 32 {
+		err = errors.New("no aes key")
+		c.mtx.Lock()
+		c.statistics.Put.ErrorsNoAESKey++
+		c.mtx.Unlock()
+		return
+	}
 
 	// Decrypt response
 	encryptedData := data[8:]
 	var decryptedData []byte
-	decryptedData, err = crypt_tools.DecryptAESGCM(encryptedData, aesKey)
+	decryptedData, err = crypt_tools.DecryptAESGCM(encryptedData, l.aesKey)
 	if err != nil {
 		c.mtx.Lock()
 		c.statistics.Put.ErrorsDecrypt++
