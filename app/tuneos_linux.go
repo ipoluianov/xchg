@@ -1,7 +1,7 @@
 package app
 
 import (
-	"github.com/gazercloud/sws/logger"
+	"github.com/ipoluianov/gomisc/logger"
 	"syscall"
 )
 
