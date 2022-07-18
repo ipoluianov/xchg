@@ -79,7 +79,7 @@ func (c *Core) Call(_ context.Context, data []byte) (response []byte, err error)
 	d1 := dt2.Sub(dt1)
 	d2 := dt4.Sub(dt3)
 	dSec := d1.Seconds() + d2.Seconds()
-	c.statistics.Call.TempDuration = dSec / 1000000.0
+	c.statistics.Call.TempDuration = dSec * 1000000.0
 	c.mtx.Unlock()
 
 	return
