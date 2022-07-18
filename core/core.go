@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ipoluianov/gomisc/logger"
 	"github.com/ipoluianov/xchg/config"
 )
 
@@ -26,11 +25,16 @@ type Core struct {
 
 	serverSecret []byte
 
+	lastStatisticsTick time.Time
+	lastStatistics     Statistics
+
 	statistics Statistics
 }
 
 type CoreStat struct {
 	ErrorsWrongFunction int64 `json:"errors_wrong_function"`
+
+	RateCall float64 `json:"rate_call"`
 }
 
 const (
@@ -49,6 +53,7 @@ func NewCore(conf config.Config) *Core {
 	c.listenersByAddr = make(map[string]*Listener)
 	c.listenersByIndex = make(map[uint64]*Listener)
 	c.serverSecret = make([]byte, 32)
+	c.lastStatisticsTick = time.Now()
 	//c.calls = make(map[uint64]*Transaction)
 	_, _ = rand.Read(c.serverSecret)
 	return &c
@@ -84,11 +89,17 @@ func (c *Core) purgeRoutine() {
 		c.mtx.Lock()
 		for lid, l := range c.listenersByIndex {
 			if time.Now().Sub(l.LastGetDT()) > time.Duration(c.config.Core.KeepDataTimeMs)*time.Millisecond {
-				logger.Println("purging", lid, l.publicKey)
+				//logger.Println("purging", lid, l.publicKey)
 				delete(c.listenersByIndex, lid)
 				delete(c.listenersByAddr, string(l.publicKey))
 			}
 		}
+
+		duration := time.Now().Sub(c.lastStatisticsTick)
+		c.statistics.Core.RateCall = float64(c.statistics.Call.Received-c.lastStatistics.Call.Received) / duration.Seconds()
+
+		c.lastStatistics = c.statistics
+		c.lastStatisticsTick = time.Now()
 		c.mtx.Unlock()
 	}
 }
