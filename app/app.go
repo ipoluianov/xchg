@@ -170,6 +170,7 @@ var binServer *binserver.Server
 
 func Start() error {
 	logger.Println("Application Started")
+	TuneFDs()
 
 	conf, err := config.LoadFromFile(logger.CurrentExePath() + "/" + "config.json")
 	if err != nil {
