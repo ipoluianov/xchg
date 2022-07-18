@@ -48,7 +48,7 @@ func (c *Listener) ExecRequest(msg *Transaction) (responseData []byte, err error
 
 	timeout := 3 * time.Second
 	waitingDurationInMilliseconds := timeout.Milliseconds()
-	waitingTick := int64(5)
+	waitingTick := int64(100)
 	waitingIterationCount := waitingDurationInMilliseconds / waitingTick
 
 	for i := int64(0); i < waitingIterationCount; i++ {
