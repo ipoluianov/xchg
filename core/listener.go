@@ -21,6 +21,8 @@ type Listener struct {
 	unsentRequests    []*Transaction
 	sentRequests      []*Transaction
 
+	aesKey []byte
+
 	mtx       sync.Mutex
 	lastGetDT time.Time
 
