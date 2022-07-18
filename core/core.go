@@ -76,6 +76,7 @@ func (c *Core) Start() {
 
 func (c *Core) Stop() {
 	close(c.stopPurgeRoutineCh)
+	close(c.stopStatRoutineCh)
 }
 
 func (c *Core) calcAddrKey(publicKey []byte) []byte {

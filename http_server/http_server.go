@@ -46,6 +46,7 @@ func NewHttpServer(conf config.Config, core *core.Core) *HttpServer {
 }
 
 func (c *HttpServer) Start() {
+	c.core.IncrementHttpServerStarted()
 	c.mtx.Lock()
 	c.srv = &http.Server{
 		Addr: ":" + fmt.Sprint(c.config.Http.HttpPort),
@@ -55,6 +56,7 @@ func (c *HttpServer) Start() {
 	go func() {
 		err := c.srv.ListenAndServe()
 		if err != nil {
+			c.core.IncrementHttpServerErrorsListen()
 			logger.Println("[HttpServer]", "[error]", "HttpServer thListen error: ", err)
 		}
 	}()
@@ -62,6 +64,7 @@ func (c *HttpServer) Start() {
 }
 
 func (c *HttpServer) Stop() error {
+	c.core.IncrementHttpServerStopped()
 	ctx := context.Background()
 	_ = c.limiterStore.Close(ctx)
 	c.core.Stop()
@@ -69,6 +72,8 @@ func (c *HttpServer) Stop() error {
 }
 
 func (c *HttpServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	c.core.IncrementHttpServerReceived()
+
 	ctx := context.Background()
 	var result []byte
 
@@ -77,6 +82,7 @@ func (c *HttpServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ipAddr := http_tools.GetRealAddr(r, c.config.Http.UsingProxy)
 	_, _, _, limiterOK, _ := c.limiterStore.Take(ctx, ipAddr)
 	if !limiterOK {
+		c.core.IncrementHttpServerErrorsLimiter()
 		errString := []byte("too frequent request")
 		result = make([]byte, 1+len(errString))
 		result[0] = 1 // Error
@@ -124,6 +130,9 @@ func (c *HttpServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *HttpServer) processServiceFunction(f string, w http.ResponseWriter) {
+
+	c.core.IncrementHttpServerServiceFunctions()
+
 	var result []byte
 	var err error
 	switch f {

@@ -13,6 +13,7 @@ type PullStat struct {
 	Received         int64 `json:"received"`
 	ErrorsDataLen1   int64 `json:"errors_datalen_1"`
 	ErrorsNoListener int64 `json:"errors_no_listener"`
+	ErrorsNoAESKey   int64 `json:"errors_no_aes_key"`
 	ErrorsDecrypt    int64 `json:"errors_decrypt"`
 	ErrorsDataLen2   int64 `json:"errors_datalen_2"`
 	ErrorsWrongNonce int64 `json:"errors_wrong_nonce"`
@@ -59,15 +60,20 @@ func (c *Core) Pull(ctx context.Context, data []byte) (result []byte, err error)
 		return
 	}
 
-	// Calculate AES key for the PublicKey of the Listener
-	aesKey := c.calcAddrKey(l.publicKey)
+	if len(l.aesKey) != 32 {
+		err = errors.New("no aes key")
+		c.mtx.Lock()
+		c.statistics.Pull.ErrorsNoAESKey++
+		c.mtx.Unlock()
+		return
+	}
 
 	// Get encrypted data
 	encryptedData := data[8:]
 
 	// Decrypt data
 	var request []byte
-	request, err = crypt_tools.DecryptAESGCM(encryptedData, aesKey)
+	request, err = crypt_tools.DecryptAESGCM(encryptedData, l.aesKey)
 	if err != nil {
 		c.mtx.Lock()
 		c.statistics.Pull.ErrorsDecrypt++
@@ -140,7 +146,7 @@ func (c *Core) Pull(ctx context.Context, data []byte) (result []byte, err error)
 		}
 
 		// Encrypt response
-		result, err = crypt_tools.EncryptAESGCM(framesBS, aesKey)
+		result, err = crypt_tools.EncryptAESGCM(framesBS, l.aesKey)
 		if err != nil {
 			c.mtx.Lock()
 			c.statistics.Pull.ErrorsEncrypt++

@@ -4,14 +4,16 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/ipoluianov/xchg/core"
 )
 
 type Server struct {
-	mtx         sync.Mutex
-	connections []*Connection
-	core        *core.Core
+	mtx                     sync.Mutex
+	connections             []*Connection
+	core                    *core.Core
+	stopBackgroundRoutineCh chan struct{}
 }
 
 func NewServer(core *core.Core) *Server {
@@ -22,11 +24,13 @@ func NewServer(core *core.Core) *Server {
 }
 
 func (c *Server) Start() {
+	c.stopBackgroundRoutineCh = make(chan struct{})
 	go c.thListen()
+	go c.backgroundOperations()
 }
 
 func (c *Server) Stop() {
-
+	close(c.stopBackgroundRoutineCh)
 }
 
 func (c *Server) thListen() {
@@ -48,5 +52,19 @@ func (c *Server) thListen() {
 		c.connections = append(c.connections, connection)
 		c.mtx.Unlock()
 		connection.Start()
+	}
+}
+
+func (c *Server) backgroundOperations() {
+	ticker := time.NewTicker(1000 * time.Millisecond)
+	for {
+		select {
+		case <-c.stopBackgroundRoutineCh:
+			return
+		case <-ticker.C:
+		}
+
+		c.mtx.Lock()
+		c.mtx.Unlock()
 	}
 }
