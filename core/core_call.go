@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"time"
 )
 
@@ -22,6 +23,7 @@ type CallStat struct {
 // LID = [0:8]
 // Data = [8:]
 func (c *Core) Call(_ context.Context, data []byte) (response []byte, err error) {
+	//fmt.Println("-------CALL-------")
 	dt1 := time.Now()
 	c.mtx.Lock()
 	c.statistics.Call.Received++
@@ -49,7 +51,7 @@ func (c *Core) Call(_ context.Context, data []byte) (response []byte, err error)
 
 	// No listener found
 	if !lFound || l == nil {
-		err = errors.New("no listener found")
+		err = errors.New("no listener found:" + fmt.Sprint(LID))
 		c.mtx.Lock()
 		c.statistics.Call.ErrorsNoListener++
 		c.mtx.Unlock()

@@ -19,7 +19,7 @@ type Listener struct {
 
 	nextTransactionId uint64
 	unsentRequests    []*Transaction
-	sentRequests      []*Transaction
+	sentRequests      map[uint64]*Transaction
 
 	aesKey []byte
 
@@ -36,7 +36,7 @@ func NewListener(id uint64, publicKey []byte, config config.Config) *Listener {
 	c.publicKey = publicKey
 	c.snakeCounter = snake_counter.NewSnakeCounter(100, 0)
 	c.unsentRequests = make([]*Transaction, 0)
-	c.sentRequests = make([]*Transaction, 0)
+	c.sentRequests = make(map[uint64]*Transaction)
 	c.maxMessagesQueueSize = config.Core.MaxQueueSize
 	c.maxMessageDataSize = config.Core.MaxFrameSize
 	return &c
@@ -50,7 +50,7 @@ func (c *Listener) ExecRequest(msg *Transaction) (responseData []byte, err error
 
 	timeout := 3 * time.Second
 	waitingDurationInMilliseconds := timeout.Milliseconds()
-	waitingTick := int64(1)
+	waitingTick := int64(10)
 	waitingIterationCount := waitingDurationInMilliseconds / waitingTick
 
 	for i := int64(0); i < waitingIterationCount; i++ {
@@ -66,24 +66,14 @@ func (c *Listener) ExecRequest(msg *Transaction) (responseData []byte, err error
 	}
 
 	c.mtx.Lock()
-	for i, req := range c.unsentRequests {
-		if req.transactionId == msg.transactionId {
-			c.unsentRequests = append(c.unsentRequests[:i], c.unsentRequests[i+1:]...)
-			break
-		}
-	}
-	for i, req := range c.sentRequests {
-		if req.transactionId == msg.transactionId {
-			c.sentRequests = append(c.sentRequests[:i], c.sentRequests[i+1:]...)
-			break
-		}
-	}
+	delete(c.sentRequests, msg.transactionId)
 	c.mtx.Unlock()
 
 	return
 }
 
 func (c *Listener) Push(message *Transaction) error {
+	//fmt.Println("<< Push")
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
@@ -113,17 +103,23 @@ func (c *Listener) SetResponse(transactionId uint64, responseData []byte) {
 }
 
 func (c *Listener) Pull(maxResponseSizeBytes int) (messages []*Transaction) {
+	//fmt.Println("Pull------------------")
 	messages = make([]*Transaction, 0)
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 	c.lastGetDT = time.Now()
 
-	for len(c.unsentRequests) > 0 {
-		r := c.unsentRequests[0]
-		messages = append(messages, r)
-		c.unsentRequests = c.unsentRequests[1:]
-		c.sentRequests = append(c.sentRequests, r)
+	if len(c.unsentRequests) < 10 {
+		return
 	}
+
+	messages = c.unsentRequests
+	//fmt.Println(len(messages))
+	for _, t := range messages {
+		c.sentRequests[t.transactionId] = t
+	}
+	c.unsentRequests = make([]*Transaction, 0)
+
 	return
 }
 

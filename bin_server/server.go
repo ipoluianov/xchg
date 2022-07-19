@@ -65,6 +65,19 @@ func (c *Server) backgroundOperations() {
 		}
 
 		c.mtx.Lock()
+
+		found := true
+		for found {
+			found = false
+			for i, conn := range c.connections {
+				if conn.closed {
+					found = true
+					c.connections = append(c.connections[:i], c.connections[i+1:]...)
+					break
+				}
+			}
+		}
+
 		c.mtx.Unlock()
 	}
 }

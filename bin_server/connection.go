@@ -3,6 +3,8 @@ package binserver
 import (
 	"context"
 	"encoding/binary"
+	"errors"
+	"fmt"
 	"net"
 	"sync"
 
@@ -13,6 +15,7 @@ type Connection struct {
 	conn         net.Conn
 	core         *core.Core
 	mtx          sync.Mutex
+	mtxSend      sync.Mutex
 	started      bool
 	stopping     bool
 	closed       bool
@@ -55,44 +58,116 @@ func (c *Connection) thReceive() {
 	incomingDataOffset := 0
 
 	for {
+		//fmt.Println("Read ...")
 		n, err = c.conn.Read(incomingData[incomingDataOffset:])
-		if n < 1 {
+		//fmt.Println("received:", n, "bytes")
+		if n < 0 {
+			fmt.Println("n < 0")
 			break
 		}
 		if err != nil {
+			fmt.Println("err", err)
 			break
 		}
 		incomingDataOffset += n
 		processedLen := 0
+		frames := 0
 		for {
 			// Find Signature
 			for processedLen < incomingDataOffset && incomingData[processedLen] != 0xAA {
 				processedLen++
 			}
-			// Find valid frame
-			if processedLen < incomingDataOffset-8 && incomingData[processedLen] == 0xAA {
-				frameLen := int(binary.LittleEndian.Uint32(incomingData[processedLen+4:]))
 
-				if frameLen < 8 || frameLen > c.maxFrameSize {
-					processedLen++
-					continue
-				}
-
-				if frameLen > len(incomingData[processedLen:]) {
-					break // Not enough data
-				}
-
-				frame := make([]byte, frameLen)
-				copy(frame, incomingData[processedLen:processedLen+frameLen])
-				processedLen += frameLen
-
-				ctx := context.Background()
-
-				var result []byte
-				result, err = c.core.ProcessFrame(ctx, frame)
-				c.conn.Write(result)
+			restBytes := incomingDataOffset - processedLen
+			if restBytes < 8 {
+				break
 			}
+
+			// Get header
+			signature := binary.LittleEndian.Uint32(incomingData[processedLen:])
+			_ = signature
+			frameLen := int(binary.LittleEndian.Uint32(incomingData[processedLen+4:]))
+
+			// Check frame size
+			if frameLen < 8 || frameLen > c.maxFrameSize {
+				// ERROR: wrong frame size
+				err = errors.New("wrong frame size")
+				break
+			}
+
+			if restBytes < frameLen {
+				break
+			}
+
+			frame := make([]byte, frameLen-8)
+			copy(frame, incomingData[processedLen+8:processedLen+frameLen])
+			go c.thProcessFrame(signature, c.conn, frame)
+
+			processedLen += frameLen
+			frames++
 		}
+
+		if err != nil {
+			fmt.Println("err end", err)
+			break
+		}
+
+		for i := processedLen; i < incomingDataOffset; i++ {
+			incomingData[i-processedLen] = incomingData[i]
+		}
+		incomingDataOffset -= processedLen
+		//fmt.Println("Processes frames", frames, incomingDataOffset)
 	}
+
+	if c.conn != nil {
+		c.conn.Close()
+	}
+	c.conn = nil
+
 	c.closed = true
+}
+
+func (c *Connection) thProcessFrame(signature uint32, conn net.Conn, frame []byte) {
+	var err error
+	var n int
+	ctx := context.Background()
+
+	var processResult []byte
+	var result []byte
+	processResult, err = c.core.ProcessFrame(ctx, frame)
+
+	if err != nil {
+		errString := []byte(err.Error())
+		responseLen := 9 + len(errString)
+		result = make([]byte, responseLen)
+		binary.LittleEndian.PutUint32(result, signature)
+		binary.LittleEndian.PutUint32(result[4:], uint32(responseLen))
+		result[8] = 1 // Error
+		copy(result[9:], errString)
+	} else {
+		responseLen := 9 + len(processResult)
+		result = make([]byte, responseLen)
+		binary.LittleEndian.PutUint32(result, signature)
+		binary.LittleEndian.PutUint32(result[4:], uint32(responseLen))
+		result[8] = 0 // Success
+		copy(result[9:], processResult)
+	}
+
+	c.mtxSend.Lock()
+	sentBytes := 0
+	for sentBytes < len(result) {
+		n, err = conn.Write(result[sentBytes:])
+		if err != nil {
+			break
+		}
+		if n < 1 {
+			break
+		}
+		sentBytes += n
+	}
+
+	if sentBytes != len(result) {
+		err = errors.New("sending response error")
+	}
+	c.mtxSend.Unlock()
 }

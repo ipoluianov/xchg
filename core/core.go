@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -135,12 +136,15 @@ func (c *Core) statRoutine() {
 }
 
 func (c *Core) ProcessFrame(ctx context.Context, data []byte) (result []byte, err error) {
+
 	if len(data) < 1 {
+		fmt.Println("Received Enpty Frame:")
 		return
 	}
 
 	functionCode := data[0]
 	data = data[1:]
+	//fmt.Println("Received Frame:", functionCode)
 
 	// Executing function
 	switch functionCode {
