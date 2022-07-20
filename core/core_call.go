@@ -24,9 +24,9 @@ type CallStat struct {
 func (c *Core) Call(_ context.Context, data []byte) (response []byte, err error) {
 	//fmt.Println("-------CALL-------")
 	//dt1 := time.Now()
-	/*c.mtx.Lock()
+	c.mtx.Lock()
 	c.statistics.Call.Received++
-	c.mtx.Unlock()*/
+	c.mtx.Unlock()
 
 	// Get LID
 	if len(data) < 8 {
