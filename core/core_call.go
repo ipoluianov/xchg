@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"time"
 )
 
 type CallStat struct {
@@ -24,10 +23,10 @@ type CallStat struct {
 // Data = [8:]
 func (c *Core) Call(_ context.Context, data []byte) (response []byte, err error) {
 	//fmt.Println("-------CALL-------")
-	dt1 := time.Now()
-	c.mtx.Lock()
+	//dt1 := time.Now()
+	/*c.mtx.Lock()
 	c.statistics.Call.Received++
-	c.mtx.Unlock()
+	c.mtx.Unlock()*/
 
 	// Get LID
 	if len(data) < 8 {
@@ -64,14 +63,14 @@ func (c *Core) Call(_ context.Context, data []byte) (response []byte, err error)
 	c.nextTransactionId++
 	c.mtx.Unlock()
 	msg := NewTransaction(transactionId, transactionData)
-	dt2 := time.Now()
+	//dt2 := time.Now()
 
 	// Run transaction
 	response, err = l.ExecRequest(msg)
 
-	dt3 := time.Now()
+	//dt3 := time.Now()
 	// Check transaction execution result
-	c.mtx.Lock()
+	/*c.mtx.Lock()
 	if err == nil {
 		c.statistics.Call.Processed++
 	} else {
@@ -82,7 +81,7 @@ func (c *Core) Call(_ context.Context, data []byte) (response []byte, err error)
 	d2 := dt4.Sub(dt3)
 	dSec := d1.Seconds() + d2.Seconds()
 	c.statistics.Call.TempDuration = dSec * 1000000.0
-	c.mtx.Unlock()
+	c.mtx.Unlock()*/
 
 	return
 }
