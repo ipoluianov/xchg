@@ -111,6 +111,7 @@ func (c *Listener) Pull(maxResponseSizeBytes int) (messages []*Transaction) {
 		if summarySize+len(t.Data) > maxResponseSizeBytes {
 			break
 		}
+		summarySize += len(t.Data)
 		messages = append(messages, t)
 		c.sentRequests[t.transactionId] = t
 		processedTransactions++

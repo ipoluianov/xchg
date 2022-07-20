@@ -28,7 +28,7 @@ func (c *Core) Put(_ context.Context, data []byte) (err error) {
 
 	// Get LID
 	if len(data) < 8 {
-		err = errors.New("len(data) < 8")
+		err = errors.New("#XCHG_PUT_DATA_LEN_LID#")
 		c.mtx.Lock()
 		c.statistics.Put.ErrorsDataLen1++
 		c.mtx.Unlock()
@@ -43,7 +43,7 @@ func (c *Core) Put(_ context.Context, data []byte) (err error) {
 	l, lFound = c.listenersByIndex[LID]
 	c.mtx.Unlock()
 	if !lFound || l == nil {
-		err = errors.New("no listener found")
+		err = errors.New("#XCHG_NO_LISTENER_FOUND#")
 		c.mtx.Lock()
 		c.statistics.Put.ErrorsNoListener++
 		c.mtx.Unlock()
@@ -51,9 +51,8 @@ func (c *Core) Put(_ context.Context, data []byte) (err error) {
 	}
 
 	// Calculate AES-keyby PublicKey
-	//aesKey := c.calcAddrKey(l.publicKey)
 	if len(l.aesKey) != 32 {
-		err = errors.New("no aes key")
+		err = errors.New("#XCHG_NO_AES_KEY#")
 		c.mtx.Lock()
 		c.statistics.Put.ErrorsNoAESKey++
 		c.mtx.Unlock()
@@ -73,7 +72,7 @@ func (c *Core) Put(_ context.Context, data []byte) (err error) {
 
 	// Get Transaction ID
 	if len(decryptedData) < 8 {
-		err = errors.New("len(decryptedData) < 8")
+		err = errors.New("#XCHG_PUT_DATA_LEN_TR_ID#")
 		c.mtx.Lock()
 		c.statistics.Put.ErrorsDataLen2++
 		c.mtx.Unlock()

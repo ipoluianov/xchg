@@ -53,7 +53,7 @@ func (c *Core) Pull(ctx context.Context, data []byte) (result []byte, err error)
 
 	// No listener found
 	if !lFound || l == nil {
-		err = errors.New("no listener found")
+		err = errors.New("#NO_LISTENER_FOUND#")
 		c.mtx.Lock()
 		c.statistics.Pull.ErrorsNoListener++
 		c.mtx.Unlock()
@@ -91,7 +91,6 @@ func (c *Core) Pull(ctx context.Context, data []byte) (result []byte, err error)
 	}
 	nonce := binary.LittleEndian.Uint64(request)
 	maxResponseSizeBytes := int(binary.LittleEndian.Uint32(request[8:]))
-	_ = maxResponseSizeBytes
 
 	// Test nonce
 	err = l.snakeCounter.TestAndDeclare(int(nonce))

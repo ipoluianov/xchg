@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"net"
 	"sync"
 
@@ -58,15 +57,11 @@ func (c *Connection) thReceive() {
 	incomingDataOffset := 0
 
 	for {
-		//fmt.Println("Read ...")
 		n, err = c.conn.Read(incomingData[incomingDataOffset:])
-		//fmt.Println("received:", n, "bytes")
 		if n < 0 {
-			fmt.Println("n < 0")
 			break
 		}
 		if err != nil {
-			fmt.Println("err", err)
 			break
 		}
 		incomingDataOffset += n
@@ -108,7 +103,6 @@ func (c *Connection) thReceive() {
 		}
 
 		if err != nil {
-			fmt.Println("err end", err)
 			break
 		}
 
@@ -116,7 +110,6 @@ func (c *Connection) thReceive() {
 			incomingData[i-processedLen] = incomingData[i]
 		}
 		incomingDataOffset -= processedLen
-		//fmt.Println("Processes frames", frames, incomingDataOffset)
 	}
 
 	if c.conn != nil {

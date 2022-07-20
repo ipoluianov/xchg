@@ -51,7 +51,7 @@ func (c *Core) Call(_ context.Context, data []byte) (response []byte, err error)
 
 	// No listener found
 	if !lFound || l == nil {
-		err = errors.New("no listener found:" + fmt.Sprint(LID))
+		err = errors.New("#NO_LISTENER_FOUND#" + fmt.Sprint(LID))
 		c.mtx.Lock()
 		c.statistics.Call.ErrorsNoListener++
 		c.mtx.Unlock()
