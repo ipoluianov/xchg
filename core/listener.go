@@ -73,7 +73,6 @@ func (c *Listener) ExecRequest(msg *Transaction) (responseData []byte, err error
 }
 
 func (c *Listener) Push(message *Transaction) error {
-	//fmt.Println("<< Push")
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
@@ -92,33 +91,31 @@ func (c *Listener) Push(message *Transaction) error {
 func (c *Listener) SetResponse(transactionId uint64, responseData []byte) {
 	c.mtx.Lock()
 	// find request
-	for _, req := range c.sentRequests {
-		if req.transactionId == transactionId {
-			req.ResponseData = responseData
-			req.ResponseReceived = true
-			break
-		}
+	tr, ok := c.sentRequests[transactionId]
+	if ok && tr != nil {
+		tr.ResponseData = responseData
+		tr.ResponseReceived = true
 	}
 	c.mtx.Unlock()
 }
 
 func (c *Listener) Pull(maxResponseSizeBytes int) (messages []*Transaction) {
-	//fmt.Println("Pull------------------")
 	messages = make([]*Transaction, 0)
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 	c.lastGetDT = time.Now()
 
-	if len(c.unsentRequests) < 10 {
-		return
-	}
-
-	messages = c.unsentRequests
-	//fmt.Println(len(messages))
-	for _, t := range messages {
+	summarySize := 0
+	processedTransactions := 0
+	for _, t := range c.unsentRequests {
+		if summarySize+len(t.Data) > maxResponseSizeBytes {
+			break
+		}
+		messages = append(messages, t)
 		c.sentRequests[t.transactionId] = t
+		processedTransactions++
 	}
-	c.unsentRequests = make([]*Transaction, 0)
+	c.unsentRequests = c.unsentRequests[processedTransactions:]
 
 	return
 }
