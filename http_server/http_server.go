@@ -106,7 +106,7 @@ func (c *HttpServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			copy(result[1:], errString)
 		} else {
 			var processResult []byte
-			processResult, err = c.core.ProcessFrame(ctx, data)
+			processResult, err = c.core.ProcessFrame(ctx, data, nil)
 			if err != nil {
 				errString := []byte(err.Error())
 				result = make([]byte, 1+len(errString))

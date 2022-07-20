@@ -1,11 +1,13 @@
 package core
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"sync"
 	"time"
 
+	"github.com/ipoluianov/gomisc/crypt_tools"
 	"github.com/ipoluianov/gomisc/snake_counter"
 	"github.com/ipoluianov/xchg/config"
 )
@@ -21,6 +23,8 @@ type Listener struct {
 	unsentRequests    []*Transaction
 	sentRequests      map[uint64]*Transaction
 
+	binConnection BinConnection
+
 	aesKey []byte
 
 	mtx       sync.Mutex
@@ -29,10 +33,11 @@ type Listener struct {
 	config config.Config
 }
 
-func NewListener(id uint64, publicKey []byte, config config.Config) *Listener {
+func NewListener(id uint64, publicKey []byte, config config.Config, binConnection BinConnection) *Listener {
 	var c Listener
 	c.config = config
 	c.id = id
+	c.binConnection = binConnection
 	c.publicKey = publicKey
 	c.snakeCounter = snake_counter.NewSnakeCounter(100, 0)
 	c.unsentRequests = make([]*Transaction, 0)
@@ -73,8 +78,23 @@ func (c *Listener) ExecRequest(msg *Transaction) (responseData []byte, err error
 }
 
 func (c *Listener) Push(message *Transaction) error {
+	var err error
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
+
+	if c.binConnection != nil {
+		framesBS := make([]byte, 12+len(message.Data))
+		binary.LittleEndian.PutUint32(framesBS[0:], uint32(len(message.Data)+12)) // Size of chunk
+		binary.LittleEndian.PutUint64(framesBS[4:], message.transactionId)        // Transaction ID
+		copy(framesBS[12:], message.Data)                                         // Data
+		framesBS, err = crypt_tools.EncryptAESGCM(framesBS, c.aesKey)
+		if err == nil {
+			//fmt.Println("SEND PUSH: ", framesBS)
+			c.binConnection.Send(framesBS, 0x000000AA, nil)
+			c.sentRequests[message.transactionId] = message
+			return nil
+		}
+	}
 
 	if len(c.unsentRequests) >= c.maxMessagesQueueSize {
 		return errors.New("queue overflow")

@@ -28,7 +28,7 @@ type Init2Stat struct {
 // Response 16 bytes:
 // LID = [0:8]
 // Nonce = [8:16]
-func (c *Core) Init2(_ context.Context, data []byte) (result []byte, err error) {
+func (c *Core) Init2(_ context.Context, data []byte, binConnection BinConnection) (result []byte, err error) {
 	c.mtx.Lock()
 	c.statistics.Init2.Received++
 	c.mtx.Unlock()
@@ -104,7 +104,7 @@ func (c *Core) Init2(_ context.Context, data []byte) (result []byte, err error) 
 	if !listenerFound {
 		c.nextListenerId++
 		listenerId := c.nextListenerId
-		l = NewListener(listenerId, publicKey, c.config)
+		l = NewListener(listenerId, publicKey, c.config, binConnection)
 		c.listenersByAddr[string(publicKey)] = l
 		c.listenersByIndex[listenerId] = l
 		l.aesKey = aesKey

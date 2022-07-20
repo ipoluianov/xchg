@@ -33,6 +33,11 @@ type Core struct {
 	statistics Statistics
 }
 
+type BinConnection interface {
+	Send(processResult []byte, signature uint32, err error)
+	IsValid() bool
+}
+
 type CoreStat struct {
 	ErrorsWrongFunction int64 `json:"errors_wrong_function"`
 
@@ -135,7 +140,7 @@ func (c *Core) statRoutine() {
 	}
 }
 
-func (c *Core) ProcessFrame(ctx context.Context, data []byte) (result []byte, err error) {
+func (c *Core) ProcessFrame(ctx context.Context, data []byte, binConnection BinConnection) (result []byte, err error) {
 
 	if len(data) < 1 {
 		fmt.Println("Received Enpty Frame:")
@@ -151,7 +156,7 @@ func (c *Core) ProcessFrame(ctx context.Context, data []byte) (result []byte, er
 	case FunctionCodeInit1:
 		result, err = c.Init1(ctx, data)
 	case FunctionCodeInit2:
-		result, err = c.Init2(ctx, data)
+		result, err = c.Init2(ctx, data, binConnection)
 	case FunctionCodePull:
 		result, err = c.Pull(ctx, data)
 	case FunctionCodePut:

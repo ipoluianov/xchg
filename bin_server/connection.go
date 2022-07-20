@@ -122,13 +122,32 @@ func (c *Connection) thReceive() {
 
 func (c *Connection) thProcessFrame(signature uint32, conn net.Conn, frame []byte) {
 	var err error
-	var n int
 	ctx := context.Background()
 
 	var processResult []byte
-	var result []byte
-	processResult, err = c.core.ProcessFrame(ctx, frame)
+	processResult, err = c.core.ProcessFrame(ctx, frame, c)
+	c.Send(processResult, signature, err)
+}
 
+func (c *Connection) IsValid() bool {
+	if c.closed {
+		return false
+	}
+	return true
+}
+
+func (c *Connection) Send(processResult []byte, signature uint32, err error) {
+	var conn net.Conn
+	c.mtx.Lock()
+	conn = c.conn
+	c.mtx.Unlock()
+
+	if conn == nil {
+		return
+	}
+
+	var n int
+	var result []byte
 	if err != nil {
 		errString := []byte(err.Error())
 		responseLen := 9 + len(errString)
