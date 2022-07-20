@@ -54,41 +54,21 @@ func (c *Listener) ExecRequest(msg *Transaction) (responseData []byte, err error
 	}
 
 	timeout := 3 * time.Second
-	//waitingDurationInMilliseconds := timeout.Milliseconds()
-	//waitingTick := int64(10)
-	//waitingIterationCount := waitingDurationInMilliseconds / waitingTick
+	waitingDurationInMilliseconds := timeout.Milliseconds()
+	waitingTick := int64(10)
+	waitingIterationCount := waitingDurationInMilliseconds / waitingTick
 
-	ticker := time.NewTicker(timeout)
-	hasTimeout := false
-	for {
-		select {
-		case <-msg.ResponseReceivedCh:
-		case <-ticker.C:
-			hasTimeout = true
-		}
-		if hasTimeout || msg.ResponseReceived {
-			break
-		}
-	}
-
-	if hasTimeout {
-		err = errors.New("xchg<->server - call timeout")
-	}
-
-	if msg.ResponseReceived {
-		responseData = msg.ResponseData
-	}
-
-	/*for i := int64(0); i < waitingIterationCount; i++ {
+	for i := int64(0); i < waitingIterationCount; i++ {
 		if msg.ResponseReceived {
 			responseData = msg.ResponseData
 			break
 		}
-		//time.Sleep(time.Duration(waitingTick) * time.Millisecond)
+		time.Sleep(time.Duration(waitingTick) * time.Millisecond)
 	}
 
 	if responseData == nil {
-	}*/
+		err = errors.New("xchg<->server - call timeout")
+	}
 
 	c.mtx.Lock()
 	delete(c.sentRequests, msg.transactionId)
@@ -135,7 +115,6 @@ func (c *Listener) SetResponse(transactionId uint64, responseData []byte) {
 	if ok && tr != nil {
 		tr.ResponseData = responseData
 		tr.ResponseReceived = true
-		close(tr.ResponseReceivedCh)
 	}
 	c.mtx.Unlock()
 }

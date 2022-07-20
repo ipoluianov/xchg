@@ -9,9 +9,8 @@ type Transaction struct {
 	Data          []byte
 
 	// Response
-	ResponseReceivedCh chan struct{}
-	ResponseReceived   bool
-	ResponseData       []byte
+	ResponseReceived bool
+	ResponseData     []byte
 }
 
 func NewTransaction(transactionId uint64, data []byte) *Transaction {
@@ -19,6 +18,5 @@ func NewTransaction(transactionId uint64, data []byte) *Transaction {
 	c.dt = time.Now()
 	c.transactionId = transactionId
 	c.Data = data
-	c.ResponseReceivedCh = make(chan struct{})
 	return &c
 }
