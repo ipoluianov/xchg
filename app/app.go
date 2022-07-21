@@ -183,7 +183,7 @@ func Start() error {
 	httpServer = http_server.NewHttpServer(conf, c)
 	httpServer.Start()
 
-	binServer = binserver.NewServer(c)
+	binServer = binserver.NewServer(conf, c)
 	binServer.Start()
 
 	return nil

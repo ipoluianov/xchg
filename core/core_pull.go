@@ -29,7 +29,7 @@ type PullStat struct {
 // EncryptedData:
 // Nonce = [0:8]
 // Max Bytes Count = [8:12]
-func (c *Core) Pull(ctx context.Context, data []byte) (result []byte, err error) {
+func (c *Core) Pull(ctx context.Context, data []byte, binConnection BinConnection, signature uint32) (result []byte, err error) {
 	c.mtx.Lock()
 	c.statistics.Pull.Received++
 	c.mtx.Unlock()
@@ -102,8 +102,8 @@ func (c *Core) Pull(ctx context.Context, data []byte) (result []byte, err error)
 	}
 
 	// Prepare time durations
-	waitingDurationInMilliseconds := int64(c.config.Http.LongPollingTimeoutMs)
-	waitingTick := int64(10)
+	waitingDurationInMilliseconds := int64(2000)
+	waitingTick := int64(100)
 	waitingIterationCount := waitingDurationInMilliseconds / waitingTick
 
 	// Get enqueued transactions
@@ -152,6 +152,8 @@ func (c *Core) Pull(ctx context.Context, data []byte) (result []byte, err error)
 			c.mtx.Unlock()
 			return
 		}
+
+		binConnection.Send(result, signature, err)
 	}
 
 	return

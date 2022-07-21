@@ -13,25 +13,21 @@ type CallStat struct {
 	ErrorsNoListener   int64 `json:"errors_no_listener"`
 	Processed          int64 `json:"processed"`
 	ProcessedWithError int64 `json:"processed_with_error"`
-
-	TempDuration float64 `json:"duration"`
 }
 
 // Call remote function
 // Frame:
 // LID = [0:8]
 // Data = [8:]
-func (c *Core) Call(_ context.Context, data []byte) (response []byte, err error) {
-	//fmt.Println("-------CALL-------")
-	//dt1 := time.Now()
+func (c *Core) Call(_ context.Context, data []byte, binConnection BinConnection, signature uint32) (response []byte, err error) {
 	c.mtx.Lock()
 	c.statistics.Call.Received++
-	c.mtx.Unlock()
+	transactionId := c.nextTransactionId
+	c.nextTransactionId++
 
 	// Get LID
 	if len(data) < 8 {
 		err = errors.New("len(data) < 8")
-		c.mtx.Lock()
 		c.statistics.Call.ErrorsDataLen++
 		c.mtx.Unlock()
 		return
@@ -44,44 +40,29 @@ func (c *Core) Call(_ context.Context, data []byte) (response []byte, err error)
 	// Find Listener by LID
 	var lFound bool
 	var l *Listener
-	c.mtx.Lock()
 	l, lFound = c.listenersByIndex[LID]
-	c.mtx.Unlock()
 
 	// No listener found
 	if !lFound || l == nil {
 		err = errors.New("#NO_LISTENER_FOUND#" + fmt.Sprint(LID))
-		c.mtx.Lock()
 		c.statistics.Call.ErrorsNoListener++
 		c.mtx.Unlock()
 		return
 	}
+	c.mtx.Unlock()
 
 	// Make transaction
-	c.mtx.Lock()
-	transactionId := c.nextTransactionId
-	c.nextTransactionId++
-	c.mtx.Unlock()
-	msg := NewTransaction(transactionId, transactionData)
-	//dt2 := time.Now()
+	msg := NewTransaction(transactionId, transactionData, binConnection, signature)
 
 	// Run transaction
 	response, err = l.ExecRequest(msg)
 
-	//dt3 := time.Now()
 	// Check transaction execution result
-	/*c.mtx.Lock()
-	if err == nil {
-		c.statistics.Call.Processed++
-	} else {
+	if err != nil {
+		c.mtx.Lock()
 		c.statistics.Call.ProcessedWithError++
+		c.mtx.Unlock()
 	}
-	dt4 := time.Now()
-	d1 := dt2.Sub(dt1)
-	d2 := dt4.Sub(dt3)
-	dSec := d1.Seconds() + d2.Seconds()
-	c.statistics.Call.TempDuration = dSec * 1000000.0
-	c.mtx.Unlock()*/
 
 	return
 }

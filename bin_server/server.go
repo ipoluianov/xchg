@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ipoluianov/xchg/config"
 	"github.com/ipoluianov/xchg/core"
 )
 
@@ -13,12 +14,14 @@ type Server struct {
 	mtx                     sync.Mutex
 	connections             []*Connection
 	core                    *core.Core
+	config                  config.Config
 	stopBackgroundRoutineCh chan struct{}
 }
 
-func NewServer(core *core.Core) *Server {
+func NewServer(conf config.Config, core *core.Core) *Server {
 	var c Server
 	c.core = core
+	c.config = conf
 	c.connections = make([]*Connection, 0)
 	return &c
 }

@@ -140,7 +140,7 @@ func (c *Core) statRoutine() {
 	}
 }
 
-func (c *Core) ProcessFrame(ctx context.Context, data []byte, binConnection BinConnection) (result []byte, err error) {
+func (c *Core) ProcessFrame(ctx context.Context, data []byte, binConnection BinConnection, signature uint32) (result []byte, err error) {
 
 	if len(data) < 1 {
 		fmt.Println("Received Enpty Frame:")
@@ -158,14 +158,16 @@ func (c *Core) ProcessFrame(ctx context.Context, data []byte, binConnection BinC
 	case FunctionCodeInit2:
 		result, err = c.Init2(ctx, data, binConnection)
 	case FunctionCodePull:
-		result, err = c.Pull(ctx, data)
+		_, err = c.Pull(ctx, data, binConnection, signature)
 	case FunctionCodePut:
+		result = []byte("OK")
 		err = c.Put(ctx, data)
 	case FunctionCodeCall:
-		result, err = c.Call(ctx, data)
+		result, err = c.Call(ctx, data, binConnection, signature)
 	case FunctionCodePing:
-		result, err = c.Ping(ctx, data)
+		result, err = c.Ping(ctx, data, binConnection, signature)
 	case FunctionCodeNop:
+		result = []byte("PONG")
 		// NOP, for pinging server
 	default:
 		c.mtx.Lock()

@@ -125,8 +125,10 @@ func (c *Connection) thProcessFrame(signature uint32, conn net.Conn, frame []byt
 	ctx := context.Background()
 
 	var processResult []byte
-	processResult, err = c.core.ProcessFrame(ctx, frame, c)
-	c.Send(processResult, signature, err)
+	processResult, err = c.core.ProcessFrame(ctx, frame, c, signature)
+	if processResult != nil || err != nil {
+		c.Send(processResult, signature, err)
+	}
 }
 
 func (c *Connection) IsValid() bool {

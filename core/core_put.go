@@ -87,5 +87,6 @@ func (c *Core) Put(_ context.Context, data []byte) (err error) {
 	c.mtx.Lock()
 	c.statistics.Put.Success++
 	c.mtx.Unlock()
+
 	return
 }

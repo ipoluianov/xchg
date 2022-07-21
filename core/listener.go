@@ -47,74 +47,57 @@ func NewListener(id uint64, publicKey []byte, config config.Config, binConnectio
 	return &c
 }
 
-func (c *Listener) ExecRequest(msg *Transaction) (responseData []byte, err error) {
-	err = c.Push(msg)
-	if err != nil {
-		return
-	}
-
-	timeout := 3 * time.Second
-	waitingDurationInMilliseconds := timeout.Milliseconds()
-	waitingTick := int64(10)
-	waitingIterationCount := waitingDurationInMilliseconds / waitingTick
-
-	for i := int64(0); i < waitingIterationCount; i++ {
-		if msg.ResponseReceived {
-			responseData = msg.ResponseData
-			break
-		}
-		time.Sleep(time.Duration(waitingTick) * time.Millisecond)
-	}
-
-	if responseData == nil {
-		err = errors.New("xchg<->server - call timeout")
-	}
-
+func (c *Listener) ExecRequest(transaction *Transaction) (responseData []byte, err error) {
 	c.mtx.Lock()
-	delete(c.sentRequests, msg.transactionId)
-	c.mtx.Unlock()
+	binConnection := c.binConnection
+	sentDirect := false
+
+	// Direct send
+	if binConnection != nil && binConnection.IsValid() {
+		framesBS := make([]byte, 12+len(transaction.Data))
+		binary.LittleEndian.PutUint32(framesBS[0:], uint32(len(transaction.Data)+12)) // Size of chunk
+		binary.LittleEndian.PutUint64(framesBS[4:], transaction.transactionId)        // Transaction ID
+		copy(framesBS[12:], transaction.Data)                                         // Data
+		framesBS, err = crypt_tools.EncryptAESGCM(framesBS, c.aesKey)
+		if err == nil {
+			c.sentRequests[transaction.transactionId] = transaction
+			c.mtx.Unlock()
+			binConnection.Send(framesBS, 0x000000AA, nil)
+			sentDirect = true
+		}
+	}
+
+	if !sentDirect {
+		// Send via Queue
+		if len(c.unsentRequests) >= c.maxMessagesQueueSize {
+			c.mtx.Unlock()
+			err = errors.New("queue overflow")
+			return
+		}
+		if len(transaction.Data) > c.maxMessageDataSize {
+			c.mtx.Unlock()
+			err = errors.New("too much data: " + fmt.Sprint(len(transaction.Data)))
+			return
+		}
+		c.unsentRequests = append(c.unsentRequests, transaction)
+		c.mtx.Unlock()
+	}
 
 	return
 }
 
-func (c *Listener) Push(message *Transaction) error {
-	var err error
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
-
-	if c.binConnection != nil {
-		framesBS := make([]byte, 12+len(message.Data))
-		binary.LittleEndian.PutUint32(framesBS[0:], uint32(len(message.Data)+12)) // Size of chunk
-		binary.LittleEndian.PutUint64(framesBS[4:], message.transactionId)        // Transaction ID
-		copy(framesBS[12:], message.Data)                                         // Data
-		framesBS, err = crypt_tools.EncryptAESGCM(framesBS, c.aesKey)
-		if err == nil {
-			//fmt.Println("SEND PUSH: ", framesBS)
-			c.binConnection.Send(framesBS, 0x000000AA, nil)
-			c.sentRequests[message.transactionId] = message
-			return nil
-		}
-	}
-
-	if len(c.unsentRequests) >= c.maxMessagesQueueSize {
-		return errors.New("queue overflow")
-	}
-	if len(message.Data) > c.maxMessageDataSize {
-		return errors.New("too much data: " + fmt.Sprint(len(message.Data)))
-	}
-
-	c.unsentRequests = append(c.unsentRequests, message)
-
-	return nil
-}
-
 func (c *Listener) SetResponse(transactionId uint64, responseData []byte) {
 	c.mtx.Lock()
-	// find request
 	tr, ok := c.sentRequests[transactionId]
 	if ok && tr != nil {
 		tr.ResponseData = responseData
 		tr.ResponseReceived = true
+
+		if tr.binConnection != nil {
+			//fmt.Println("SetResp", tr.signature, responseData)
+			tr.binConnection.Send(responseData, tr.signature, nil)
+		}
+		delete(c.sentRequests, tr.transactionId)
 	}
 	c.mtx.Unlock()
 }

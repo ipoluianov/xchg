@@ -17,7 +17,7 @@ type PingStat struct {
 // PublicKey = [0:]
 // Response:
 // LID = [0:8]
-func (c *Core) Ping(_ context.Context, data []byte) (result []byte, err error) {
+func (c *Core) Ping(_ context.Context, data []byte, binConnection BinConnection, signature uint32) (result []byte, err error) {
 	var l *Listener
 	listenerFound := false
 	c.mtx.Lock()
@@ -26,10 +26,15 @@ func (c *Core) Ping(_ context.Context, data []byte) (result []byte, err error) {
 	if !listenerFound {
 		err = errors.New("no route to host")
 		c.statistics.Ping.ErrorsNoRoute++
+		binConnection.Send(nil, signature, err)
+		err = nil
 	} else {
 		result = make([]byte, 8)
 		binary.LittleEndian.PutUint64(result, l.id) // LID
 		c.statistics.Ping.Success++
+		binConnection.Send(result, signature, err)
+		err = nil
+		result = nil
 	}
 	c.mtx.Unlock()
 	return
