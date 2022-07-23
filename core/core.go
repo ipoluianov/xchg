@@ -19,6 +19,10 @@ type Core struct {
 	listenersByIndex map[uint64]*Listener
 	//calls            map[uint64]*Transaction
 
+	mtxInitCandidates  sync.Mutex
+	initCandidates     map[string]uint64
+	initCandidateTimes map[string]time.Time
+
 	nextListenerId    uint64
 	nextTransactionId uint64
 

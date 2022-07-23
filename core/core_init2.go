@@ -107,7 +107,7 @@ func (c *Core) Init2(_ context.Context, data []byte, binConnection BinConnection
 		l = NewListener(listenerId, publicKey, c.config, binConnection)
 		c.listenersByAddr[string(publicKey)] = l
 		c.listenersByIndex[listenerId] = l
-		l.aesKey = aesKey
+		//l.aesKey = aesKey
 	}
 
 	c.mtx.Unlock()

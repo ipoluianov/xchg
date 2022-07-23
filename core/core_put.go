@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
-
-	"github.com/ipoluianov/gomisc/crypt_tools"
 )
 
 type PutStat struct {
@@ -51,24 +49,25 @@ func (c *Core) Put(_ context.Context, data []byte) (err error) {
 	}
 
 	// Calculate AES-keyby PublicKey
-	if len(l.aesKey) != 32 {
+	/*if len(l.aesKey) != 32 {
 		err = errors.New("#XCHG_NO_AES_KEY#")
 		c.mtx.Lock()
 		c.statistics.Put.ErrorsNoAESKey++
 		c.mtx.Unlock()
 		return
-	}
+	}*/
 
 	// Decrypt response
 	encryptedData := data[8:]
 	var decryptedData []byte
-	decryptedData, err = crypt_tools.DecryptAESGCM(encryptedData, l.aesKey)
+	decryptedData = encryptedData
+	/*decryptedData, err = crypt_tools.DecryptAESGCM(encryptedData, l.aesKey)
 	if err != nil {
 		c.mtx.Lock()
 		c.statistics.Put.ErrorsDecrypt++
 		c.mtx.Unlock()
 		return
-	}
+	}*/
 
 	// Get Transaction ID
 	if len(decryptedData) < 8 {

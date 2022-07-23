@@ -52,7 +52,6 @@ func (c *HttpServer) Start() {
 		Addr: ":" + fmt.Sprint(c.config.Http.HttpPort),
 	}
 	c.srv.Handler = c
-	c.core.Start()
 	go func() {
 		err := c.srv.ListenAndServe()
 		if err != nil {

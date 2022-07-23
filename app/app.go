@@ -179,9 +179,10 @@ func Start() error {
 	}
 
 	c = core.NewCore(conf)
+	c.Start()
 
-	httpServer = http_server.NewHttpServer(conf, c)
-	httpServer.Start()
+	//httpServer = http_server.NewHttpServer(conf, c)
+	//httpServer.Start()
 
 	binServer = binserver.NewServer(conf, c)
 	binServer.Start()

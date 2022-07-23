@@ -7,7 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ipoluianov/gomisc/crypt_tools"
 	"github.com/ipoluianov/gomisc/snake_counter"
 	"github.com/ipoluianov/xchg/config"
 )
@@ -25,7 +24,7 @@ type Listener struct {
 
 	binConnection BinConnection
 
-	aesKey []byte
+	//aesKey []byte
 
 	mtx       sync.Mutex
 	lastGetDT time.Time
@@ -58,13 +57,14 @@ func (c *Listener) ExecRequest(transaction *Transaction) (responseData []byte, e
 		binary.LittleEndian.PutUint32(framesBS[0:], uint32(len(transaction.Data)+12)) // Size of chunk
 		binary.LittleEndian.PutUint64(framesBS[4:], transaction.transactionId)        // Transaction ID
 		copy(framesBS[12:], transaction.Data)                                         // Data
-		framesBS, err = crypt_tools.EncryptAESGCM(framesBS, c.aesKey)
-		if err == nil {
-			c.sentRequests[transaction.transactionId] = transaction
-			c.mtx.Unlock()
-			binConnection.Send(framesBS, 0x000000AA, nil)
-			sentDirect = true
-		}
+		//framesBS, err = crypt_tools.EncryptAESGCM(framesBS, c.aesKey)
+		//if err == nil {
+		c.sentRequests[transaction.transactionId] = transaction
+		c.mtx.Unlock()
+		binConnection.Send(framesBS, 0x000000AA, nil)
+
+		sentDirect = true
+		//}
 	}
 
 	if !sentDirect {

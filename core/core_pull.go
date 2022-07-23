@@ -5,8 +5,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"time"
-
-	"github.com/ipoluianov/gomisc/crypt_tools"
 )
 
 type PullStat struct {
@@ -60,26 +58,27 @@ func (c *Core) Pull(ctx context.Context, data []byte, binConnection BinConnectio
 		return
 	}
 
-	if len(l.aesKey) != 32 {
+	/*if len(l.aesKey) != 32 {
 		err = errors.New("no aes key")
 		c.mtx.Lock()
 		c.statistics.Pull.ErrorsNoAESKey++
 		c.mtx.Unlock()
 		return
-	}
+	}*/
 
 	// Get encrypted data
 	encryptedData := data[8:]
 
 	// Decrypt data
 	var request []byte
-	request, err = crypt_tools.DecryptAESGCM(encryptedData, l.aesKey)
+	request = encryptedData
+	/*request, err = crypt_tools.DecryptAESGCM(encryptedData, l.aesKey)
 	if err != nil {
 		c.mtx.Lock()
 		c.statistics.Pull.ErrorsDecrypt++
 		c.mtx.Unlock()
 		return
-	}
+	}*/
 
 	// Get fields
 	if len(request) < 12 {
@@ -145,13 +144,14 @@ func (c *Core) Pull(ctx context.Context, data []byte, binConnection BinConnectio
 		}
 
 		// Encrypt response
-		result, err = crypt_tools.EncryptAESGCM(framesBS, l.aesKey)
+		result = framesBS
+		/*result, err = crypt_tools.EncryptAESGCM(framesBS, l.aesKey)
 		if err != nil {
 			c.mtx.Lock()
 			c.statistics.Pull.ErrorsEncrypt++
 			c.mtx.Unlock()
 			return
-		}
+		}*/
 
 		binConnection.Send(result, signature, err)
 	}

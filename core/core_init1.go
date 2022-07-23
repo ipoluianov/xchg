@@ -5,7 +5,10 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
+	"encoding/binary"
+	"encoding/hex"
 	"errors"
+	"time"
 
 	"github.com/ipoluianov/gomisc/logger"
 )
@@ -15,6 +18,10 @@ type Init1Stat struct {
 	ErrorsMaxListenersCount int64 `json:"errors_max_listeners_count"`
 	ErrorsParsePublicKey    int64 `json:"errors_parse_pk"`
 	ErrorsEncryptAES        int64 `json:"errors_encrypt_aes"`
+}
+
+type InitCandidate struct {
+	Secret uint64
 }
 
 // Initialization of Server - first stage
@@ -41,8 +48,18 @@ func (c *Core) Init1(_ context.Context, data []byte) (result []byte, err error) 
 	// Get public key
 	publicKey := data
 
+	c.mtxInitCandidates.Lock()
+	secretBytes := make([]byte, 8)
+	rand.Read(secretBytes)
+	secretInt := binary.LittleEndian.Uint64(secretBytes)
+	c.initCandidates[hex.EncodeToString(publicKey)] = secretInt
+	c.initCandidateTimes[hex.EncodeToString(publicKey)] = time.Now()
+	c.mtxInitCandidates.Unlock()
+
+	secretBytes = append(secretBytes, publicKey...)
+
 	// Calculate AES key by PublicKey
-	addrSecret := c.calcAddrKey(publicKey)
+	addrSecret := c.calcAddrKey(secretBytes)
 
 	// Parse PublicKey-DER
 	var rsaPublicKey *rsa.PublicKey
