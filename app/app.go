@@ -7,10 +7,7 @@ import (
 	"os"
 
 	"github.com/ipoluianov/gomisc/logger"
-	binserver "github.com/ipoluianov/xchg/bin_server"
-	"github.com/ipoluianov/xchg/config"
-	"github.com/ipoluianov/xchg/core"
-	"github.com/ipoluianov/xchg/http_server"
+	"github.com/ipoluianov/xchg/xchg"
 	"github.com/kardianos/osext"
 	"github.com/kardianos/service"
 )
@@ -39,6 +36,7 @@ func TryService() bool {
 	uninstallFlagPtr := flag.Bool("uninstall", false, "Uninstall service")
 	startFlagPtr := flag.Bool("start", false, "Start service")
 	stopFlagPtr := flag.Bool("stop", false, "Stop service")
+	selftestFlagPtr := flag.Bool("selftest", false, "Self test")
 
 	flag.Parse()
 
@@ -64,6 +62,11 @@ func TryService() bool {
 
 	if *stopFlagPtr {
 		StopService()
+		return true
+	}
+
+	if *selftestFlagPtr {
+		xchg.SelfTest()
 		return true
 	}
 
@@ -163,36 +166,30 @@ func (p *program) Stop(_ service.Service) error {
 }
 
 /////////////////////////////
-
-var c *core.Core
-var httpServer *http_server.HttpServer
-var binServer *binserver.Server
+var srv *xchg.RouterServer
+var router *xchg.Router
 
 func Start() error {
 	logger.Println("Application Started")
 	TuneFDs()
 
-	conf, err := config.LoadFromFile(logger.CurrentExePath() + "/" + "config.json")
+	conf, err := xchg.LoadConfigFromFile(logger.CurrentExePath() + "/" + "config.json")
 	if err != nil {
 		logger.Println("configuration error:", err)
 		return err
 	}
 
-	c = core.NewCore(conf)
-	c.Start()
+	router = xchg.NewRouter()
+	router.Start()
 
-	//httpServer = http_server.NewHttpServer(conf, c)
-	//httpServer.Start()
-
-	binServer = binserver.NewServer(conf, c)
-	binServer.Start()
+	srv = xchg.NewRouterServer(conf, router)
+	srv.Start()
 
 	return nil
 }
 
 func Stop() {
-	_ = httpServer.Stop()
-	binServer.Stop()
+	srv.Stop()
 }
 
 func RunConsole() {

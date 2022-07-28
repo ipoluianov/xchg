@@ -1,10 +1,8 @@
-github.com/ipoluianov/gomisc v0.0.10 h1:FB6yvnAtwDNWDyplNFl8QKsmsIERr3OpyZ+hn2pcsD4=
-github.com/ipoluianov/gomisc v0.0.10/go.mod h1:3rlYbwz/L3LSguP2M+Png08EAWoXFxPXJ65uLhweiiU=
+github.com/ipoluianov/gomisc v0.0.13 h1:13fNx3ruauL2m66UrwYicbXrqfkrBH9JFqxCZogguz8=
+github.com/ipoluianov/gomisc v0.0.13/go.mod h1:3rlYbwz/L3LSguP2M+Png08EAWoXFxPXJ65uLhweiiU=
 github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0 h1:iQTw/8FWTuc7uiaSepXwyf3o52HaUYcV+Tu66S3F5GA=
 github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0/go.mod h1:1NbS8ALrpOvjt0rHPNLyCIeMtbizbir8U//inJ+zuB8=
 github.com/kardianos/service v1.2.1 h1:AYndMsehS+ywIS6RB9KOlcXzteWUzxgMgBymJD7+BYk=
 github.com/kardianos/service v1.2.1/go.mod h1:CIMRFEJVL+0DS1a3Nx06NaMn4Dz63Ng6O7dl0qH0zVM=
-github.com/sethvargo/go-limiter v0.7.2 h1:FgC4N7RMpV5gMrUdda15FaFTkQ/L4fEqM7seXMs4oO8=
-github.com/sethvargo/go-limiter v0.7.2/go.mod h1:C0kbSFbiriE5k2FFOe18M1YZbAR2Fiwf72uGu0CXCcU=
 golang.org/x/sys v0.0.0-20201015000850-e3ed0017c211 h1:9UQO31fZ+0aKQOFldThf7BKPMJTiBfWycGh/u3UoO88=
 golang.org/x/sys v0.0.0-20201015000850-e3ed0017c211/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
