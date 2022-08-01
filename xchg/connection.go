@@ -3,23 +3,30 @@ package xchg
 import (
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"net"
 	"sync"
+	"time"
+
+	"github.com/ipoluianov/gomisc/logger"
 )
 
 type Connection struct {
-	id       uint64
-	conn     net.Conn
-	mtx      sync.Mutex
-	mtxSend  sync.Mutex
+	id      uint64
+	conn    net.Conn
+	mtx     sync.Mutex
+	mtxSend sync.Mutex
+	closed  bool
+	host    string
+
+	config    ConnectionConfig
+	processor ITransactionProcessor
+
 	started  bool
 	stopping bool
-	closed   bool
-	host     string
+}
 
-	config                 ConnectionConfig
-	chTransactionProcessor chan *Transaction
+type ITransactionProcessor interface {
+	ProcessTransaction(transaction *Transaction)
 }
 
 type ConnectionConfig struct {
@@ -43,34 +50,62 @@ func (c *ConnectionConfig) Check() (err error) {
 	return
 }
 
-func (c *Connection) initAcceptedConnection() {
+func (c *Connection) initIncomingConnection(conn net.Conn) {
 	c.config.Init()
-	c.chTransactionProcessor = make(chan *Transaction, 10)
+	c.conn = conn
 }
 
 func (c *Connection) startConnectionBase() {
 	c.mtx.Lock()
-	if !c.started {
-		go c.thReceive()
-		c.started = true
+	defer c.mtx.Unlock()
+	if c.started {
+		logger.Println("connection", "stop", "already started")
+		return
 	}
-	c.mtx.Unlock()
+	go c.thReceive()
 }
 
 func (c *Connection) stopConnectionBase() {
 	c.mtx.Lock()
-	if !c.stopping {
-		c.stopping = true
-		if c.conn != nil {
-			c.conn.Close()
-			c.conn = nil
-		}
+	logger.Println("connection", "stop", "begin")
+	if !c.started {
+		logger.Println("connection", "stop", "already stopped")
+		c.mtx.Unlock()
+		return
+	}
+	if c.conn != nil {
+		c.conn.Close()
 	}
 	c.mtx.Unlock()
+
+	for i := 0; i < 100; i++ {
+		time.Sleep(10 * time.Millisecond)
+		c.mtx.Lock()
+		if !c.started {
+			c.mtx.Unlock()
+			break
+		}
+		c.mtx.Unlock()
+	}
+
+	c.mtx.Lock()
+	if c.started {
+		logger.Println("connection", "stop", "timeout")
+	} else {
+		logger.Println("connection", "stop", "success")
+	}
+	c.mtx.Unlock()
+
+	logger.Println("connection", "stop", "end")
 }
 
 func (c *Connection) thReceive() {
-	fmt.Println("thReceive started")
+	c.mtx.Lock()
+	c.started = true
+	c.mtx.Unlock()
+
+	logger.Println("connection", "th_receive", "begin")
+
 	var n int
 	var err error
 	incomingData := make([]byte, c.config.MaxFrameSize)
@@ -78,6 +113,9 @@ func (c *Connection) thReceive() {
 
 	for {
 		n, err = c.conn.Read(incomingData[incomingDataOffset:])
+		if c.stopping {
+			break
+		}
 		if n < 0 {
 			break
 		}
@@ -111,7 +149,11 @@ func (c *Connection) thReceive() {
 			var transaction *Transaction
 			transaction, err = Parse(incomingData[processedLen:])
 			if err == nil {
-				c.chTransactionProcessor <- transaction
+				c.mtx.Lock()
+				if c.processor != nil {
+					go c.processor.ProcessTransaction(transaction)
+				}
+				c.mtx.Unlock()
 			}
 
 			processedLen += frameLen
@@ -133,7 +175,11 @@ func (c *Connection) thReceive() {
 	}
 	c.conn = nil
 
-	c.closed = true
+	c.mtx.Lock()
+	c.started = false
+	c.mtx.Unlock()
+
+	logger.Println("connection", "th_receive", "end")
 }
 
 func (c *Connection) sendError(transaction *Transaction, err error) {

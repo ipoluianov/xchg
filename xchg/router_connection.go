@@ -7,7 +7,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"net"
-	"time"
 )
 
 type RouterConnection struct {
@@ -16,58 +15,26 @@ type RouterConnection struct {
 	secretBytes             []byte
 	declaredAddress         []byte
 	confirmedAddress        []byte
-	chStopWorker            chan interface{}
 	stopBackgroundRoutineCh chan struct{}
 }
 
 func NewRouterConnection(conn net.Conn, router *Router) *RouterConnection {
 	var c RouterConnection
-	c.conn = conn
 	c.router = router
-	c.initAcceptedConnection()
+	c.initIncomingConnection(conn)
 	return &c
 }
 
 func (c *RouterConnection) Start() {
-	if c.chStopWorker != nil {
-		return
-	}
-	c.chStopWorker = make(chan interface{})
 	c.startConnectionBase()
-	go c.thWorker()
 }
 
 func (c *RouterConnection) Stop() {
-	if c.chStopWorker == nil {
-		return
-	}
 	c.stopConnectionBase()
-	close(c.chStopWorker)
-	c.chStopWorker = nil
 }
 
 func (c *RouterConnection) address() []byte {
 	return c.confirmedAddress
-}
-
-func (c *RouterConnection) thWorker() {
-	stopping := false
-	ticker := time.NewTicker(5000 * time.Millisecond)
-	for !stopping {
-		var transaction *Transaction
-		select {
-		case transaction = <-c.chTransactionProcessor:
-			c.processTransaction(transaction)
-		case <-c.chStopWorker:
-			stopping = true
-		case <-ticker.C:
-			c.backgroundOperations()
-		}
-	}
-	ticker.Stop()
-}
-
-func (c *RouterConnection) backgroundOperations() {
 }
 
 func (c *RouterConnection) processTransaction(transaction *Transaction) {

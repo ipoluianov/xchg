@@ -12,14 +12,13 @@ import (
 type Router struct {
 	mtx sync.Mutex
 
+	nextConnectionId     uint64
 	connections          []*RouterConnection
 	connectionsByAddress map[string]*RouterConnection
 	connectionsById      map[uint64]*RouterConnection
-	nextConnectionId     uint64
 
-	transactions      map[uint64]*Transaction
 	nextTransactionId uint64
-	mtxTransactions   sync.Mutex
+	transactions      map[uint64]*Transaction
 
 	config RouterConfig
 
@@ -54,13 +53,18 @@ func (c *RouterConfig) Log() {
 
 func NewRouter() *Router {
 	var c Router
+	c.Init()
+	return &c
+}
+
+func (c *Router) Init() {
+	c.nextConnectionId = 1
 	c.connections = make([]*RouterConnection, 0)
 	c.connectionsByAddress = make(map[string]*RouterConnection)
 	c.connectionsById = make(map[uint64]*RouterConnection)
-	c.nextConnectionId = 1
-	c.transactions = make(map[uint64]*Transaction)
+
 	c.nextTransactionId = 1
-	return &c
+	c.transactions = make(map[uint64]*Transaction)
 }
 
 func (c *Router) Start() (err error) {
@@ -72,6 +76,8 @@ func (c *Router) Start() (err error) {
 		logger.Println(err)
 		return
 	}
+
+	c.Init()
 
 	c.config.Log()
 
@@ -108,19 +114,28 @@ func (c *Router) Stop() (err error) {
 	} else {
 		logger.Println("router stopping - waiting - ok")
 	}
+
+	logger.Println("router stopping - closing incoming connections")
+	for _, conn := range c.connections {
+		conn.Stop()
+	}
 	logger.Println("router stopped")
 	return
 }
 
 func (c *Router) AddConnection(conn net.Conn) {
-	connection := NewRouterConnection(conn, c)
 	c.mtx.Lock()
+	defer c.mtx.Unlock()
+	if c.chWorking == nil {
+		return
+	}
+
+	connection := NewRouterConnection(conn, c)
 	connId := c.nextConnectionId
 	c.nextConnectionId++
 	connection.id = connId
 	c.connections = append(c.connections, connection)
 	c.connectionsById[connection.id] = connection
-	c.mtx.Unlock()
 	connection.Start()
 }
 
@@ -130,8 +145,12 @@ func (c *Router) getConnectionByAddress(address []byte) (result *RouterConnectio
 	}
 
 	c.mtx.Lock()
+	defer c.mtx.Unlock()
+	if c.chWorking == nil {
+		return
+	}
+
 	conn, ok := c.connectionsByAddress[string(address)]
-	c.mtx.Unlock()
 	if !ok {
 		result = conn
 	}
@@ -140,8 +159,12 @@ func (c *Router) getConnectionByAddress(address []byte) (result *RouterConnectio
 
 func (c *Router) getConnectionById(connectionId uint64) (result *RouterConnection) {
 	c.mtx.Lock()
+	defer c.mtx.Unlock()
+	if c.chWorking == nil {
+		return
+	}
+
 	conn, ok := c.connectionsById[connectionId]
-	c.mtx.Unlock()
 	if !ok {
 		result = conn
 	}
@@ -150,29 +173,42 @@ func (c *Router) getConnectionById(connectionId uint64) (result *RouterConnectio
 
 func (c *Router) getConnectionCount() int {
 	c.mtx.Lock()
+	defer c.mtx.Unlock()
+	if c.chWorking == nil {
+		return 0
+	}
+
 	count := len(c.connections)
-	c.mtx.Unlock()
 	return count
 }
 
 func (c *Router) setAddressForConnection(connection *RouterConnection) {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+	if c.chWorking == nil {
+		return
+	}
+
 	address := connection.address()
 	if len(address) == 0 {
 		return
 	}
-	c.mtx.Lock()
+
 	c.connectionsByAddress[string(address)] = connection
-	c.mtx.Unlock()
 }
 
 func (c *Router) beginTransaction(transaction *Transaction) (err error) {
-	c.mtxTransactions.Lock()
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+	if c.chWorking == nil {
+		return
+	}
+
 	innerTransactionId := c.nextConnectionId
 	c.nextConnectionId++
 	transaction.standbyTransactionId = transaction.transactionId
 	transaction.transactionId = innerTransactionId
 	c.transactions[innerTransactionId] = transaction
-	c.mtxTransactions.Unlock()
 	return
 }
 
@@ -187,12 +223,20 @@ func (c *Router) sendTransactionToConnection(transaction *Transaction) (err erro
 }
 
 func (c *Router) SetResponse(transaction *Transaction) {
-	c.mtxTransactions.Lock()
-	originalTransaction, ok := c.transactions[transaction.transactionId]
-	c.mtxTransactions.Unlock()
-	if !ok || originalTransaction == nil {
+	c.mtx.Lock()
+	if c.chWorking == nil {
+		c.mtx.Unlock()
 		return
 	}
+
+	originalTransaction, ok := c.transactions[transaction.transactionId]
+	if !ok || originalTransaction == nil {
+		c.mtx.Unlock()
+		return
+	}
+
+	c.mtx.Unlock()
+
 	transaction.transactionId = originalTransaction.standbyTransactionId
 	originalTransaction.connection.send(transaction)
 }
@@ -208,24 +252,22 @@ func (c *Router) thWorker() {
 		case <-ticker.C:
 		}
 
-		if !working {
-			break
-		}
-
-		c.mtx.Lock()
-		logger.Println("router", "th_worker", "process")
-		found := true
-		for found {
-			found = false
-			for i, conn := range c.connections {
-				if conn.closed {
-					found = true
-					c.connections = append(c.connections[:i], c.connections[i+1:]...)
-					break
+		if working {
+			c.mtx.Lock()
+			logger.Println("router", "th_worker", "process")
+			found := true
+			for found {
+				found = false
+				for i, conn := range c.connections {
+					if conn.closed {
+						found = true
+						c.connections = append(c.connections[:i], c.connections[i+1:]...)
+						break
+					}
 				}
 			}
+			c.mtx.Unlock()
 		}
-		c.mtx.Unlock()
 	}
 	logger.Println("router", "th_worker", "stopped")
 	c.chWorking = nil

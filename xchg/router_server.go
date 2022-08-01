@@ -2,6 +2,7 @@ package xchg
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"sync"
 	"time"
@@ -18,29 +19,23 @@ type RouterServer struct {
 }
 
 type RouterServerConfig struct {
-	MaxConnectionCount      int `json:"max_connection_count"`
-	MaxConnectionCountPerIP int `json:"max_connection_count_per_ip"`
+	Port int `json:"port"`
 }
 
 func (c *RouterServerConfig) Init() {
-	c.MaxConnectionCount = 1000
-	c.MaxConnectionCountPerIP = 10
+	c.Port = 8484
 }
 
 func (c *RouterServerConfig) Check() (err error) {
-	if c.MaxConnectionCount < 1 || c.MaxConnectionCount > 100000 {
-		err = errors.New("wrong Server.RouterServer")
-	}
-	if c.MaxConnectionCountPerIP < 1 || c.MaxConnectionCountPerIP > 1024*1024 {
-		err = errors.New("wrong Server.MaxConnectionCountPerIP")
+	if c.Port < 1 || c.Port > 65535 {
+		err = errors.New("router_server config error: port")
 	}
 	return
 }
 
 func (c *RouterServerConfig) Log() {
 	logger.Println("router_server starting")
-	logger.Println("router_server config", "MaxConnectionCount =", c.MaxConnectionCount)
-	logger.Println("router_server config", "MaxConnectionCountPerIP =", c.MaxConnectionCountPerIP)
+	logger.Println("router_server config", "Port =", c.Port)
 }
 
 func NewRouterServer(conf Config, router *Router) *RouterServer {
@@ -103,9 +98,10 @@ func (c *RouterServer) Stop() (err error) {
 func (c *RouterServer) thListen() {
 	logger.Println("router_server_th started")
 	var err error
-	c.listener, err = net.Listen("tcp", ":8484")
+	logger.Println("router_server_th port =", c.config.Port)
+	c.listener, err = net.Listen("tcp", ":"+fmt.Sprint(c.config.Port))
 	if err != nil {
-		logger.Println("router_server_th listen error", err)
+		logger.Error("router_server_th listen error", err)
 	} else {
 		var conn net.Conn
 		working := true
