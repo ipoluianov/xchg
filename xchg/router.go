@@ -1,11 +1,13 @@
 package xchg
 
 import (
+	"crypto/rsa"
 	"errors"
 	"net"
 	"sync"
 	"time"
 
+	"github.com/ipoluianov/gomisc/crypt_tools"
 	"github.com/ipoluianov/gomisc/logger"
 )
 
@@ -21,6 +23,16 @@ type Router struct {
 	transactions      map[uint64]*Transaction
 
 	config RouterConfig
+
+	// Local Address
+	localAddress           *rsa.PublicKey
+	localAddressBS         []byte
+	localAddress64         string
+	localAddressHex        string
+	localAddressPrivate    *rsa.PrivateKey
+	localAddressPrivateBS  []byte
+	localAddressPrivate64  string
+	localAddressPrivateHex string
 
 	chWorking chan interface{}
 }
@@ -51,8 +63,19 @@ func (c *RouterConfig) Log() {
 	logger.Println("router config", "MaxConnectionCountPerIP =", c.MaxConnectionCountPerIP)
 }
 
-func NewRouter() *Router {
+func NewRouter(localAddress *rsa.PrivateKey) *Router {
 	var c Router
+
+	if localAddress != nil {
+		c.localAddressPrivate = localAddress
+		c.localAddressPrivateBS = crypt_tools.RSAPrivateKeyToDer(localAddress)
+		c.localAddressPrivate64 = crypt_tools.RSAPrivateKeyToBase64(localAddress)
+		c.localAddressPrivateHex = crypt_tools.RSAPrivateKeyToHex(localAddress)
+		c.localAddressBS = crypt_tools.RSAPublicKeyToDer(&localAddress.PublicKey)
+		c.localAddress64 = crypt_tools.RSAPublicKeyToBase64(&localAddress.PublicKey)
+		c.localAddressHex = crypt_tools.RSAPublicKeyToHex(&localAddress.PublicKey)
+	}
+
 	c.Init()
 	return &c
 }
@@ -123,6 +146,12 @@ func (c *Router) Stop() (err error) {
 	return
 }
 
+func (c *Router) LocalAddressBS() []byte {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+	return c.localAddressBS
+}
+
 func (c *Router) AddConnection(conn net.Conn) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
@@ -130,7 +159,7 @@ func (c *Router) AddConnection(conn net.Conn) {
 		return
 	}
 
-	connection := NewRouterConnection(conn, c)
+	connection := NewRouterConnection(conn, c, c.localAddressPrivate)
 	connId := c.nextConnectionId
 	c.nextConnectionId++
 	connection.id = connId
@@ -189,7 +218,7 @@ func (c *Router) setAddressForConnection(connection *RouterConnection) {
 		return
 	}
 
-	address := connection.address()
+	address := connection.addressBS()
 	if len(address) == 0 {
 		return
 	}
@@ -254,7 +283,7 @@ func (c *Router) thWorker() {
 
 		if working {
 			c.mtx.Lock()
-			logger.Println("router", "th_worker", "process")
+			//logger.Println("router", "th_worker", "process")
 			found := true
 			for found {
 				found = false

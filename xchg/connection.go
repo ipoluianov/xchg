@@ -3,6 +3,7 @@ package xchg
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"net"
 	"sync"
 	"time"
@@ -11,12 +12,14 @@ import (
 )
 
 type Connection struct {
-	id      uint64
-	conn    net.Conn
-	mtx     sync.Mutex
-	mtxSend sync.Mutex
-	closed  bool
-	host    string
+	id   uint64
+	conn net.Conn
+
+	mtxBaseConnection     sync.Mutex
+	mtxBaseConnectionSend sync.Mutex
+
+	closed bool
+	host   string
 
 	config    ConnectionConfig
 	processor ITransactionProcessor
@@ -26,7 +29,9 @@ type Connection struct {
 }
 
 type ITransactionProcessor interface {
+	Connected()
 	ProcessTransaction(transaction *Transaction)
+	Disconnected()
 }
 
 type ConnectionConfig struct {
@@ -50,14 +55,47 @@ func (c *ConnectionConfig) Check() (err error) {
 	return
 }
 
-func (c *Connection) initIncomingConnection(conn net.Conn) {
+func (c *Connection) initIncomingConnection(conn net.Conn, processor ITransactionProcessor) {
+	c.mtxBaseConnection.Lock()
+	defer c.mtxBaseConnection.Unlock()
+	if c.started {
+		logger.Println("connection", "initIncomingConnection", "already started")
+		return
+	}
+
+	c.processor = processor
 	c.config.Init()
 	c.conn = conn
 }
 
-func (c *Connection) startConnectionBase() {
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
+func (c *Connection) initOutgoingConnection(host string, processor ITransactionProcessor) {
+	c.mtxBaseConnection.Lock()
+	defer c.mtxBaseConnection.Unlock()
+	if c.started {
+		logger.Println("connection", "initOutgoingConnection", "already started")
+		return
+	}
+
+	c.processor = processor
+	c.config.Init()
+	c.host = host
+}
+
+func (c *Connection) IsOutgoing() bool {
+	c.mtxBaseConnection.Lock()
+	defer c.mtxBaseConnection.Unlock()
+	return len(c.host) > 0
+}
+
+func (c *Connection) IsIncoming() bool {
+	c.mtxBaseConnection.Lock()
+	defer c.mtxBaseConnection.Unlock()
+	return len(c.host) == 0
+}
+
+func (c *Connection) Start() {
+	c.mtxBaseConnection.Lock()
+	defer c.mtxBaseConnection.Unlock()
 	if c.started {
 		logger.Println("connection", "stop", "already started")
 		return
@@ -65,44 +103,64 @@ func (c *Connection) startConnectionBase() {
 	go c.thReceive()
 }
 
-func (c *Connection) stopConnectionBase() {
-	c.mtx.Lock()
+func (c *Connection) Stop() {
+	c.mtxBaseConnection.Lock()
 	logger.Println("connection", "stop", "begin")
 	if !c.started {
 		logger.Println("connection", "stop", "already stopped")
-		c.mtx.Unlock()
+		c.mtxBaseConnection.Unlock()
 		return
 	}
 	if c.conn != nil {
 		c.conn.Close()
 	}
-	c.mtx.Unlock()
+	c.mtxBaseConnection.Unlock()
 
 	for i := 0; i < 100; i++ {
 		time.Sleep(10 * time.Millisecond)
-		c.mtx.Lock()
+		c.mtxBaseConnection.Lock()
 		if !c.started {
-			c.mtx.Unlock()
+			c.mtxBaseConnection.Unlock()
 			break
 		}
-		c.mtx.Unlock()
+		c.mtxBaseConnection.Unlock()
 	}
 
-	c.mtx.Lock()
+	c.mtxBaseConnection.Lock()
 	if c.started {
 		logger.Println("connection", "stop", "timeout")
 	} else {
 		logger.Println("connection", "stop", "success")
 	}
-	c.mtx.Unlock()
+	c.mtxBaseConnection.Unlock()
 
 	logger.Println("connection", "stop", "end")
 }
 
+func (c *Connection) callProcessorConnected() {
+	c.mtxBaseConnection.Lock()
+	if c.processor != nil {
+		c.processor.Connected()
+	}
+	c.mtxBaseConnection.Unlock()
+}
+
+func (c *Connection) disconnect() {
+	c.mtxBaseConnection.Lock()
+	if c.conn != nil {
+		c.conn.Close()
+		c.conn = nil
+		if c.processor != nil {
+			c.processor.Disconnected()
+		}
+	}
+	c.mtxBaseConnection.Unlock()
+}
+
 func (c *Connection) thReceive() {
-	c.mtx.Lock()
+	c.mtxBaseConnection.Lock()
 	c.started = true
-	c.mtx.Unlock()
+	c.mtxBaseConnection.Unlock()
 
 	logger.Println("connection", "th_receive", "begin")
 
@@ -111,16 +169,32 @@ func (c *Connection) thReceive() {
 	incomingData := make([]byte, c.config.MaxFrameSize)
 	incomingDataOffset := 0
 
-	for {
+	for !c.stopping {
+		if c.conn == nil {
+			fmt.Println("connecting ...")
+			c.conn, err = net.Dial("tcp", c.host)
+			if err != nil {
+				fmt.Println("connecting ... error")
+				time.Sleep(100 * time.Millisecond)
+				continue
+			}
+			incomingData = make([]byte, c.config.MaxFrameSize)
+			incomingDataOffset = 0
+			fmt.Println("connecting ... ok")
+			c.callProcessorConnected()
+		}
+
 		n, err = c.conn.Read(incomingData[incomingDataOffset:])
 		if c.stopping {
 			break
 		}
-		if n < 0 {
-			break
-		}
-		if err != nil {
-			break
+		if n < 0 || err != nil {
+			if c.IsIncoming() {
+				break
+			} else {
+				c.disconnect()
+				continue
+			}
 		}
 		incomingDataOffset += n
 		processedLen := 0
@@ -149,11 +223,11 @@ func (c *Connection) thReceive() {
 			var transaction *Transaction
 			transaction, err = Parse(incomingData[processedLen:])
 			if err == nil {
-				c.mtx.Lock()
+				c.mtxBaseConnection.Lock()
 				if c.processor != nil {
 					go c.processor.ProcessTransaction(transaction)
 				}
-				c.mtx.Unlock()
+				c.mtxBaseConnection.Unlock()
 			}
 
 			processedLen += frameLen
@@ -161,7 +235,12 @@ func (c *Connection) thReceive() {
 		}
 
 		if err != nil {
-			break
+			if c.IsIncoming() {
+				break
+			} else {
+				c.disconnect()
+				continue
+			}
 		}
 
 		for i := processedLen; i < incomingDataOffset; i++ {
@@ -170,39 +249,36 @@ func (c *Connection) thReceive() {
 		incomingDataOffset -= processedLen
 	}
 
-	if c.conn != nil {
-		c.conn.Close()
-	}
-	c.conn = nil
+	c.disconnect()
 
-	c.mtx.Lock()
+	c.mtxBaseConnection.Lock()
 	c.started = false
-	c.mtx.Unlock()
+	c.mtxBaseConnection.Unlock()
 
 	logger.Println("connection", "th_receive", "end")
 }
 
 func (c *Connection) sendError(transaction *Transaction, err error) {
-	transaction.code = FrameCodeError
-	transaction.data = []byte(err.Error())
-	c.send(transaction)
+	t := NewTransaction(FrameError, 0, 0, transaction.transactionId, 0, []byte(err.Error()))
+	c.send(t)
 }
 
 func (c *Connection) send(transaction *Transaction) (err error) {
 	var conn net.Conn
 
-	c.mtx.Lock()
+	c.mtxBaseConnection.Lock()
 	conn = c.conn
-	c.mtx.Unlock()
+	c.mtxBaseConnection.Unlock()
 
 	if conn == nil {
+		err = errors.New("no connection")
 		return
 	}
 
 	frame := transaction.marshal()
 
 	var n int
-	c.mtxSend.Lock()
+	c.mtxBaseConnectionSend.Lock()
 	sentBytes := 0
 	for sentBytes < len(frame) {
 		n, err = conn.Write(frame[sentBytes:])
@@ -218,6 +294,6 @@ func (c *Connection) send(transaction *Transaction) (err error) {
 	if sentBytes != len(frame) {
 		err = errors.New("sending response error")
 	}
-	c.mtxSend.Unlock()
+	c.mtxBaseConnectionSend.Unlock()
 	return
 }

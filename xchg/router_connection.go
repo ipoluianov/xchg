@@ -7,54 +7,76 @@ import (
 	"encoding/binary"
 	"errors"
 	"net"
+	"sync"
+
+	"github.com/ipoluianov/gomisc/crypt_tools"
 )
 
 type RouterConnection struct {
 	Connection
+	mtxRouterConnection     sync.Mutex
 	router                  *Router
-	secretBytes             []byte
-	declaredAddress         []byte
-	confirmedAddress        []byte
 	stopBackgroundRoutineCh chan struct{}
+
+	localSecretBytes  []byte
+	remoteSecretBytes []byte
+
+	// Remote Address
+	remoteAddress    *rsa.PublicKey
+	remoteAddressBS  []byte
+	remoteAddress64  string
+	remoteAddressHex string
+
+	// Local Address
+	localAddress           *rsa.PublicKey
+	localAddressBS         []byte
+	localAddress64         string
+	localAddressHex        string
+	localAddressPrivate    *rsa.PrivateKey
+	localAddressPrivateBS  []byte
+	localAddressPrivate64  string
+	localAddressPrivateHex string
+
+	init1Received bool
+	init4Received bool
+	init5Received bool
 }
 
-func NewRouterConnection(conn net.Conn, router *Router) *RouterConnection {
+func NewRouterConnection(conn net.Conn, router *Router, localAddress *rsa.PrivateKey) *RouterConnection {
 	var c RouterConnection
 	c.router = router
-	c.initIncomingConnection(conn)
+
+	if localAddress != nil {
+		c.localAddressPrivate = localAddress
+		c.localAddressPrivateBS = crypt_tools.RSAPrivateKeyToDer(localAddress)
+		c.localAddressPrivate64 = crypt_tools.RSAPrivateKeyToBase64(localAddress)
+		c.localAddressPrivateHex = crypt_tools.RSAPrivateKeyToHex(localAddress)
+		c.localAddressBS = crypt_tools.RSAPublicKeyToDer(&localAddress.PublicKey)
+		c.localAddress64 = crypt_tools.RSAPublicKeyToBase64(&localAddress.PublicKey)
+		c.localAddressHex = crypt_tools.RSAPublicKeyToHex(&localAddress.PublicKey)
+	}
+
+	c.initIncomingConnection(conn, &c)
 	return &c
 }
 
-func (c *RouterConnection) Start() {
-	c.startConnectionBase()
+func (c *RouterConnection) addressBS() []byte {
+	if c.init4Received {
+		return c.remoteAddressBS
+	}
+	return nil
 }
 
-func (c *RouterConnection) Stop() {
-	c.stopConnectionBase()
-}
-
-func (c *RouterConnection) address() []byte {
-	return c.confirmedAddress
-}
-
-func (c *RouterConnection) processTransaction(transaction *Transaction) {
+func (c *RouterConnection) ProcessTransaction(transaction *Transaction) {
 	switch transaction.protocolVersion {
 	case 0x01:
-		switch transaction.function {
-		case FuncPing:
-			c.processPing(transaction)
-		case FuncResolveAddress:
-			c.processResolveAddress(transaction)
-		case FuncCall:
-			c.processCall(transaction)
-		case FuncSend:
-			c.processSend(transaction)
-		case FuncDeclareAddr:
-			c.processDeclareAddr(transaction)
-		case FuncConfirmAddr:
-			c.processConfirmAddr(transaction)
-		case FuncResponse:
-			c.processResponse(transaction)
+		switch transaction.frameType {
+		case FrameInit1:
+			c.processInit1(transaction)
+		case FrameInit4:
+			c.processInit4(transaction)
+		case FrameInit5:
+			c.processInit5(transaction)
 		default:
 			c.sendError(transaction, errors.New("wrong function"))
 		}
@@ -63,9 +85,86 @@ func (c *RouterConnection) processTransaction(transaction *Transaction) {
 	}
 }
 
-func (c *RouterConnection) processPing(transaction *Transaction) {
-	transaction.code = FrameCodeSuccess
-	c.send(transaction)
+func (c *RouterConnection) Connected() {
+	// Generate new secret bytes for every connection
+	c.mtxRouterConnection.Lock()
+	c.localSecretBytes = make([]byte, 32)
+	rand.Read(c.localSecretBytes)
+	c.mtxRouterConnection.Unlock()
+}
+
+func (c *RouterConnection) Disconnected() {
+}
+
+func (c *RouterConnection) processInit1(transaction *Transaction) {
+	var err error
+
+	if len(transaction.data) > c.config.MaxAddressSize {
+		c.sendError(transaction, errors.New("wrong address size"))
+		return
+	}
+
+	// Parse PublicKey-DER
+	var rsaPublicKey *rsa.PublicKey
+	rsaPublicKey, err = x509.ParsePKCS1PublicKey(transaction.data)
+	if err != nil {
+		c.sendError(transaction, err)
+		return
+	}
+
+	c.remoteAddressBS = crypt_tools.RSAPublicKeyToDer(rsaPublicKey)
+	c.remoteAddress64 = crypt_tools.RSAPublicKeyToBase64(rsaPublicKey)
+	c.remoteAddressHex = crypt_tools.RSAPublicKeyToHex(rsaPublicKey)
+
+	// Send Init2
+	{
+		var encryptedLocalSecret []byte
+		encryptedLocalSecret, err = rsa.EncryptPKCS1v15(rand.Reader, rsaPublicKey, c.localSecretBytes)
+		if err != nil {
+			c.sendError(transaction, err)
+			return
+		}
+
+		c.remoteAddress = rsaPublicKey
+		transaction.data = encryptedLocalSecret
+		c.send(transaction)
+	}
+
+	// Send Init3 (my address)
+	{
+		transaction.data = c.router.localAddressBS
+		c.send(transaction)
+	}
+}
+
+func (c *RouterConnection) processInit4(transaction *Transaction) {
+	localSecretBytes, err := rsa.DecryptPKCS1v15(rand.Reader, c.localAddressPrivate, transaction.data)
+	if err != nil {
+		return
+	}
+	if len(localSecretBytes) != len(c.localSecretBytes) {
+		return
+	}
+	for i := 0; i < len(c.localSecretBytes); i++ {
+		if c.localSecretBytes[i] != localSecretBytes[i] {
+			return
+		}
+	}
+	c.init4Received = true
+	c.router.setAddressForConnection(c)
+}
+
+func (c *RouterConnection) processInit5(transaction *Transaction) {
+	var err error
+	c.remoteSecretBytes, err = rsa.DecryptPKCS1v15(rand.Reader, c.localAddressPrivate, transaction.data)
+	if err != nil {
+		return
+	}
+
+	remoteSecretBytesEcrypted, err := rsa.EncryptPKCS1v15(rand.Reader, c.remoteAddress, c.remoteSecretBytes)
+	if err == nil {
+		c.send(NewTransaction(FrameInit3, 0, 0, 0, 0, remoteSecretBytesEcrypted))
+	}
 }
 
 func (c *RouterConnection) processResolveAddress(transaction *Transaction) {
@@ -77,7 +176,6 @@ func (c *RouterConnection) processResolveAddress(transaction *Transaction) {
 
 	transaction.data = make([]byte, 8)
 	binary.LittleEndian.PutUint64(transaction.data, connection.id)
-	transaction.code = FrameCodeSuccess
 	c.send(transaction)
 }
 
@@ -97,74 +195,4 @@ func (c *RouterConnection) processCall(transaction *Transaction) {
 	if err != nil {
 		c.sendError(transaction, err)
 	}
-}
-
-func (c *RouterConnection) processSend(transaction *Transaction) {
-	if len(transaction.data) < 8 {
-		c.sendError(transaction, errors.New("wrong frame"))
-		return
-	}
-
-	c.router.sendTransactionToConnection(transaction)
-	c.send(NewResponseTransaction(transaction, FrameCodeSuccess, nil))
-}
-
-func (c *RouterConnection) processDeclareAddr(transaction *Transaction) {
-	var err error
-
-	if len(transaction.data) > c.config.MaxAddressSize {
-		c.sendError(transaction, errors.New("wrong address size"))
-		return
-	}
-
-	// Generate new secret bytes for every query
-	c.mtx.Lock()
-	c.secretBytes = make([]byte, 32)
-	rand.Read(c.secretBytes)
-	c.mtx.Unlock()
-
-	// Parse PublicKey-DER
-	var rsaPublicKey *rsa.PublicKey
-	rsaPublicKey, err = x509.ParsePKCS1PublicKey(transaction.data)
-	if err != nil {
-		c.sendError(transaction, err)
-		return
-	}
-
-	// Encrypt AES key by PublicKey
-	var encryptedResponse []byte
-	encryptedResponse, err = rsa.EncryptPKCS1v15(rand.Reader, rsaPublicKey, c.secretBytes)
-	if err != nil {
-		c.sendError(transaction, err)
-		return
-	}
-
-	c.declaredAddress = transaction.data
-
-	// Success
-	transaction.code = FrameCodeSuccess
-	transaction.data = encryptedResponse
-	c.send(transaction)
-}
-
-func (c *RouterConnection) processConfirmAddr(transaction *Transaction) {
-	if len(transaction.data) != len(c.secretBytes) {
-		c.sendError(transaction, errors.New("wrong secret bytes"))
-		return
-	}
-	for i := 0; i < len(transaction.data); i++ {
-		if transaction.data[i] != c.secretBytes[i] {
-			c.sendError(transaction, errors.New("wrong secret bytes"))
-			return
-		}
-	}
-
-	c.confirmedAddress = c.declaredAddress
-	c.declaredAddress = nil
-
-	c.router.setAddressForConnection(c)
-}
-
-func (c *RouterConnection) processResponse(transaction *Transaction) {
-	c.router.SetResponse(transaction)
 }

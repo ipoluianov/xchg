@@ -1,11 +1,13 @@
 package app
 
 import (
+	"crypto/rsa"
 	"flag"
 	"fmt"
 	"log"
 	"os"
 
+	"github.com/ipoluianov/gomisc/crypt_tools"
 	"github.com/ipoluianov/gomisc/logger"
 	"github.com/ipoluianov/xchg/xchg"
 	"github.com/kardianos/osext"
@@ -179,7 +181,10 @@ func Start() error {
 		return err
 	}
 
-	router = xchg.NewRouter()
+	var privateKey *rsa.PrivateKey
+	privateKey, _ = crypt_tools.GenerateRSAKey()
+
+	router = xchg.NewRouter(privateKey)
 	router.Start()
 
 	srv = xchg.NewRouterServer(conf, router)
