@@ -2,7 +2,9 @@ package xchg
 
 import (
 	"crypto/rsa"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"net"
 	"sync"
 	"time"
@@ -224,6 +226,7 @@ func (c *Router) setAddressForConnection(connection *RouterConnection) {
 	}
 
 	c.connectionsByAddress[string(address)] = connection
+	fmt.Println("Router - setAddressForConnection")
 }
 
 func (c *Router) beginTransaction(transaction *Transaction) (err error) {
@@ -300,4 +303,29 @@ func (c *Router) thWorker() {
 	}
 	logger.Println("router", "th_worker", "stopped")
 	c.chWorking = nil
+}
+
+func (c *Router) Stat() (result string) {
+	type StatResult struct {
+		NextConnectionId          uint64
+		ConnectionsCount          int
+		ConnectionsByAddressCount int
+		ConnectionsByIdCount      int
+
+		NextTransactionId uint64
+		TransactionsCount int
+	}
+
+	var r StatResult
+	r.NextConnectionId = c.nextConnectionId
+	r.ConnectionsCount = len(c.connections)
+	r.ConnectionsByAddressCount = len(c.connectionsByAddress)
+	r.ConnectionsByIdCount = len(c.connectionsById)
+	r.NextTransactionId = c.nextTransactionId
+	r.TransactionsCount = len(c.transactions)
+
+	bs, _ := json.MarshalIndent(r, "", " ")
+	result = string(bs)
+
+	return
 }

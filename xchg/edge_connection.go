@@ -155,16 +155,17 @@ func (c *EdgeConnection) ProcessTransaction(transaction *Transaction) {
 }
 
 func (c *EdgeConnection) processInit2(transaction *Transaction) {
+	fmt.Println("processInit2")
 	var err error
 	c.destanationAddress, err = crypt_tools.RSAPublicKeyFromDer(transaction.data)
 	if err != nil {
 		return
 	}
 	c.init2Received = true
-
 }
 
 func (c *EdgeConnection) processInit3(transaction *Transaction) {
+	fmt.Println("processInit3")
 	var err error
 	c.remoteSecretBytes, err = rsa.DecryptPKCS1v15(rand.Reader, c.localAddressPrivate, transaction.data)
 	if err != nil {
@@ -174,6 +175,7 @@ func (c *EdgeConnection) processInit3(transaction *Transaction) {
 }
 
 func (c *EdgeConnection) processInit6(transaction *Transaction) {
+	fmt.Println("processInit6")
 	localSecretBytes, err := rsa.DecryptPKCS1v15(rand.Reader, c.localAddressPrivate, transaction.data)
 	if err != nil {
 		return
@@ -187,6 +189,7 @@ func (c *EdgeConnection) processInit6(transaction *Transaction) {
 		}
 	}
 	c.init6Received = true
+	fmt.Println("xchg node address confirmed")
 }
 
 func (c *EdgeConnection) processError(transaction *Transaction) {
@@ -202,12 +205,14 @@ func (c *EdgeConnection) processResponse(transaction *Transaction) {
 func (c *EdgeConnection) thBackground() {
 	for !c.stopping {
 		c.checkConnection()
-		c.waitDurationOrStopping(1000 * time.Millisecond)
+		c.waitDurationOrStopping(100 * time.Millisecond)
 	}
 }
 
 func (c *EdgeConnection) checkConnection() {
 	c.mtxEdgeConnection.Lock()
+	defer c.mtxEdgeConnection.Unlock()
+
 	if !c.init1Sent {
 		c.init1Sent = true
 		c.send(NewTransaction(FrameInit1, 0, 0, 0, 0, c.localAddressBS))
@@ -218,7 +223,7 @@ func (c *EdgeConnection) checkConnection() {
 		c.init4Sent = true
 		remoteSecretBytesEcrypted, err := rsa.EncryptPKCS1v15(rand.Reader, c.destanationAddress, c.remoteSecretBytes)
 		if err == nil {
-			c.send(NewTransaction(FrameInit3, 0, 0, 0, 0, remoteSecretBytesEcrypted))
+			c.send(NewTransaction(FrameInit4, 0, 0, 0, 0, remoteSecretBytesEcrypted))
 		}
 		return
 	}
@@ -227,7 +232,7 @@ func (c *EdgeConnection) checkConnection() {
 		c.init5Sent = true
 		localSecretBytesEcrypted, err := rsa.EncryptPKCS1v15(rand.Reader, c.destanationAddress, c.localSecretBytes)
 		if err == nil {
-			c.send(NewTransaction(FrameInit3, 0, 0, 0, 0, localSecretBytesEcrypted))
+			c.send(NewTransaction(FrameInit5, 0, 0, 0, 0, localSecretBytesEcrypted))
 		}
 		return
 	}

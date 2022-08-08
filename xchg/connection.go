@@ -259,8 +259,8 @@ func (c *Connection) thReceive() {
 }
 
 func (c *Connection) sendError(transaction *Transaction, err error) {
-	t := NewTransaction(FrameError, 0, 0, transaction.transactionId, 0, []byte(err.Error()))
-	c.send(t)
+	fmt.Println("SendError:", err)
+	c.send(NewTransaction(FrameError, transaction.recevied1, transaction.eid, transaction.transactionId, 0, []byte(err.Error())))
 }
 
 func (c *Connection) send(transaction *Transaction) (err error) {
@@ -292,7 +292,7 @@ func (c *Connection) send(transaction *Transaction) (err error) {
 	}
 
 	if sentBytes != len(frame) {
-		err = errors.New("sending response error")
+		err = errors.New("sending error")
 	}
 	c.mtxBaseConnectionSend.Unlock()
 	return

@@ -19,8 +19,9 @@ func SelfTest() {
 
 	router := NewRouter(privateKey)
 	server := NewRouterServer(config, router)
+	httpServer := NewHttpServer(config, router)
 
-	fmt.Println("Press any key for start")
+	fmt.Println("--------------Press any key for start")
 	fmt.Scanln()
 
 	var err error
@@ -32,12 +33,14 @@ func SelfTest() {
 		return
 	}
 
-	fmt.Println("Press any key for connect")
+	httpServer.Start()
+
+	fmt.Println("-------------Press any key for connect")
 	fmt.Scanln()
 
 	go ServerConnection()
 
-	fmt.Println("Press any key for exit")
+	fmt.Println("----------------Press any key for exit")
 	fmt.Scanln()
 
 	server.Stop()

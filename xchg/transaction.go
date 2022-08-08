@@ -8,15 +8,15 @@ import (
 
 type Transaction struct {
 	// Header - 32 bytes
-	signature          byte
-	protocolVersion    byte
-	frameType          byte
-	recevied1          byte
-	frameLen           uint32
-	targetConnectionId uint64
-	transactionId      uint64
-	sessionId          uint64
-	data               []byte
+	signature       byte
+	protocolVersion byte
+	frameType       byte
+	recevied1       byte
+	frameLen        uint32
+	eid             uint64
+	transactionId   uint64
+	sessionId       uint64
+	data            []byte
 
 	// State
 	dt                   time.Time
@@ -32,7 +32,7 @@ func NewTransaction(frameType byte, code byte, targetEID uint64, transactionId u
 	c.protocolVersion = 0x01
 	c.frameType = frameType
 	c.recevied1 = code
-	c.targetConnectionId = targetEID
+	c.eid = targetEID
 	c.transactionId = transactionId
 	c.sessionId = sessionId
 	c.data = data
@@ -52,7 +52,7 @@ func Parse(frame []byte) (tr *Transaction, err error) {
 	tr.frameType = frame[2]
 	tr.recevied1 = frame[3]
 	tr.frameLen = binary.LittleEndian.Uint32(frame[4:])
-	tr.targetConnectionId = binary.LittleEndian.Uint64(frame[8:])
+	tr.eid = binary.LittleEndian.Uint64(frame[8:])
 	tr.transactionId = binary.LittleEndian.Uint64(frame[16:])
 	tr.data = make([]byte, int(tr.frameLen)-HeaderSize)
 	copy(tr.data, frame[HeaderSize:])
@@ -67,7 +67,7 @@ func (c *Transaction) marshal() (result []byte) {
 	result[2] = c.frameType
 	result[3] = c.recevied1
 	binary.LittleEndian.PutUint32(result[4:], c.frameLen)
-	binary.LittleEndian.PutUint64(result[8:], c.targetConnectionId)
+	binary.LittleEndian.PutUint64(result[8:], c.eid)
 	binary.LittleEndian.PutUint64(result[16:], c.transactionId)
 	copy(result[HeaderSize:], c.data)
 	return

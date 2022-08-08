@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"net"
 	"sync"
 
@@ -57,6 +58,7 @@ func NewRouterConnection(conn net.Conn, router *Router, localAddress *rsa.Privat
 	}
 
 	c.initIncomingConnection(conn, &c)
+	c.Connected()
 	return &c
 }
 
@@ -99,6 +101,8 @@ func (c *RouterConnection) Disconnected() {
 func (c *RouterConnection) processInit1(transaction *Transaction) {
 	var err error
 
+	fmt.Println("processInit1")
+
 	if len(transaction.data) > c.config.MaxAddressSize {
 		c.sendError(transaction, errors.New("wrong address size"))
 		return
@@ -112,32 +116,31 @@ func (c *RouterConnection) processInit1(transaction *Transaction) {
 		return
 	}
 
+	c.remoteAddress = rsaPublicKey
 	c.remoteAddressBS = crypt_tools.RSAPublicKeyToDer(rsaPublicKey)
 	c.remoteAddress64 = crypt_tools.RSAPublicKeyToBase64(rsaPublicKey)
 	c.remoteAddressHex = crypt_tools.RSAPublicKeyToHex(rsaPublicKey)
 
-	// Send Init2
+	// Send Init2 (my address)
+	{
+		c.send(NewTransaction(FrameInit2, 0, 0, 0, 0, c.router.localAddressBS))
+	}
+
+	// Send Init3
 	{
 		var encryptedLocalSecret []byte
-		encryptedLocalSecret, err = rsa.EncryptPKCS1v15(rand.Reader, rsaPublicKey, c.localSecretBytes)
+		encryptedLocalSecret, err = rsa.EncryptPKCS1v15(rand.Reader, c.remoteAddress, c.localSecretBytes)
 		if err != nil {
 			c.sendError(transaction, err)
 			return
 		}
-
-		c.remoteAddress = rsaPublicKey
-		transaction.data = encryptedLocalSecret
-		c.send(transaction)
+		c.send(NewTransaction(FrameInit3, 0, 0, 0, 0, encryptedLocalSecret))
 	}
 
-	// Send Init3 (my address)
-	{
-		transaction.data = c.router.localAddressBS
-		c.send(transaction)
-	}
 }
 
 func (c *RouterConnection) processInit4(transaction *Transaction) {
+	fmt.Println("processInit4")
 	localSecretBytes, err := rsa.DecryptPKCS1v15(rand.Reader, c.localAddressPrivate, transaction.data)
 	if err != nil {
 		return
@@ -155,6 +158,7 @@ func (c *RouterConnection) processInit4(transaction *Transaction) {
 }
 
 func (c *RouterConnection) processInit5(transaction *Transaction) {
+	fmt.Println("processInit5")
 	var err error
 	c.remoteSecretBytes, err = rsa.DecryptPKCS1v15(rand.Reader, c.localAddressPrivate, transaction.data)
 	if err != nil {
@@ -163,7 +167,7 @@ func (c *RouterConnection) processInit5(transaction *Transaction) {
 
 	remoteSecretBytesEcrypted, err := rsa.EncryptPKCS1v15(rand.Reader, c.remoteAddress, c.remoteSecretBytes)
 	if err == nil {
-		c.send(NewTransaction(FrameInit3, 0, 0, 0, 0, remoteSecretBytesEcrypted))
+		c.send(NewTransaction(FrameInit6, 0, 0, 0, 0, remoteSecretBytesEcrypted))
 	}
 }
 
@@ -181,12 +185,7 @@ func (c *RouterConnection) processResolveAddress(transaction *Transaction) {
 
 func (c *RouterConnection) processCall(transaction *Transaction) {
 	var err error
-	if len(transaction.data) < 8 {
-		c.sendError(transaction, errors.New("wrong frame"))
-		return
-	}
-	connectionId := binary.LittleEndian.Uint64(transaction.data)
-	connection := c.router.getConnectionById(connectionId)
+	connection := c.router.getConnectionById(transaction.eid)
 	if connection == nil {
 		c.sendError(transaction, errors.New("connection not found"))
 	}

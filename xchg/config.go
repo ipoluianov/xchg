@@ -8,6 +8,7 @@ import (
 )
 
 type Config struct {
+	HttpServer       HttpServerConfig   `json:"http_server"`
 	RouterServer     RouterServerConfig `json:"router_server"`
 	RouterConnection ConnectionConfig   `json:"connection"`
 }
@@ -15,6 +16,7 @@ type Config struct {
 func (c *Config) Init() {
 	c.RouterServer.Init()
 	c.RouterConnection.Init()
+	c.HttpServer.Init()
 }
 
 func (c *Config) Check() (err error) {
