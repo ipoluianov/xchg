@@ -92,7 +92,7 @@ func ServerConnection() {
 
 	s := NewEdgeConnection("127.0.0.1:8484", privateKey, "pass")
 	s.Start()
-	for {
-		time.Sleep(1 * time.Second)
-	}
+	time.Sleep(3 * time.Second)
+	s.Stop()
+	s = nil
 }

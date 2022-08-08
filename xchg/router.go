@@ -144,6 +144,9 @@ func (c *Router) Stop() (err error) {
 	for _, conn := range c.connections {
 		conn.Stop()
 	}
+
+	c.Init()
+
 	logger.Println("router stopped")
 	return
 }
@@ -220,7 +223,7 @@ func (c *Router) setAddressForConnection(connection *RouterConnection) {
 		return
 	}
 
-	address := connection.addressBS()
+	address := connection.address58()
 	if len(address) == 0 {
 		return
 	}
@@ -286,16 +289,12 @@ func (c *Router) thWorker() {
 
 		if working {
 			c.mtx.Lock()
-			//logger.Println("router", "th_worker", "process")
-			found := true
-			for found {
-				found = false
-				for i, conn := range c.connections {
-					if conn.closed {
-						found = true
-						c.connections = append(c.connections[:i], c.connections[i+1:]...)
-						break
-					}
+			for i, conn := range c.connections {
+				if conn.closed {
+					c.connections = append(c.connections[:i], c.connections[i+1:]...)
+					delete(c.connectionsByAddress, conn.address58())
+					delete(c.connectionsById, conn.id)
+					break
 				}
 			}
 			c.mtx.Unlock()
@@ -305,16 +304,23 @@ func (c *Router) thWorker() {
 	c.chWorking = nil
 }
 
-func (c *Router) Stat() (result string) {
+func (c *Router) DebugInfo() (result string) {
 	type StatResult struct {
 		NextConnectionId          uint64
 		ConnectionsCount          int
 		ConnectionsByAddressCount int
 		ConnectionsByIdCount      int
 
-		NextTransactionId uint64
-		TransactionsCount int
+		NextTransactionId    uint64
+		TransactionsCount    int
+		Connections          []*RouterConnection
+		ConnectionsByAddress map[string]*RouterConnection
+		ConnectionsById      map[uint64]*RouterConnection
+		Transactions         map[uint64]*Transaction
 	}
+
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
 
 	var r StatResult
 	r.NextConnectionId = c.nextConnectionId
@@ -323,6 +329,11 @@ func (c *Router) Stat() (result string) {
 	r.ConnectionsByIdCount = len(c.connectionsById)
 	r.NextTransactionId = c.nextTransactionId
 	r.TransactionsCount = len(c.transactions)
+
+	r.Connections = c.connections
+	r.ConnectionsByAddress = c.connectionsByAddress
+	r.ConnectionsById = c.connectionsById
+	r.Transactions = c.transactions
 
 	bs, _ := json.MarshalIndent(r, "", " ")
 	result = string(bs)

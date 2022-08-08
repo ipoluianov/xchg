@@ -12,7 +12,10 @@ import (
 )
 
 type EdgeConnection struct {
-	Connection
+	connection *Connection
+
+	started  bool
+	stopping bool
 
 	mtxEdgeConnection sync.Mutex
 
@@ -68,7 +71,8 @@ func NewEdgeConnection(xchgNode string, localAddress *rsa.PrivateKey, authString
 	var c EdgeConnection
 
 	c.node = xchgNode
-	c.initOutgoingConnection(c.node, &c)
+	c.connection = NewConnection()
+	c.connection.initOutgoingConnection(c.node, &c)
 	c.eid = 0
 	c.nextTransactionId = 1
 	c.outgoingTransactions = make(map[uint64]*Transaction)
@@ -84,8 +88,19 @@ func NewEdgeConnection(xchgNode string, localAddress *rsa.PrivateKey, authString
 	}
 
 	c.fastReset()
-	go c.thBackground()
 	return &c
+}
+
+func (c *EdgeConnection) Start() {
+	c.started = true
+	c.stopping = false
+	c.connection.Start()
+	go c.thBackground()
+}
+
+func (c *EdgeConnection) Stop() {
+	c.stopping = true
+	c.connection.Stop()
 }
 
 func (c *EdgeConnection) reset() {
@@ -150,7 +165,7 @@ func (c *EdgeConnection) ProcessTransaction(transaction *Transaction) {
 			c.processError(transaction)
 		}
 	default:
-		c.sendError(transaction, errors.New("wrong protocol version"))
+		c.connection.sendError(transaction, errors.New("wrong protocol version"))
 	}
 }
 
@@ -215,7 +230,7 @@ func (c *EdgeConnection) checkConnection() {
 
 	if !c.init1Sent {
 		c.init1Sent = true
-		c.send(NewTransaction(FrameInit1, 0, 0, 0, 0, c.localAddressBS))
+		c.connection.send(NewTransaction(FrameInit1, 0, 0, 0, 0, c.localAddressBS))
 		return
 	}
 
@@ -223,7 +238,7 @@ func (c *EdgeConnection) checkConnection() {
 		c.init4Sent = true
 		remoteSecretBytesEcrypted, err := rsa.EncryptPKCS1v15(rand.Reader, c.destanationAddress, c.remoteSecretBytes)
 		if err == nil {
-			c.send(NewTransaction(FrameInit4, 0, 0, 0, 0, remoteSecretBytesEcrypted))
+			c.connection.send(NewTransaction(FrameInit4, 0, 0, 0, 0, remoteSecretBytesEcrypted))
 		}
 		return
 	}
@@ -232,7 +247,7 @@ func (c *EdgeConnection) checkConnection() {
 		c.init5Sent = true
 		localSecretBytesEcrypted, err := rsa.EncryptPKCS1v15(rand.Reader, c.destanationAddress, c.localSecretBytes)
 		if err == nil {
-			c.send(NewTransaction(FrameInit5, 0, 0, 0, 0, localSecretBytesEcrypted))
+			c.connection.send(NewTransaction(FrameInit5, 0, 0, 0, 0, localSecretBytesEcrypted))
 		}
 		return
 	}
@@ -251,7 +266,7 @@ func (c *EdgeConnection) executeTransaction(function byte, targetEID uint64, ses
 	c.mtxEdgeConnection.Unlock()
 
 	// Send transaction
-	err = c.send(t)
+	err = c.connection.send(t)
 	if err != nil {
 		c.mtxEdgeConnection.Lock()
 		delete(c.outgoingTransactions, t.transactionId)

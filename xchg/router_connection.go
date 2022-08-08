@@ -10,6 +10,7 @@ import (
 	"net"
 	"sync"
 
+	"github.com/btcsuite/btcutil/base58"
 	"github.com/ipoluianov/gomisc/crypt_tools"
 )
 
@@ -27,6 +28,7 @@ type RouterConnection struct {
 	remoteAddressBS  []byte
 	remoteAddress64  string
 	remoteAddressHex string
+	//RemoteAddressSHAHex string
 
 	// Local Address
 	localAddress           *rsa.PublicKey
@@ -67,6 +69,13 @@ func (c *RouterConnection) addressBS() []byte {
 		return c.remoteAddressBS
 	}
 	return nil
+}
+
+func (c *RouterConnection) address58() string {
+	if c.init4Received {
+		return base58.Encode(c.remoteAddressBS)
+	}
+	return ""
 }
 
 func (c *RouterConnection) ProcessTransaction(transaction *Transaction) {
@@ -120,6 +129,8 @@ func (c *RouterConnection) processInit1(transaction *Transaction) {
 	c.remoteAddressBS = crypt_tools.RSAPublicKeyToDer(rsaPublicKey)
 	c.remoteAddress64 = crypt_tools.RSAPublicKeyToBase64(rsaPublicKey)
 	c.remoteAddressHex = crypt_tools.RSAPublicKeyToHex(rsaPublicKey)
+	//shaBS := sha256.Sum256(c.remoteAddressBS)
+	//c.RemoteAddressSHAHex = base58.Encode(shaBS[:])
 
 	// Send Init2 (my address)
 	{

@@ -55,6 +55,11 @@ func (c *ConnectionConfig) Check() (err error) {
 	return
 }
 
+func NewConnection() *Connection {
+	var c Connection
+	return &c
+}
+
 func (c *Connection) initIncomingConnection(conn net.Conn, processor ITransactionProcessor) {
 	c.mtxBaseConnection.Lock()
 	defer c.mtxBaseConnection.Unlock()
@@ -100,6 +105,7 @@ func (c *Connection) Start() {
 		logger.Println("connection", "stop", "already started")
 		return
 	}
+	c.stopping = false
 	go c.thReceive()
 }
 
@@ -111,6 +117,7 @@ func (c *Connection) Stop() {
 		c.mtxBaseConnection.Unlock()
 		return
 	}
+	c.stopping = true
 	if c.conn != nil {
 		c.conn.Close()
 	}
@@ -132,6 +139,7 @@ func (c *Connection) Stop() {
 	} else {
 		logger.Println("connection", "stop", "success")
 	}
+	c.stopping = false
 	c.mtxBaseConnection.Unlock()
 
 	logger.Println("connection", "stop", "end")
@@ -154,6 +162,7 @@ func (c *Connection) disconnect() {
 			c.processor.Disconnected()
 		}
 	}
+	c.closed = true
 	c.mtxBaseConnection.Unlock()
 }
 

@@ -67,8 +67,8 @@ func (c *HttpServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch r.URL.Path {
 	case "/":
 		result = []byte("index")
-	case "/stat":
-		result = []byte(c.router.Stat())
+	case "/debug":
+		result = []byte(c.router.DebugInfo())
 	}
 
 	w.WriteHeader(200)
