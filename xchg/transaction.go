@@ -56,6 +56,7 @@ func Parse(frame []byte) (tr *Transaction, err error) {
 	tr.frameLen = binary.LittleEndian.Uint32(frame[4:])
 	tr.eid = binary.LittleEndian.Uint64(frame[8:])
 	tr.transactionId = binary.LittleEndian.Uint64(frame[16:])
+	tr.sessionId = binary.LittleEndian.Uint64(frame[24:])
 	tr.data = make([]byte, int(tr.frameLen)-HeaderSize)
 	copy(tr.data, frame[HeaderSize:])
 	return
@@ -71,6 +72,7 @@ func (c *Transaction) marshal() (result []byte) {
 	binary.LittleEndian.PutUint32(result[4:], c.frameLen)
 	binary.LittleEndian.PutUint64(result[8:], c.eid)
 	binary.LittleEndian.PutUint64(result[16:], c.transactionId)
+	binary.LittleEndian.PutUint64(result[24:], c.sessionId)
 	copy(result[HeaderSize:], c.data)
 	return
 }

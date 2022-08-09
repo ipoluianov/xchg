@@ -273,7 +273,7 @@ func (c *EdgeConnection) checkConnection() {
 	}
 }
 
-func (c *EdgeConnection) Call(address string, frame []byte) (result []byte, err error) {
+func (c *EdgeConnection) Call(address string, sessionId uint64, frame []byte) (result []byte, err error) {
 	res, err := c.executeTransaction(FrameResolveAddress, 0, 0, base58.Decode(address), 1000*time.Millisecond)
 	if err != nil {
 		return nil, err
@@ -283,7 +283,7 @@ func (c *EdgeConnection) Call(address string, frame []byte) (result []byte, err 
 	}
 
 	eid := binary.LittleEndian.Uint64(res)
-	result, err = c.executeTransaction(FrameCall, eid, 0, frame, 1000*time.Millisecond)
+	result, err = c.executeTransaction(FrameCall, eid, sessionId, frame, 1000*time.Millisecond)
 	return
 }
 

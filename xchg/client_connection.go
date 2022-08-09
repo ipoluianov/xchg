@@ -18,8 +18,9 @@ type ClientConnection struct {
 	remotePublicKey *rsa.PublicKey
 	localPrivateKey *rsa.PrivateKey
 
-	aesKey    []byte
-	sessionId uint64
+	aesKey              []byte
+	sessionId           uint64
+	sessionNonceCounter uint64
 
 	secretBytes []byte
 
@@ -35,6 +36,7 @@ func NewClientConnection(address string, localPrivateKey58 string, authData stri
 	c.localPrivateKey, _ = crypt_tools.RSAPrivateKeyFromDer(base58.Decode(localPrivateKey58))
 	eConn := NewEdgeConnection("localhost:8484", c.localPrivateKey)
 	c.edgeConnections["localhost:8484"] = eConn
+	c.sessionNonceCounter = 1
 
 	eConn.Start()
 	return &c
@@ -51,13 +53,13 @@ func (c *ClientConnection) Call(function string, data []byte) (result []byte, er
 			return
 		}
 	}
-	result, err = c.regularCall(function, data)
+	result, err = c.regularCall(function, data, c.aesKey)
 	return
 }
 
 func (c *ClientConnection) auth() (err error) {
 	var nonce []byte
-	nonce, err = c.regularCall("/xchg-get-nonce", nil)
+	nonce, err = c.regularCall("/xchg-get-nonce", nil, nil)
 	if err != nil {
 		return
 	}
@@ -84,7 +86,7 @@ func (c *ClientConnection) auth() (err error) {
 	copy(authFrame[4+len(localPublicKeyBS):], encryptedAuthFrame)
 
 	var result []byte
-	result, err = c.regularCall("/xchg-auth", authFrame)
+	result, err = c.regularCall("/xchg-auth", authFrame, nil)
 	if err != nil {
 		return
 	}
@@ -105,7 +107,7 @@ func (c *ClientConnection) auth() (err error) {
 	return
 }
 
-func (c *ClientConnection) regularCall(function string, data []byte) (result []byte, err error) {
+func (c *ClientConnection) regularCall(function string, data []byte, aesKey []byte) (result []byte, err error) {
 	if len(function) > 255 {
 		err = errors.New("wrong function len")
 		return
@@ -116,12 +118,27 @@ func (c *ClientConnection) regularCall(function string, data []byte) (result []b
 		return
 	}
 
-	frame := make([]byte, 1+len(function)+len(data))
-	frame[0] = byte(len(function))
-	copy(frame[1:], function)
-	copy(frame[1+len(function):], data)
+	var frame []byte
+	if len(aesKey) == 32 {
+		frame = make([]byte, 8+1+len(function)+len(data))
+		binary.LittleEndian.PutUint64(frame, c.sessionNonceCounter)
+		c.sessionNonceCounter++
+		frame[8] = byte(len(function))
+		copy(frame[9:], function)
+		copy(frame[9+len(function):], data)
+		frame, err = crypt_tools.EncryptAESGCM(frame, aesKey)
+		if err != nil {
+			err = errors.New("client_connection encrypt error: " + err.Error())
+			return
+		}
+	} else {
+		frame = make([]byte, 1+len(function)+len(data))
+		frame[0] = byte(len(function))
+		copy(frame[1:], function)
+		copy(frame[1+len(function):], data)
+	}
 
-	result, err = ec.Call(c.address, frame)
+	result, err = ec.Call(c.address, c.sessionId, frame)
 	if err != nil {
 		return
 	}

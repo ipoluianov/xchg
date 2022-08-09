@@ -17,6 +17,7 @@ type Session struct {
 	id           uint64
 	aesKey       []byte
 	lastAccessDT time.Time
+	snakeCounter *SnakeCounter
 }
 
 type ServerConnection struct {
@@ -88,19 +89,50 @@ func (c *ServerConnection) OnEdgeDissonnected(edgeConnection *EdgeConnection) {
 }
 
 func (c *ServerConnection) OnEdgeReceivedCall(edgeConnection *EdgeConnection, sessionId uint64, data []byte) (response []byte) {
+	var err error
+	// Find the session
+	var session *Session
 	if sessionId != 0 {
-	} else {
-		// TODO: decrypt by session AES key
+		c.mtxServerConnection.Lock()
+		var ok bool
+		session, ok = c.sessionsById[sessionId]
+		if !ok {
+			session = nil
+		}
+		c.mtxServerConnection.Unlock()
 	}
 
-	if len(data) < 1 {
-		response = c.prepareResponseError(errors.New("EdgeConnection wrong call data (<1)"))
-		return
+	if sessionId != 0 {
+		if session == nil {
+			response = c.prepareResponseError(errors.New("server_connection unknown session"))
+			return
+		}
+		data, err = crypt_tools.DecryptAESGCM(data, session.aesKey)
+		if err != nil {
+			response = c.prepareResponseError(errors.New("server_connection decrypt error: " + err.Error()))
+			return
+		}
+		if len(data) < 9 {
+			response = c.prepareResponseError(errors.New("server_connection wrong call data (<9)"))
+			return
+		}
+		callNonce := binary.LittleEndian.Uint64(data)
+		err = session.snakeCounter.TestAndDeclare(int(callNonce))
+		if err != nil {
+			response = c.prepareResponseError(errors.New("server_connection wrong nonce"))
+			return
+		}
+		data = data[8:]
+	} else {
+		if len(data) < 1 {
+			response = c.prepareResponseError(errors.New("server_connection wrong call data (<1)"))
+			return
+		}
 	}
 
 	functionLen := int(data[0])
 	if len(data) < 1+functionLen {
-		response = c.prepareResponseError(errors.New("EdgeConnection wrong call data (function len)"))
+		response = c.prepareResponseError(errors.New("server_connection wrong call data (function len)"))
 		return
 	}
 	function := string(data[1 : 1+functionLen])
@@ -117,7 +149,6 @@ func (c *ServerConnection) OnEdgeReceivedCall(edgeConnection *EdgeConnection, se
 	}
 
 	var resp []byte
-	var err error
 
 	switch function {
 	case "/xchg-get-nonce":
@@ -170,6 +201,7 @@ func (c *ServerConnection) processAuth(functionParameter []byte) (response []byt
 
 	nonce := parameter[0:16]
 	if !c.nonceGenerator.Check(nonce) {
+		err = errors.New("wrong nonce")
 		return
 	}
 
@@ -187,6 +219,7 @@ func (c *ServerConnection) processAuth(functionParameter []byte) (response []byt
 	session.id = sessionId
 	session.lastAccessDT = time.Now()
 	session.aesKey = make([]byte, 32)
+	session.snakeCounter = NewSnakeCounter(100, 0)
 	rand.Read(session.aesKey)
 	c.sessionsById[sessionId] = session
 	response = make([]byte, 8+32)
