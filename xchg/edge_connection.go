@@ -14,14 +14,14 @@ import (
 )
 
 type EdgeConnection struct {
+	node string
+
 	connection *Connection
 
 	started  bool
 	stopping bool
 
 	mtxEdgeConnection sync.Mutex
-
-	node string
 
 	// Local Address
 	localAddress           *rsa.PublicKey
@@ -33,18 +33,9 @@ type EdgeConnection struct {
 	localAddressPrivate64  string
 	localAddressPrivateHex string
 
-	sessionsById          map[uint64]*Session
-	lastPurgeSessionsTime time.Time
-
-	// Destanation Address
-	destanationAddress    *rsa.PublicKey
-	destanationAddressBS  []byte
-	destanationAddress64  string
-	destanationAddressHex string
+	xchgNodePublicKey *rsa.PublicKey
 
 	// State
-	remoteServerHostingIP string
-	sessionId             uint64
 
 	localSecretBytes  []byte
 	remoteSecretBytes []byte
@@ -53,8 +44,6 @@ type EdgeConnection struct {
 	nextTransactionId    uint64
 
 	// Initialization
-	eid uint64
-
 	init1Sent     bool
 	init2Received bool
 	init3Received bool
@@ -62,7 +51,7 @@ type EdgeConnection struct {
 	init5Sent     bool
 	init6Received bool
 
-	onReceived func(ev ServerEvent) ([]byte, error)
+	callback func(ev ServerEvent) ([]byte, error)
 }
 
 type ServerEventType int
@@ -75,8 +64,9 @@ const (
 )
 
 type ServerEvent struct {
-	Type ServerEventType
-	Data []byte
+	Type     ServerEventType
+	Function string
+	Data     []byte
 }
 
 type Session struct {
@@ -85,13 +75,12 @@ type Session struct {
 	lastAccessDT time.Time
 }
 
-func NewEdgeConnection(xchgNode string, localAddress *rsa.PrivateKey, authString string) *EdgeConnection {
+func NewEdgeConnection(xchgNode string, localAddress *rsa.PrivateKey) *EdgeConnection {
 	var c EdgeConnection
 
 	c.node = xchgNode
 	c.connection = NewConnection()
 	c.connection.initOutgoingConnection(c.node, &c)
-	c.eid = 0
 	c.nextTransactionId = 1
 	c.outgoingTransactions = make(map[uint64]*Transaction)
 
@@ -109,7 +98,14 @@ func NewEdgeConnection(xchgNode string, localAddress *rsa.PrivateKey, authString
 	return &c
 }
 
+func (c *EdgeConnection) SetCallback(callback func(ev ServerEvent) ([]byte, error)) {
+	c.callback = callback
+}
+
 func (c *EdgeConnection) Start() {
+	if c.localAddressPrivate == nil {
+		return
+	}
 	c.started = true
 	c.stopping = false
 	c.connection.Start()
@@ -128,7 +124,6 @@ func (c *EdgeConnection) reset() {
 
 func (c *EdgeConnection) fastReset() {
 	c.mtxEdgeConnection.Lock()
-	c.eid = 0
 
 	c.init1Sent = false
 	c.init2Received = false
@@ -142,7 +137,7 @@ func (c *EdgeConnection) fastReset() {
 
 	for _, t := range c.outgoingTransactions {
 		if !t.complete {
-			t.err = errors.New("connection loss")
+			t.err = errors.New("EdgeConnection connection loss")
 			t.complete = true
 		}
 	}
@@ -191,7 +186,7 @@ func (c *EdgeConnection) ProcessTransaction(transaction *Transaction) {
 func (c *EdgeConnection) processInit2(transaction *Transaction) {
 	fmt.Println("processInit2")
 	var err error
-	c.destanationAddress, err = crypt_tools.RSAPublicKeyFromDer(transaction.data)
+	c.xchgNodePublicKey, err = crypt_tools.RSAPublicKeyFromDer(transaction.data)
 	if err != nil {
 		return
 	}
@@ -231,8 +226,58 @@ func (c *EdgeConnection) processError(transaction *Transaction) {
 	c.reset()
 }
 
+func (c *EdgeConnection) sendResponse(transactionId uint64, data []byte) {
+	respFrame := make([]byte, 1+len(data))
+	respFrame[0] = 0
+	copy(respFrame[1:], data)
+	c.connection.send(NewTransaction(FrameResponse, 0, 0, transactionId, 0, respFrame))
+}
+
+func (c *EdgeConnection) sendResponseError(transactionId uint64, err error) {
+	if err == nil {
+		return
+	}
+	errBS := []byte(err.Error())
+	respFrame := make([]byte, 1+len(errBS))
+	respFrame[1] = 1
+	copy(respFrame[1:], errBS)
+	c.connection.send(NewTransaction(FrameResponse, 0, 0, transactionId, 0, respFrame))
+}
+
 func (c *EdgeConnection) processCall(transaction *Transaction) {
-	c.connection.send(NewTransaction(FrameResponse, 0, 0, transaction.transactionId, 0, []byte("RRR")))
+	var callback func(ev ServerEvent) ([]byte, error)
+	c.mtxEdgeConnection.Lock()
+	callback = c.callback
+	c.mtxEdgeConnection.Unlock()
+
+	if callback != nil {
+		if len(transaction.data) < 1 {
+			c.sendResponseError(transaction.transactionId, errors.New("EdgeConnection wrong call data (<1)"))
+			return
+		}
+
+		functionLen := int(transaction.data[0])
+		if len(transaction.data) < 1+functionLen {
+			c.sendResponseError(transaction.transactionId, errors.New("EdgeConnection wrong call data (function len)"))
+			return
+		}
+
+		function := string(transaction.data[1 : 1+functionLen])
+		data := transaction.data[1+functionLen:]
+
+		var ev ServerEvent
+		ev.Type = ServerEventFrame
+		ev.Function = function
+		ev.Data = data
+		resp, err := callback(ev)
+		if err == nil {
+			c.sendResponse(transaction.transactionId, resp)
+		} else {
+			c.sendResponseError(transaction.transactionId, err)
+		}
+	} else {
+		c.sendResponseError(transaction.transactionId, errors.New("EdgeConnection not implemented"))
+	}
 }
 
 func (c *EdgeConnection) processResponse(transaction *Transaction) {
@@ -269,7 +314,7 @@ func (c *EdgeConnection) checkConnection() {
 
 	if c.init3Received && !c.init4Sent {
 		c.init4Sent = true
-		remoteSecretBytesEcrypted, err := rsa.EncryptPKCS1v15(rand.Reader, c.destanationAddress, c.remoteSecretBytes)
+		remoteSecretBytesEcrypted, err := rsa.EncryptPKCS1v15(rand.Reader, c.xchgNodePublicKey, c.remoteSecretBytes)
 		if err == nil {
 			c.connection.send(NewTransaction(FrameInit4, 0, 0, 0, 0, remoteSecretBytesEcrypted))
 		}
@@ -278,7 +323,7 @@ func (c *EdgeConnection) checkConnection() {
 
 	if c.init2Received && !c.init5Sent {
 		c.init5Sent = true
-		localSecretBytesEcrypted, err := rsa.EncryptPKCS1v15(rand.Reader, c.destanationAddress, c.localSecretBytes)
+		localSecretBytesEcrypted, err := rsa.EncryptPKCS1v15(rand.Reader, c.xchgNodePublicKey, c.localSecretBytes)
 		if err == nil {
 			c.connection.send(NewTransaction(FrameInit5, 0, 0, 0, 0, localSecretBytesEcrypted))
 		}
@@ -292,7 +337,7 @@ func (c *EdgeConnection) Call(address string, frame []byte) (result []byte, err 
 		return nil, err
 	}
 	if len(res) != 8 {
-		return nil, errors.New("wrong server response")
+		return nil, errors.New("EdgeConnection wrong server response")
 	}
 
 	eid := binary.LittleEndian.Uint64(res)
@@ -352,21 +397,5 @@ func (c *EdgeConnection) executeTransaction(frameType byte, targetEID uint64, se
 	delete(c.outgoingTransactions, t.transactionId)
 	c.mtxEdgeConnection.Unlock()
 
-	return nil, errors.New("timeout")
-}
-
-func (c *EdgeConnection) purgeSessions() {
-	now := time.Now()
-	c.mtxEdgeConnection.Lock()
-	if now.Sub(c.lastPurgeSessionsTime).Seconds() > 5*60 {
-		fmt.Println("Purging sessions")
-		for sessionId, session := range c.sessionsById {
-			if now.Sub(session.lastAccessDT).Seconds() > 30 {
-				fmt.Println("Removing session", sessionId)
-				delete(c.sessionsById, sessionId)
-			}
-		}
-		c.lastPurgeSessionsTime = time.Now()
-	}
-	c.mtxEdgeConnection.Unlock()
+	return nil, errors.New("EdgeConnection timeout")
 }

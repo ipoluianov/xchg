@@ -39,8 +39,8 @@ func SelfTest() {
 	fmt.Println("-------------Press any key for connect")
 	fmt.Scanln()
 
-	go ServerConnection("1")
-	go ServerConnection("2")
+	go ServerConnection1("1")
+	go ServerConnection1("2")
 
 	fmt.Println("----------------Press any key for exit")
 	fmt.Scanln()
@@ -61,7 +61,7 @@ func SelfTest() {
 	fmt.Println("Process was finished")
 }
 
-func ServerConnection(id string) {
+func ServerConnection1(id string) {
 	var privateKey *rsa.PrivateKey
 
 	privateFile := id + "_private_key.pem"
@@ -96,13 +96,12 @@ func ServerConnection(id string) {
 		fmt.Println("loaded address", base58.Encode(crypt_tools.RSAPublicKeyToDer(&privateKey.PublicKey)))
 	}
 
-	s := NewEdgeConnection("127.0.0.1:8484", privateKey, "pass")
-	s.Start()
 	if id == "1" {
+		s := NewClientConnection("4e1BUTgGBfqVW2FEkDmduPMWQoLrJwrRBg5CLEwPLNBCKj2gxXvBiq1s7S3oTdJpKzu4xWjEXx6WLHM2veikSYNScMNVnkcqQzcd9htSMPy4vW2jtm6TMeEphDdqfPnrrJwvWr3V1t5e6cz2CDF66XPNfZkjEmxFEFdigeJ6h48qcAzYmMzbB9iudoVC1CqX92DzsRcFxY6h8uvKjX77imxWMDTRrU7hmPc9SjBrQZ1oar7WAEYt247cx4UqPmyi9xnfD2Ns7ctJba5VbiKXuVcxx2vtWsB324y2dZCQrduEfLLNr1kxtMe3WimkuxdHX5D74tJ5boF6CJ1HBvzsKUDBy1sGQ3SY6YWhH7b4Pv17Sfu9a", "pass")
 		for i := 0; i < 10; i++ {
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(500 * time.Millisecond)
 			var bs []byte
-			bs, err = s.Call("4e1BUTgGBfqVW2FEkDmduPMWQoLrJwrRBg5CLEwPLNBCKj2gxXvBiq1s7S3oTdJpKzu4xWjEXx6WLHM2veikSYNScMNVnkcqQzcd9htSMPy4vW2jtm6TMeEphDdqfPnrrJwvWr3V1t5e6cz2CDF66XPNfZkjEmxFEFdigeJ6h48qcAzYmMzbB9iudoVC1CqX92DzsRcFxY6h8uvKjX77imxWMDTRrU7hmPc9SjBrQZ1oar7WAEYt247cx4UqPmyi9xnfD2Ns7ctJba5VbiKXuVcxx2vtWsB324y2dZCQrduEfLLNr1kxtMe3WimkuxdHX5D74tJ5boF6CJ1HBvzsKUDBy1sGQ3SY6YWhH7b4Pv17Sfu9a",
+			bs, err = s.Call("func1",
 				[]byte("123"))
 			if err != nil {
 				fmt.Println("ERROR", err)
@@ -111,9 +110,15 @@ func ServerConnection(id string) {
 			}
 
 		}
+		s = nil
 	} else {
+		s := NewEdgeConnection("127.0.0.1:8484", privateKey)
+		s.Start()
+		s.SetCallback(func(ev ServerEvent) ([]byte, error) {
+			return []byte("HELLO"), nil
+		})
 		time.Sleep(1000 * time.Second)
+		s.Stop()
+		s = nil
 	}
-	s.Stop()
-	s = nil
 }
