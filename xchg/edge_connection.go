@@ -51,28 +51,13 @@ type EdgeConnection struct {
 	init5Sent     bool
 	init6Received bool
 
-	callback func(ev ServerEvent) ([]byte, error)
+	processor EdgeConnectionProcessor
 }
 
-type ServerEventType int
-
-const (
-	ServerEventNetworkConnected    = 0
-	ServerEventNetworkDisconnected = 1
-	ServerEventFrame               = 2
-	ServerEventAuth                = 3
-)
-
-type ServerEvent struct {
-	Type     ServerEventType
-	Function string
-	Data     []byte
-}
-
-type Session struct {
-	id           uint64
-	aesKey       []byte
-	lastAccessDT time.Time
+type EdgeConnectionProcessor interface {
+	OnEdgeConnected(edgeConnection *EdgeConnection)
+	OnEdgeDissonnected(edgeConnection *EdgeConnection)
+	OnEdgeReceivedCall(edgeConnection *EdgeConnection, sessionId uint64, data []byte) (response []byte)
 }
 
 func NewEdgeConnection(xchgNode string, localAddress *rsa.PrivateKey) *EdgeConnection {
@@ -98,8 +83,8 @@ func NewEdgeConnection(xchgNode string, localAddress *rsa.PrivateKey) *EdgeConne
 	return &c
 }
 
-func (c *EdgeConnection) SetCallback(callback func(ev ServerEvent) ([]byte, error)) {
-	c.callback = callback
+func (c *EdgeConnection) SetProcessor(processor EdgeConnectionProcessor) {
+	c.processor = processor
 }
 
 func (c *EdgeConnection) Start() {
@@ -226,57 +211,14 @@ func (c *EdgeConnection) processError(transaction *Transaction) {
 	c.reset()
 }
 
-func (c *EdgeConnection) sendResponse(transactionId uint64, data []byte) {
-	respFrame := make([]byte, 1+len(data))
-	respFrame[0] = 0
-	copy(respFrame[1:], data)
-	c.connection.send(NewTransaction(FrameResponse, 0, 0, transactionId, 0, respFrame))
-}
-
-func (c *EdgeConnection) sendResponseError(transactionId uint64, err error) {
-	if err == nil {
-		return
-	}
-	errBS := []byte(err.Error())
-	respFrame := make([]byte, 1+len(errBS))
-	respFrame[1] = 1
-	copy(respFrame[1:], errBS)
-	c.connection.send(NewTransaction(FrameResponse, 0, 0, transactionId, 0, respFrame))
-}
-
 func (c *EdgeConnection) processCall(transaction *Transaction) {
-	var callback func(ev ServerEvent) ([]byte, error)
+	var processor EdgeConnectionProcessor
 	c.mtxEdgeConnection.Lock()
-	callback = c.callback
+	processor = c.processor
 	c.mtxEdgeConnection.Unlock()
-
-	if callback != nil {
-		if len(transaction.data) < 1 {
-			c.sendResponseError(transaction.transactionId, errors.New("EdgeConnection wrong call data (<1)"))
-			return
-		}
-
-		functionLen := int(transaction.data[0])
-		if len(transaction.data) < 1+functionLen {
-			c.sendResponseError(transaction.transactionId, errors.New("EdgeConnection wrong call data (function len)"))
-			return
-		}
-
-		function := string(transaction.data[1 : 1+functionLen])
-		data := transaction.data[1+functionLen:]
-
-		var ev ServerEvent
-		ev.Type = ServerEventFrame
-		ev.Function = function
-		ev.Data = data
-		resp, err := callback(ev)
-		if err == nil {
-			c.sendResponse(transaction.transactionId, resp)
-		} else {
-			c.sendResponseError(transaction.transactionId, err)
-		}
-	} else {
-		c.sendResponseError(transaction.transactionId, errors.New("EdgeConnection not implemented"))
+	if processor != nil {
+		resp := processor.OnEdgeReceivedCall(c, transaction.sessionId, transaction.data)
+		c.connection.send(NewTransaction(FrameResponse, 0, 0, transaction.transactionId, 0, resp))
 	}
 }
 
