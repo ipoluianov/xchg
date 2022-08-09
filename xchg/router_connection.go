@@ -28,7 +28,7 @@ type RouterConnection struct {
 	remoteAddressBS  []byte
 	remoteAddress64  string
 	remoteAddressHex string
-	//RemoteAddressSHAHex string
+	remoteAddress58  string
 
 	// Local Address
 	localAddress           *rsa.PublicKey
@@ -88,6 +88,12 @@ func (c *RouterConnection) ProcessTransaction(transaction *Transaction) {
 			c.processInit4(transaction)
 		case FrameInit5:
 			c.processInit5(transaction)
+		case FrameResolveAddress:
+			c.processResolveAddress(transaction)
+		case FrameCall:
+			c.processCall(transaction)
+		case FrameResponse:
+			c.processResponse(transaction)
 		default:
 			c.sendError(transaction, errors.New("wrong function"))
 		}
@@ -129,8 +135,7 @@ func (c *RouterConnection) processInit1(transaction *Transaction) {
 	c.remoteAddressBS = crypt_tools.RSAPublicKeyToDer(rsaPublicKey)
 	c.remoteAddress64 = crypt_tools.RSAPublicKeyToBase64(rsaPublicKey)
 	c.remoteAddressHex = crypt_tools.RSAPublicKeyToHex(rsaPublicKey)
-	//shaBS := sha256.Sum256(c.remoteAddressBS)
-	//c.RemoteAddressSHAHex = base58.Encode(shaBS[:])
+	c.remoteAddress58 = base58.Encode(c.remoteAddressBS)
 
 	// Send Init2 (my address)
 	{
@@ -166,6 +171,7 @@ func (c *RouterConnection) processInit4(transaction *Transaction) {
 	}
 	c.init4Received = true
 	c.router.setAddressForConnection(c)
+
 }
 
 func (c *RouterConnection) processInit5(transaction *Transaction) {
@@ -189,9 +195,9 @@ func (c *RouterConnection) processResolveAddress(transaction *Transaction) {
 		return
 	}
 
-	transaction.data = make([]byte, 8)
-	binary.LittleEndian.PutUint64(transaction.data, connection.id)
-	c.send(transaction)
+	data := make([]byte, 8)
+	binary.LittleEndian.PutUint64(data, connection.id)
+	c.send(NewTransaction(FrameResponse, 0, 0, transaction.transactionId, 0, data))
 }
 
 func (c *RouterConnection) processCall(transaction *Transaction) {
@@ -205,4 +211,10 @@ func (c *RouterConnection) processCall(transaction *Transaction) {
 	if err != nil {
 		c.sendError(transaction, err)
 	}
+	transaction.connection = c
+	connection.send(transaction)
+}
+
+func (c *RouterConnection) processResponse(transaction *Transaction) {
+	c.router.SetResponse(transaction)
 }

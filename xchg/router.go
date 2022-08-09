@@ -4,11 +4,11 @@ import (
 	"crypto/rsa"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net"
 	"sync"
 	"time"
 
+	"github.com/btcsuite/btcutil/base58"
 	"github.com/ipoluianov/gomisc/crypt_tools"
 	"github.com/ipoluianov/gomisc/logger"
 )
@@ -174,7 +174,7 @@ func (c *Router) AddConnection(conn net.Conn) {
 }
 
 func (c *Router) getConnectionByAddress(address []byte) (result *RouterConnection) {
-	if len(address) < 1 || len(address) < 1024 {
+	if len(address) < 1 || len(address) > 1024 {
 		return
 	}
 
@@ -184,8 +184,9 @@ func (c *Router) getConnectionByAddress(address []byte) (result *RouterConnectio
 		return
 	}
 
-	conn, ok := c.connectionsByAddress[string(address)]
-	if !ok {
+	addr58 := base58.Encode(address)
+	conn, ok := c.connectionsByAddress[addr58]
+	if ok {
 		result = conn
 	}
 	return
@@ -199,7 +200,7 @@ func (c *Router) getConnectionById(connectionId uint64) (result *RouterConnectio
 	}
 
 	conn, ok := c.connectionsById[connectionId]
-	if !ok {
+	if ok {
 		result = conn
 	}
 	return
@@ -229,7 +230,7 @@ func (c *Router) setAddressForConnection(connection *RouterConnection) {
 	}
 
 	c.connectionsByAddress[string(address)] = connection
-	fmt.Println("Router - setAddressForConnection")
+	//fmt.Println("Router - setAddressForConnection")
 }
 
 func (c *Router) beginTransaction(transaction *Transaction) (err error) {
@@ -273,7 +274,7 @@ func (c *Router) SetResponse(transaction *Transaction) {
 	c.mtx.Unlock()
 
 	transaction.transactionId = originalTransaction.standbyTransactionId
-	originalTransaction.connection.send(transaction)
+	originalTransaction.connection.send(NewTransaction(FrameResponse, 0, 0, transaction.transactionId, 0, transaction.data))
 }
 
 func (c *Router) thWorker() {

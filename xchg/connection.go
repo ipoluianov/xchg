@@ -268,7 +268,7 @@ func (c *Connection) thReceive() {
 }
 
 func (c *Connection) sendError(transaction *Transaction, err error) {
-	fmt.Println("SendError:", err)
+	//fmt.Println("SendError:", err)
 	c.send(NewTransaction(FrameError, transaction.recevied1, transaction.eid, transaction.transactionId, 0, []byte(err.Error())))
 }
 

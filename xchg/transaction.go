@@ -20,10 +20,12 @@ type Transaction struct {
 
 	// State
 	dt                   time.Time
-	connection           *Connection
+	connection           *RouterConnection
 	standbyTransactionId uint64
-	complete             bool
-	err                  error
+
+	complete bool
+	result   []byte
+	err      error
 }
 
 func NewTransaction(frameType byte, code byte, targetEID uint64, transactionId uint64, sessionId uint64, data []byte) *Transaction {
