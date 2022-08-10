@@ -227,20 +227,16 @@ func (c *Router) getConnectionCount() int {
 	return count
 }
 
-func (c *Router) setAddressForConnection(connection *RouterConnection) {
+func (c *Router) setAddressForConnection(connection *RouterConnection, address58 string) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 	if c.chWorking == nil {
 		return
 	}
-
-	address := connection.address58()
-	if len(address) == 0 {
+	if len(address58) == 0 {
 		return
 	}
-
-	c.connectionsByAddress[string(address)] = connection
-	//fmt.Println("Router - setAddressForConnection")
+	c.connectionsByAddress[address58] = connection
 }
 
 func (c *Router) beginTransaction(transaction *Transaction) (err error) {
@@ -303,7 +299,7 @@ func (c *Router) thWorker() {
 			for i, conn := range c.connections {
 				if conn.closed {
 					c.connections = append(c.connections[:i], c.connections[i+1:]...)
-					delete(c.connectionsByAddress, conn.address58())
+					delete(c.connectionsByAddress, conn.ConfirmedRemoteAddress())
 					delete(c.connectionsById, conn.id)
 					break
 				}

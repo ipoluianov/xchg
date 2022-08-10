@@ -23,14 +23,8 @@ type EdgeConnection struct {
 	mtxEdgeConnection sync.Mutex
 
 	// Local Address
-	localAddress           *rsa.PublicKey
-	localAddressBS         []byte
-	localAddress64         string
-	localAddressHex        string
-	localAddressPrivate    *rsa.PrivateKey
-	localAddressPrivateBS  []byte
-	localAddressPrivate64  string
-	localAddressPrivateHex string
+	localAddress        *rsa.PublicKey
+	localAddressPrivate *rsa.PrivateKey
 
 	xchgNodePublicKey *rsa.PublicKey
 
@@ -70,12 +64,7 @@ func NewEdgeConnection(xchgNode string, localAddress *rsa.PrivateKey) *EdgeConne
 
 	if localAddress != nil {
 		c.localAddressPrivate = localAddress
-		c.localAddressPrivateBS = crypt_tools.RSAPrivateKeyToDer(localAddress)
-		c.localAddressPrivate64 = crypt_tools.RSAPrivateKeyToBase64(localAddress)
-		c.localAddressPrivateHex = crypt_tools.RSAPrivateKeyToHex(localAddress)
-		c.localAddressBS = crypt_tools.RSAPublicKeyToDer(&localAddress.PublicKey)
-		c.localAddress64 = crypt_tools.RSAPublicKeyToBase64(&localAddress.PublicKey)
-		c.localAddressHex = crypt_tools.RSAPublicKeyToHex(&localAddress.PublicKey)
+		c.localAddress = &c.localAddressPrivate.PublicKey
 	}
 
 	c.fastReset()
@@ -245,7 +234,7 @@ func (c *EdgeConnection) checkConnection() {
 
 	if !c.init1Sent {
 		c.init1Sent = true
-		c.connection.send(NewTransaction(FrameInit1, 0, 0, 0, 0, c.localAddressBS))
+		c.connection.send(NewTransaction(FrameInit1, 0, 0, 0, 0, crypt_tools.RSAPublicKeyToDer(c.localAddress)))
 		return
 	}
 
@@ -278,6 +267,7 @@ func (c *EdgeConnection) Call(address string, sessionId uint64, frame []byte) (r
 	}
 
 	eid := binary.LittleEndian.Uint64(res)
+
 	result, err = c.executeTransaction(FrameCall, eid, sessionId, frame, 1000*time.Millisecond)
 	return
 }

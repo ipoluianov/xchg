@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	github.com/btcsuite/btcutil v1.0.2
-	github.com/ipoluianov/gomisc v0.0.16
+	github.com/ipoluianov/gomisc v0.0.18
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
 	github.com/kardianos/service v1.2.1
 )

@@ -9,72 +9,42 @@ import (
 	"net"
 	"sync"
 
-	"github.com/btcsuite/btcutil/base58"
 	"github.com/ipoluianov/gomisc/crypt_tools"
 )
 
 type RouterConnection struct {
 	Connection
-	mtxRouterConnection     sync.Mutex
-	router                  *Router
-	stopBackgroundRoutineCh chan struct{}
+	mtxRouterConnection sync.Mutex
+	router              *Router
 
-	localSecretBytes  []byte
-	remoteSecretBytes []byte
+	localSecretBytes []byte
 
 	// Remote Address
-	remoteAddress    *rsa.PublicKey
-	remoteAddressBS  []byte
-	remoteAddress64  string
-	remoteAddressHex string
-	remoteAddress58  string
+	remotePublicKey        *rsa.PublicKey
+	confirmedRemoteAddress string
 
 	// Local Address
-	localAddress           *rsa.PublicKey
-	localAddressBS         []byte
-	localAddress64         string
-	localAddressHex        string
-	localAddressPrivate    *rsa.PrivateKey
-	localAddressPrivateBS  []byte
-	localAddressPrivate64  string
-	localAddressPrivateHex string
+	privateKey *rsa.PrivateKey
 
 	init1Received bool
 	init4Received bool
 	init5Received bool
 }
 
-func NewRouterConnection(conn net.Conn, router *Router, localAddress *rsa.PrivateKey) *RouterConnection {
+func NewRouterConnection(conn net.Conn, router *Router, privateKey *rsa.PrivateKey) *RouterConnection {
 	var c RouterConnection
 	c.router = router
-
-	if localAddress != nil {
-		c.localAddressPrivate = localAddress
-		c.localAddressPrivateBS = crypt_tools.RSAPrivateKeyToDer(localAddress)
-		c.localAddressPrivate64 = crypt_tools.RSAPrivateKeyToBase64(localAddress)
-		c.localAddressPrivateHex = crypt_tools.RSAPrivateKeyToHex(localAddress)
-		c.localAddressBS = crypt_tools.RSAPublicKeyToDer(&localAddress.PublicKey)
-		c.localAddress64 = crypt_tools.RSAPublicKeyToBase64(&localAddress.PublicKey)
-		c.localAddressHex = crypt_tools.RSAPublicKeyToHex(&localAddress.PublicKey)
-	}
-
+	c.privateKey = privateKey
+	c.localSecretBytes = make([]byte, 32)
+	rand.Read(c.localSecretBytes)
 	c.initIncomingConnection(conn, &c)
-	c.Connected()
 	return &c
 }
 
-func (c *RouterConnection) addressBS() []byte {
-	if c.init4Received {
-		return c.remoteAddressBS
-	}
-	return nil
-}
-
-func (c *RouterConnection) address58() string {
-	if c.init4Received {
-		return base58.Encode(c.remoteAddressBS)
-	}
-	return ""
+func (c *RouterConnection) Id() uint64 {
+	c.mtxRouterConnection.Lock()
+	defer c.mtxRouterConnection.Unlock()
+	return c.id
 }
 
 func (c *RouterConnection) ProcessTransaction(transaction *Transaction) {
@@ -102,14 +72,15 @@ func (c *RouterConnection) ProcessTransaction(transaction *Transaction) {
 }
 
 func (c *RouterConnection) Connected() {
-	// Generate new secret bytes for every connection
-	c.mtxRouterConnection.Lock()
-	c.localSecretBytes = make([]byte, 32)
-	rand.Read(c.localSecretBytes)
-	c.mtxRouterConnection.Unlock()
 }
 
 func (c *RouterConnection) Disconnected() {
+}
+
+func (c *RouterConnection) ConfirmedRemoteAddress() string {
+	c.mtxRouterConnection.Lock()
+	defer c.mtxRouterConnection.Unlock()
+	return c.confirmedRemoteAddress
 }
 
 func (c *RouterConnection) processInit1(transaction *Transaction) {
@@ -128,56 +99,69 @@ func (c *RouterConnection) processInit1(transaction *Transaction) {
 		return
 	}
 
-	c.remoteAddress = rsaPublicKey
-	c.remoteAddressBS = crypt_tools.RSAPublicKeyToDer(rsaPublicKey)
-	c.remoteAddress64 = crypt_tools.RSAPublicKeyToBase64(rsaPublicKey)
-	c.remoteAddressHex = crypt_tools.RSAPublicKeyToHex(rsaPublicKey)
-	c.remoteAddress58 = base58.Encode(c.remoteAddressBS)
+	c.mtxRouterConnection.Lock()
+	c.remotePublicKey = rsaPublicKey
+	localAddressBS := c.router.localAddressBS
+	localSecretBytes := c.localSecretBytes
+	c.mtxRouterConnection.Unlock()
 
 	// Send Init2 (my address)
-	{
-		c.send(NewTransaction(FrameInit2, 0, 0, 0, 0, c.router.localAddressBS))
-	}
+	c.send(NewTransaction(FrameInit2, 0, 0, 0, 0, localAddressBS))
 
 	// Send Init3
 	{
 		var encryptedLocalSecret []byte
-		encryptedLocalSecret, err = rsa.EncryptPKCS1v15(rand.Reader, c.remoteAddress, c.localSecretBytes)
+		encryptedLocalSecret, err = rsa.EncryptPKCS1v15(rand.Reader, rsaPublicKey, localSecretBytes)
 		if err != nil {
 			c.sendError(transaction, err)
 			return
 		}
 		c.send(NewTransaction(FrameInit3, 0, 0, 0, 0, encryptedLocalSecret))
 	}
-
 }
 
 func (c *RouterConnection) processInit4(transaction *Transaction) {
-	localSecretBytes, err := rsa.DecryptPKCS1v15(rand.Reader, c.localAddressPrivate, transaction.data)
+	c.mtxRouterConnection.Lock()
+	privateKey := c.privateKey
+	localSecretBytes := c.localSecretBytes
+	remotePublicKey := c.remotePublicKey
+	c.mtxRouterConnection.Unlock()
+
+	receivedSecretBytes, err := rsa.DecryptPKCS1v15(rand.Reader, privateKey, transaction.data)
 	if err != nil {
 		return
 	}
-	if len(localSecretBytes) != len(c.localSecretBytes) {
+	if len(receivedSecretBytes) != len(localSecretBytes) {
 		return
 	}
-	for i := 0; i < len(c.localSecretBytes); i++ {
-		if c.localSecretBytes[i] != localSecretBytes[i] {
+	for i := 0; i < len(localSecretBytes); i++ {
+		if localSecretBytes[i] != receivedSecretBytes[i] {
 			return
 		}
 	}
+	c.mtxRouterConnection.Lock()
 	c.init4Received = true
-	c.router.setAddressForConnection(c)
+	confirmedRemoteAddress := crypt_tools.RSAPublicKeyToBase58(remotePublicKey)
+	c.confirmedRemoteAddress = confirmedRemoteAddress
+	c.mtxRouterConnection.Unlock()
 
+	c.router.setAddressForConnection(c, confirmedRemoteAddress)
 }
 
 func (c *RouterConnection) processInit5(transaction *Transaction) {
+	c.mtxRouterConnection.Lock()
+	privateKey := c.privateKey
+	remotePublicKey := c.remotePublicKey
+	c.mtxRouterConnection.Unlock()
+
 	var err error
-	c.remoteSecretBytes, err = rsa.DecryptPKCS1v15(rand.Reader, c.localAddressPrivate, transaction.data)
+	var remoteSecretBytes []byte
+	remoteSecretBytes, err = rsa.DecryptPKCS1v15(rand.Reader, privateKey, transaction.data)
 	if err != nil {
 		return
 	}
 
-	remoteSecretBytesEcrypted, err := rsa.EncryptPKCS1v15(rand.Reader, c.remoteAddress, c.remoteSecretBytes)
+	remoteSecretBytesEcrypted, err := rsa.EncryptPKCS1v15(rand.Reader, remotePublicKey, remoteSecretBytes)
 	if err == nil {
 		c.send(NewTransaction(FrameInit6, 0, 0, 0, 0, remoteSecretBytesEcrypted))
 	}
@@ -189,9 +173,8 @@ func (c *RouterConnection) processResolveAddress(transaction *Transaction) {
 		c.sendError(transaction, errors.New("address not found"))
 		return
 	}
-
 	data := make([]byte, 8)
-	binary.LittleEndian.PutUint64(data, connection.id)
+	binary.LittleEndian.PutUint64(data, connection.Id())
 	c.send(NewTransaction(FrameResponse, 0, 0, transaction.transactionId, 0, data))
 }
 
@@ -200,11 +183,13 @@ func (c *RouterConnection) processCall(transaction *Transaction) {
 	connection := c.router.getConnectionById(transaction.eid)
 	if connection == nil {
 		c.sendError(transaction, errors.New("connection not found"))
+		return
 	}
 
 	err = c.router.beginTransaction(transaction)
 	if err != nil {
 		c.sendError(transaction, err)
+		return
 	}
 	transaction.connection = c
 	connection.send(transaction)
