@@ -184,7 +184,7 @@ func Start() error {
 	var privateKey *rsa.PrivateKey
 	privateKey, _ = crypt_tools.GenerateRSAKey()
 
-	router = xchg.NewRouter(privateKey)
+	router = xchg.NewRouter(privateKey, conf)
 	router.Start()
 
 	srv = xchg.NewRouterServer(conf, router)

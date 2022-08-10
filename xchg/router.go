@@ -36,6 +36,9 @@ type Router struct {
 	localAddressPrivate64  string
 	localAddressPrivateHex string
 
+	httpServer   *HttpServer
+	routerServer *RouterServer
+
 	chWorking chan interface{}
 }
 
@@ -65,7 +68,7 @@ func (c *RouterConfig) Log() {
 	logger.Println("router config", "MaxConnectionCountPerIP =", c.MaxConnectionCountPerIP)
 }
 
-func NewRouter(localAddress *rsa.PrivateKey) *Router {
+func NewRouter(localAddress *rsa.PrivateKey, config Config) *Router {
 	var c Router
 
 	if localAddress != nil {
@@ -79,6 +82,8 @@ func NewRouter(localAddress *rsa.PrivateKey) *Router {
 	}
 
 	c.Init()
+	c.routerServer = NewRouterServer(config, &c)
+	c.httpServer = NewHttpServer(config, &c)
 	return &c
 }
 
@@ -111,10 +116,15 @@ func (c *Router) Start() (err error) {
 	go c.thWorker()
 
 	logger.Println("router started")
+	c.httpServer.Start()
+	c.routerServer.Start()
 	return
 }
 
 func (c *Router) Stop() (err error) {
+	c.routerServer.Stop()
+	c.httpServer.Stop()
+
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 

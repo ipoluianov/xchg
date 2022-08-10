@@ -5,7 +5,6 @@ import (
 	"crypto/rsa"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
@@ -169,7 +168,6 @@ func (c *EdgeConnection) ProcessTransaction(transaction *Transaction) {
 }
 
 func (c *EdgeConnection) processInit2(transaction *Transaction) {
-	fmt.Println("processInit2")
 	var err error
 	c.xchgNodePublicKey, err = crypt_tools.RSAPublicKeyFromDer(transaction.data)
 	if err != nil {
@@ -179,7 +177,6 @@ func (c *EdgeConnection) processInit2(transaction *Transaction) {
 }
 
 func (c *EdgeConnection) processInit3(transaction *Transaction) {
-	fmt.Println("processInit3")
 	var err error
 	c.remoteSecretBytes, err = rsa.DecryptPKCS1v15(rand.Reader, c.localAddressPrivate, transaction.data)
 	if err != nil {
@@ -189,7 +186,6 @@ func (c *EdgeConnection) processInit3(transaction *Transaction) {
 }
 
 func (c *EdgeConnection) processInit6(transaction *Transaction) {
-	fmt.Println("processInit6")
 	localSecretBytes, err := rsa.DecryptPKCS1v15(rand.Reader, c.localAddressPrivate, transaction.data)
 	if err != nil {
 		return
@@ -203,7 +199,6 @@ func (c *EdgeConnection) processInit6(transaction *Transaction) {
 		}
 	}
 	c.init6Received = true
-	fmt.Println("xchg node address confirmed")
 }
 
 func (c *EdgeConnection) processError(transaction *Transaction) {

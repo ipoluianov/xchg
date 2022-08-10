@@ -6,7 +6,6 @@ import (
 	"crypto/x509"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"net"
 	"sync"
 
@@ -116,8 +115,6 @@ func (c *RouterConnection) Disconnected() {
 func (c *RouterConnection) processInit1(transaction *Transaction) {
 	var err error
 
-	fmt.Println("processInit1")
-
 	if len(transaction.data) > c.config.MaxAddressSize {
 		c.sendError(transaction, errors.New("wrong address size"))
 		return
@@ -156,7 +153,6 @@ func (c *RouterConnection) processInit1(transaction *Transaction) {
 }
 
 func (c *RouterConnection) processInit4(transaction *Transaction) {
-	fmt.Println("processInit4")
 	localSecretBytes, err := rsa.DecryptPKCS1v15(rand.Reader, c.localAddressPrivate, transaction.data)
 	if err != nil {
 		return
@@ -175,7 +171,6 @@ func (c *RouterConnection) processInit4(transaction *Transaction) {
 }
 
 func (c *RouterConnection) processInit5(transaction *Transaction) {
-	fmt.Println("processInit5")
 	var err error
 	c.remoteSecretBytes, err = rsa.DecryptPKCS1v15(rand.Reader, c.localAddressPrivate, transaction.data)
 	if err != nil {

@@ -3,9 +3,9 @@ package xchg
 import (
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ipoluianov/gomisc/logger"
@@ -26,6 +26,11 @@ type Connection struct {
 
 	started  bool
 	stopping bool
+
+	receivedBytes  uint64
+	sentBytes      uint64
+	receivedFrames uint64
+	sentFrames     uint64
 }
 
 type ITransactionProcessor interface {
@@ -166,12 +171,26 @@ func (c *Connection) disconnect() {
 	c.mtxBaseConnection.Unlock()
 }
 
+func (c *Connection) ReceivedBytes() uint64 {
+	return atomic.LoadUint64(&c.receivedBytes)
+}
+
+func (c *Connection) SentBytes() uint64 {
+	return atomic.LoadUint64(&c.sentBytes)
+}
+
+func (c *Connection) ReceivedFrames() uint64 {
+	return atomic.LoadUint64(&c.receivedFrames)
+}
+
+func (c *Connection) SentFrames() uint64 {
+	return atomic.LoadUint64(&c.sentFrames)
+}
+
 func (c *Connection) thReceive() {
 	c.mtxBaseConnection.Lock()
 	c.started = true
 	c.mtxBaseConnection.Unlock()
-
-	logger.Println("connection", "th_receive", "begin")
 
 	var n int
 	var err error
@@ -180,16 +199,13 @@ func (c *Connection) thReceive() {
 
 	for !c.stopping {
 		if c.conn == nil {
-			fmt.Println("connecting ...")
 			c.conn, err = net.Dial("tcp", c.host)
 			if err != nil {
-				fmt.Println("connecting ... error")
 				time.Sleep(100 * time.Millisecond)
 				continue
 			}
 			incomingData = make([]byte, c.config.MaxFrameSize)
 			incomingDataOffset = 0
-			fmt.Println("connecting ... ok")
 			c.callProcessorConnected()
 		}
 
@@ -205,6 +221,9 @@ func (c *Connection) thReceive() {
 				continue
 			}
 		}
+
+		atomic.AddUint64(&c.receivedBytes, uint64(n))
+
 		incomingDataOffset += n
 		processedLen := 0
 		frames := 0
@@ -228,6 +247,8 @@ func (c *Connection) thReceive() {
 			if restBytes < frameLen {
 				break
 			}
+
+			atomic.AddUint64(&c.receivedFrames, 1)
 
 			var transaction *Transaction
 			transaction, err = Parse(incomingData[processedLen:])
@@ -263,8 +284,6 @@ func (c *Connection) thReceive() {
 	c.mtxBaseConnection.Lock()
 	c.started = false
 	c.mtxBaseConnection.Unlock()
-
-	logger.Println("connection", "th_receive", "end")
 }
 
 func (c *Connection) sendError(transaction *Transaction, err error) {
@@ -304,5 +323,7 @@ func (c *Connection) send(transaction *Transaction) (err error) {
 		err = errors.New("sending error")
 	}
 	c.mtxBaseConnectionSend.Unlock()
+	atomic.AddUint64(&c.sentBytes, uint64(sentBytes))
+	atomic.AddUint64(&c.sentFrames, 1)
 	return
 }

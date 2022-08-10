@@ -4,9 +4,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/binary"
-	"encoding/hex"
 	"errors"
-	"fmt"
 
 	"github.com/btcsuite/btcutil/base58"
 	"github.com/ipoluianov/gomisc/crypt_tools"
@@ -103,7 +101,6 @@ func (c *ClientConnection) auth() (err error) {
 	c.sessionId = binary.LittleEndian.Uint64(result)
 	c.aesKey = make([]byte, 32)
 	copy(c.aesKey, result[8:])
-	fmt.Println("AUTO OK SessionId:", c.sessionId, "AES:", hex.EncodeToString(c.aesKey))
 	return
 }
 

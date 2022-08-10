@@ -49,7 +49,7 @@ func (c *HttpServer) Start() {
 	c.srv.Handler = c
 	go func() {
 		err := c.srv.ListenAndServe()
-		if err != nil {
+		if err != nil && err != http.ErrServerClosed {
 			logger.Println("[HttpServer]", "[error]", "HttpServer thListen error: ", err)
 		}
 	}()
