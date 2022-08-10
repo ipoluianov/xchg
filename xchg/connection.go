@@ -21,7 +21,6 @@ type Connection struct {
 	closed bool
 	host   string
 
-	config    ConnectionConfig
 	processor ITransactionProcessor
 
 	started  bool
@@ -31,33 +30,14 @@ type Connection struct {
 	sentBytes      uint64
 	receivedFrames uint64
 	sentFrames     uint64
+
+	configMaxFrameSize int
 }
 
 type ITransactionProcessor interface {
 	Connected()
 	ProcessTransaction(transaction *Transaction)
 	Disconnected()
-}
-
-type ConnectionConfig struct {
-	MaxFrameSize   int `json:"max_frame_size"`
-	MaxAddressSize int `json:"max_address_size"`
-}
-
-func (c *ConnectionConfig) Init() {
-	c.MaxAddressSize = 1024
-	c.MaxFrameSize = 100 * 1024
-}
-
-func (c *ConnectionConfig) Check() (err error) {
-	if c.MaxAddressSize < 1 || c.MaxAddressSize > 1024*1024 {
-		err = errors.New("wrong Connection.MaxAddressSize")
-	}
-
-	if c.MaxFrameSize < 1 || c.MaxFrameSize > 1024*1024 {
-		err = errors.New("wrong Connection.MaxFrameSize")
-	}
-	return
 }
 
 func NewConnection() *Connection {
@@ -72,9 +52,9 @@ func (c *Connection) initIncomingConnection(conn net.Conn, processor ITransactio
 		logger.Println("connection", "initIncomingConnection", "already started")
 		return
 	}
+	c.configMaxFrameSize = 100 * 1024
 
 	c.processor = processor
-	c.config.Init()
 	c.conn = conn
 }
 
@@ -85,9 +65,9 @@ func (c *Connection) initOutgoingConnection(host string, processor ITransactionP
 		logger.Println("connection", "initOutgoingConnection", "already started")
 		return
 	}
+	c.configMaxFrameSize = 100 * 1024
 
 	c.processor = processor
-	c.config.Init()
 	c.host = host
 }
 
@@ -194,7 +174,7 @@ func (c *Connection) thReceive() {
 
 	var n int
 	var err error
-	incomingData := make([]byte, c.config.MaxFrameSize)
+	incomingData := make([]byte, c.configMaxFrameSize)
 	incomingDataOffset := 0
 
 	for !c.stopping {
@@ -204,7 +184,7 @@ func (c *Connection) thReceive() {
 				time.Sleep(100 * time.Millisecond)
 				continue
 			}
-			incomingData = make([]byte, c.config.MaxFrameSize)
+			incomingData = make([]byte, c.configMaxFrameSize)
 			incomingDataOffset = 0
 			c.callProcessorConnected()
 		}
@@ -239,7 +219,7 @@ func (c *Connection) thReceive() {
 			}
 
 			frameLen := int(binary.LittleEndian.Uint32(incomingData[processedLen+4:]))
-			if frameLen < HeaderSize || frameLen > c.config.MaxFrameSize {
+			if frameLen < HeaderSize || frameLen > c.configMaxFrameSize {
 				err = errors.New("wrong frame size")
 				break
 			}

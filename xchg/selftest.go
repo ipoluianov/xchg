@@ -28,7 +28,7 @@ func GetPublicKeyByPrivateKey(privateKey58 string) (result string, err error) {
 }
 
 func SelfTest() {
-	var config Config
+	var config RouterConfig
 	config.Init()
 
 	var privateKey *rsa.PrivateKey

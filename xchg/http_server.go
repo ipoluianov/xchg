@@ -1,7 +1,6 @@
 package xchg
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 
@@ -10,33 +9,13 @@ import (
 
 type HttpServer struct {
 	srv    *http.Server
-	config Config
+	port   int
 	router *Router
 }
 
-type HttpServerConfig struct {
-	Port int `json:"port"`
-}
-
-func (c *HttpServerConfig) Init() {
-	c.Port = 8485
-}
-
-func (c *HttpServerConfig) Check() (err error) {
-	if c.Port < 1 || c.Port > 65535 {
-		err = errors.New("wrong HttpConfig.Port")
-	}
-	return
-}
-
-func (c *HttpServerConfig) Log() {
-	logger.Println("http config")
-	logger.Println("http config", "Port =", c.Port)
-}
-
-func NewHttpServer(conf Config, router *Router) *HttpServer {
+func NewHttpServer(port int, router *Router) *HttpServer {
 	var c HttpServer
-	c.config = conf
+	c.port = port
 	c.router = router
 	return &c
 }
@@ -44,7 +23,7 @@ func NewHttpServer(conf Config, router *Router) *HttpServer {
 func (c *HttpServer) Start() {
 	logger.Println("HttpServer starting")
 	c.srv = &http.Server{
-		Addr: ":" + fmt.Sprint(c.config.HttpServer.Port),
+		Addr: ":" + fmt.Sprint(c.port),
 	}
 	c.srv.Handler = c
 	go func() {

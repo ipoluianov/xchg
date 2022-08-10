@@ -14,33 +14,13 @@ type RouterServer struct {
 	mtx       sync.Mutex
 	listener  net.Listener
 	router    *Router
+	port      int
 	chWorking chan interface{}
-	config    RouterServerConfig
 }
 
-type RouterServerConfig struct {
-	Port int `json:"port"`
-}
-
-func (c *RouterServerConfig) Init() {
-	c.Port = 8484
-}
-
-func (c *RouterServerConfig) Check() (err error) {
-	if c.Port < 1 || c.Port > 65535 {
-		err = errors.New("router_server config error: port")
-	}
-	return
-}
-
-func (c *RouterServerConfig) Log() {
-	logger.Println("router_server starting")
-	logger.Println("router_server config", "Port =", c.Port)
-}
-
-func NewRouterServer(conf Config, router *Router) *RouterServer {
+func NewRouterServer(port int, router *Router) *RouterServer {
 	var c RouterServer
-	c.config = conf.RouterServer
+	c.port = port
 	c.router = router
 	return &c
 }
@@ -54,8 +34,6 @@ func (c *RouterServer) Start() (err error) {
 		logger.Println(err)
 		return
 	}
-
-	c.config.Log()
 
 	c.chWorking = make(chan interface{})
 
@@ -98,8 +76,8 @@ func (c *RouterServer) Stop() (err error) {
 func (c *RouterServer) thListen() {
 	logger.Println("router_server_th started")
 	var err error
-	logger.Println("router_server_th port =", c.config.Port)
-	c.listener, err = net.Listen("tcp", ":"+fmt.Sprint(c.config.Port))
+	logger.Println("router_server_th port =", c.port)
+	c.listener, err = net.Listen("tcp", ":"+fmt.Sprint(c.port))
 	if err != nil {
 		logger.Error("router_server_th listen error", err)
 	} else {

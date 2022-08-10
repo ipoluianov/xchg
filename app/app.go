@@ -187,9 +187,6 @@ func Start() error {
 	router = xchg.NewRouter(privateKey, conf)
 	router.Start()
 
-	srv = xchg.NewRouterServer(conf, router)
-	srv.Start()
-
 	return nil
 }
 

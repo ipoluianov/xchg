@@ -7,28 +7,17 @@ import (
 	"os"
 )
 
-type Config struct {
-	HttpServer       HttpServerConfig   `json:"http_server"`
-	RouterServer     RouterServerConfig `json:"router_server"`
-	RouterConnection ConnectionConfig   `json:"connection"`
+type RouterConfig struct {
+	HttpServerPort int `json:"http_server_port"`
+	BinServerPort  int `json:"bin_server_port"`
 }
 
-func (c *Config) Init() {
-	c.RouterServer.Init()
-	c.RouterConnection.Init()
-	c.HttpServer.Init()
+func (c *RouterConfig) Init() {
+	c.HttpServerPort = 8485
+	c.BinServerPort = 8484
 }
 
-func (c *Config) Check() (err error) {
-	err = c.RouterServer.Check()
-	if err != nil {
-		return
-	}
-	err = c.RouterConnection.Check()
-	return
-}
-
-func LoadConfigFromFile(filePath string) (conf Config, err error) {
+func LoadConfigFromFile(filePath string) (conf RouterConfig, err error) {
 	conf.Init()
 
 	var fi os.FileInfo
@@ -58,6 +47,5 @@ func LoadConfigFromFile(filePath string) (conf Config, err error) {
 		}
 	}
 
-	err = conf.Check()
 	return
 }

@@ -26,6 +26,8 @@ type RouterConnection struct {
 	// Local Address
 	privateKey *rsa.PrivateKey
 
+	configMaxAddressSize int
+
 	init1Received bool
 	init4Received bool
 	init5Received bool
@@ -33,6 +35,7 @@ type RouterConnection struct {
 
 func NewRouterConnection(conn net.Conn, router *Router, privateKey *rsa.PrivateKey) *RouterConnection {
 	var c RouterConnection
+	c.configMaxAddressSize = 1024
 	c.router = router
 	c.privateKey = privateKey
 	c.localSecretBytes = make([]byte, 32)
@@ -86,7 +89,7 @@ func (c *RouterConnection) ConfirmedRemoteAddress() string {
 func (c *RouterConnection) processInit1(transaction *Transaction) {
 	var err error
 
-	if len(transaction.data) > c.config.MaxAddressSize {
+	if len(transaction.data) > c.configMaxAddressSize {
 		c.sendError(transaction, errors.New("wrong address size"))
 		return
 	}

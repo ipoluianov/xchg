@@ -42,33 +42,7 @@ type Router struct {
 	chWorking chan interface{}
 }
 
-type RouterConfig struct {
-	MaxConnectionCount      int `json:"max_connection_count"`
-	MaxConnectionCountPerIP int `json:"max_connection_count_per_ip"`
-}
-
-func (c *RouterConfig) Init() {
-	c.MaxConnectionCount = 1000
-	c.MaxConnectionCountPerIP = 10
-}
-
-func (c *RouterConfig) Check() (err error) {
-	if c.MaxConnectionCount < 1 || c.MaxConnectionCount > 100000 {
-		err = errors.New("wrong Server.RouterServer")
-	}
-	if c.MaxConnectionCountPerIP < 1 || c.MaxConnectionCountPerIP > 1024*1024 {
-		err = errors.New("wrong Server.MaxConnectionCountPerIP")
-	}
-	return
-}
-
-func (c *RouterConfig) Log() {
-	logger.Println("router starting")
-	logger.Println("router config", "MaxConnectionCount =", c.MaxConnectionCount)
-	logger.Println("router config", "MaxConnectionCountPerIP =", c.MaxConnectionCountPerIP)
-}
-
-func NewRouter(localAddress *rsa.PrivateKey, config Config) *Router {
+func NewRouter(localAddress *rsa.PrivateKey, config RouterConfig) *Router {
 	var c Router
 
 	if localAddress != nil {
@@ -82,8 +56,8 @@ func NewRouter(localAddress *rsa.PrivateKey, config Config) *Router {
 	}
 
 	c.init()
-	c.routerServer = NewRouterServer(config, &c)
-	c.httpServer = NewHttpServer(config, &c)
+	c.routerServer = NewRouterServer(config.BinServerPort, &c)
+	c.httpServer = NewHttpServer(config.HttpServerPort, &c)
 	return &c
 }
 
@@ -108,8 +82,6 @@ func (c *Router) Start() (err error) {
 	}
 
 	c.init()
-
-	c.config.Log()
 
 	c.chWorking = make(chan interface{})
 
