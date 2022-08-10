@@ -5,13 +5,17 @@ import (
 	"crypto/rsa"
 	"encoding/binary"
 	"errors"
+	"fmt"
+	"sync"
+	"time"
 
 	"github.com/btcsuite/btcutil/base58"
 	"github.com/ipoluianov/gomisc/crypt_tools"
 )
 
 type ClientConnection struct {
-	edgeConnections map[string]*EdgeConnection
+	mtxClientConnection sync.Mutex
+	//edgeConnections     map[string]*EdgeConnection
 	address         string
 	remotePublicKey *rsa.PublicKey
 	localPrivateKey *rsa.PrivateKey
@@ -20,29 +24,49 @@ type ClientConnection struct {
 	sessionId           uint64
 	sessionNonceCounter uint64
 
+	findingConnection bool
+	currentConnection *EdgeConnection
+	currentEID        uint64
+
 	secretBytes []byte
+
+	network *Network
 
 	authData string
 }
 
-func NewClientConnection(address string, localPrivateKey58 string, authData string) *ClientConnection {
+func NewClientConnection(network *Network, address string, localPrivateKey58 string, authData string) *ClientConnection {
 	var c ClientConnection
 	c.address = address
 	c.authData = authData
+	c.network = network
 	c.remotePublicKey, _ = crypt_tools.RSAPublicKeyFromDer(base58.Decode(address))
-	c.edgeConnections = make(map[string]*EdgeConnection)
+	//c.edgeConnections = make(map[string]*EdgeConnection)
 	c.localPrivateKey, _ = crypt_tools.RSAPrivateKeyFromDer(base58.Decode(localPrivateKey58))
-	eConn := NewEdgeConnection("localhost:8484", c.localPrivateKey)
-	c.edgeConnections["localhost:8484"] = eConn
 	c.sessionNonceCounter = 1
 
-	eConn.Start()
+	// Init connections
+	/*addresses := c.network.GetAddressesByPublicKey(crypt_tools.RSAPublicKeyToDer(c.remotePublicKey))
+	connections := make([]*EdgeConnection, 0)
+	for _, addr := range addresses {
+		conn := c.connection(addr)
+		connections = append(connections, conn)
+	}*/
+
 	return &c
 }
 
-func (c *ClientConnection) getEdgeConnection() *EdgeConnection {
-	return c.edgeConnections["localhost:8484"]
-}
+/*func (c *ClientConnection) connection(addr string) *EdgeConnection {
+	c.mtxClientConnection.Lock()
+	defer c.mtxClientConnection.Unlock()
+	if conn, ok := c.edgeConnections[addr]; ok {
+		return conn
+	}
+	conn := NewEdgeConnection(addr, c.localPrivateKey)
+	c.edgeConnections[addr] = conn
+	conn.Start()
+	return conn
+}*/
 
 func (c *ClientConnection) Call(function string, data []byte) (result []byte, err error) {
 	if c.sessionId == 0 {
@@ -109,9 +133,44 @@ func (c *ClientConnection) regularCall(function string, data []byte, aesKey []by
 		err = errors.New("wrong function len")
 		return
 	}
-	ec := c.getEdgeConnection()
-	if ec == nil {
-		err = errors.New("no connection")
+
+	if c.findingConnection {
+		err = errors.New("searching node")
+		return
+	}
+
+	c.mtxClientConnection.Lock()
+	c.findingConnection = true
+	if c.currentEID == 0 {
+		fmt.Println("Searching node ...")
+		addresses := c.network.GetAddressesByPublicKey(crypt_tools.RSAPublicKeyToDer(c.remotePublicKey))
+		for _, address := range addresses {
+			fmt.Println("Searching node ...", address)
+
+			conn := NewEdgeConnection(address, c.localPrivateKey)
+			conn.Start()
+			if !conn.WaitForConnection(500 * time.Millisecond) {
+				conn.Stop()
+				continue
+			}
+
+			c.currentEID, err = conn.RequestEID(c.address)
+			if c.currentEID != 0 {
+				c.currentConnection = conn
+				fmt.Println("Searching node ...", conn.node, "ok")
+				break
+			}
+			fmt.Println("Searching node ...", conn.node, "no")
+			conn.Stop()
+		}
+	}
+	connection := c.currentConnection
+	currentEID := c.currentEID
+	c.findingConnection = false
+	c.mtxClientConnection.Unlock()
+
+	if connection == nil || currentEID == 0 {
+		err = errors.New("address not found in network")
 		return
 	}
 
@@ -135,8 +194,9 @@ func (c *ClientConnection) regularCall(function string, data []byte, aesKey []by
 		copy(frame[1+len(function):], data)
 	}
 
-	result, err = ec.Call(c.address, c.sessionId, frame)
+	result, err = connection.Call(c.currentEID, c.sessionId, frame)
 	if err != nil {
+		c.currentEID = 0
 		return
 	}
 

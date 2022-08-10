@@ -29,6 +29,7 @@ type ServerConnection struct {
 	sessionsById          map[uint64]*Session
 	nextSessionId         uint64
 	lastPurgeSessionsTime time.Time
+	network               *Network
 
 	nonceGenerator *NonceGenerator
 
@@ -40,7 +41,7 @@ type ServerProcessor interface {
 	ServerProcessorCall(function string, parameter []byte) (response []byte, err error)
 }
 
-func NewServerConnection(privateKey58 string) *ServerConnection {
+func NewServerConnection(privateKey58 string, network *Network) *ServerConnection {
 	var c ServerConnection
 	c.nextSessionId = 1
 	c.nonceGenerator = NewNonceGenerator(1024 * 1024)
@@ -48,10 +49,13 @@ func NewServerConnection(privateKey58 string) *ServerConnection {
 	c.privateKey, _ = crypt_tools.RSAPrivateKeyFromDer(base58.Decode(c.privateKey58))
 	c.edgeConnections = make(map[string]*EdgeConnection)
 	c.sessionsById = make(map[uint64]*Session)
-	eConn := NewEdgeConnection("localhost:8484", c.privateKey)
-	eConn.SetProcessor(&c)
-	c.edgeConnections["localhost:8484"] = eConn
-	eConn.Start()
+	c.network = network
+	addresses := c.network.GetAddressesByPublicKey(crypt_tools.RSAPublicKeyToDer(&c.privateKey.PublicKey))
+	connections := make([]*EdgeConnection, 0)
+	for _, addr := range addresses {
+		conn := c.connection(addr)
+		connections = append(connections, conn)
+	}
 	return &c
 }
 
@@ -59,11 +63,24 @@ func (c *ServerConnection) SetProcessor(processor ServerProcessor) {
 	c.processor = processor
 }
 
+func (c *ServerConnection) SetNetwork(network *Network) {
+	c.network = network
+}
+
 func (c *ServerConnection) Start() {
 }
 
-func (c *ServerConnection) getEdgeConnection() *EdgeConnection {
-	return c.edgeConnections["localhost:8484"]
+func (c *ServerConnection) connection(addr string) *EdgeConnection {
+	c.mtxServerConnection.Lock()
+	defer c.mtxServerConnection.Unlock()
+	if conn, ok := c.edgeConnections[addr]; ok {
+		return conn
+	}
+	conn := NewEdgeConnection(addr, c.privateKey)
+	conn.SetProcessor(c)
+	c.edgeConnections[addr] = conn
+	conn.Start()
+	return conn
 }
 
 func (c *ServerConnection) purgeSessions() {

@@ -90,6 +90,19 @@ func (c *EdgeConnection) Stop() {
 	c.connection.Stop()
 }
 
+func (c *EdgeConnection) WaitForConnection(timeout time.Duration) bool {
+	waitingDurationInMilliseconds := timeout.Milliseconds()
+	waitingTick := int64(10)
+	waitingIterationCount := waitingDurationInMilliseconds / waitingTick
+	for i := int64(0); i < waitingIterationCount; i++ {
+		if c.init6Received {
+			return true
+		}
+		time.Sleep(time.Duration(waitingTick) * time.Millisecond)
+	}
+	return false
+}
+
 func (c *EdgeConnection) reset() {
 	c.waitDurationOrStopping(500 * time.Millisecond)
 	c.fastReset()
@@ -233,7 +246,11 @@ func (c *EdgeConnection) setTransactionResponse(transactionId uint64, data []byt
 func (c *EdgeConnection) thBackground() {
 	for !c.stopping {
 		c.checkConnection()
-		c.waitDurationOrStopping(100 * time.Millisecond)
+		if !c.init6Received {
+			c.waitDurationOrStopping(10 * time.Millisecond)
+		} else {
+			c.waitDurationOrStopping(100 * time.Millisecond)
+		}
 	}
 }
 
@@ -266,17 +283,19 @@ func (c *EdgeConnection) checkConnection() {
 	}
 }
 
-func (c *EdgeConnection) Call(address string, sessionId uint64, frame []byte) (result []byte, err error) {
+func (c *EdgeConnection) RequestEID(address string) (eid uint64, err error) {
 	res, err := c.executeTransaction(FrameResolveAddress, 0, 0, base58.Decode(address), 1000*time.Millisecond)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 	if len(res) != 8 {
-		return nil, errors.New("EdgeConnection wrong server response")
+		return 0, errors.New("EdgeConnection wrong server response")
 	}
+	eid = binary.LittleEndian.Uint64(res)
+	return
+}
 
-	eid := binary.LittleEndian.Uint64(res)
-
+func (c *EdgeConnection) Call(eid uint64, sessionId uint64, frame []byte) (result []byte, err error) {
 	result, err = c.executeTransaction(FrameCall, eid, sessionId, frame, 1000*time.Millisecond)
 	return
 }

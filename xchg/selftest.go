@@ -28,31 +28,43 @@ func GetPublicKeyByPrivateKey(privateKey58 string) (result string, err error) {
 }
 
 func SelfTest() {
-	var config RouterConfig
-	config.Init()
-
-	var privateKey *rsa.PrivateKey
-	privateKey, _ = crypt_tools.GenerateRSAKey()
-
-	router := NewRouter(privateKey, config)
 
 	fmt.Println("-------------- Press Enter to start ROUTERS --------------")
 	fmt.Scanln()
 
-	router.Start()
+	network := NewNetwork()
+	addrs := make([]string, 0)
+
+	routers := make([]*Router, 0)
+	for i := 0; i < 4; i++ {
+		var privateKey *rsa.PrivateKey
+		privateKey, _ = crypt_tools.GenerateRSAKey()
+		var config RouterConfig
+		config.Init()
+		config.BinServerPort = 8484 + i
+		config.HttpServerPort = 9800 + i
+		router := NewRouter(privateKey, config)
+		router.Start()
+		routers = append(routers, router)
+		addrs = append(addrs, "127.0.0.1:"+fmt.Sprint(8484+i))
+	}
+	network.SetRange("", addrs)
 
 	fmt.Println("------------- Press Enter to start SERVERS --------------")
 	fmt.Scanln()
 
 	serverPrivateKey := GeneratePrivateKey()
 	serverPublicKey, _ := GetPublicKeyByPrivateKey(serverPrivateKey)
-	go Server(serverPrivateKey)
-	go Client(serverPublicKey)
+	go Server(serverPrivateKey, network)
+
+	go Client(serverPublicKey, network)
 
 	fmt.Println("------------- Press Enter to stop ROUTERS -------------")
 	fmt.Scanln()
 
-	router.Stop()
+	for _, router := range routers {
+		router.Stop()
+	}
 
 	fmt.Println("------------- Press Enter to stop PROCESS -------------")
 	fmt.Scanln()
@@ -60,15 +72,15 @@ func SelfTest() {
 	fmt.Println("PROCESS was finished")
 }
 
-func Server(serverPrivateKey string) {
-	ss := NewSimpleServer(serverPrivateKey)
+func Server(serverPrivateKey string, network *Network) {
+	ss := NewSimpleServer(serverPrivateKey, network)
 	ss.Start()
 }
 
-func Client(serverPublicKey string) {
+func Client(serverPublicKey string, network *Network) {
 	time.Sleep(500 * time.Millisecond)
 	var err error
-	s := NewSimpleClient(serverPublicKey)
+	s := NewSimpleClient(serverPublicKey, network)
 	for i := 0; i < 10000; i++ {
 		time.Sleep(500 * time.Millisecond)
 		var bs string

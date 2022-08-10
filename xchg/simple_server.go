@@ -9,9 +9,9 @@ import (
 type SimpleServer struct {
 }
 
-func NewSimpleServer(serverPrivateKey string) *SimpleServer {
+func NewSimpleServer(serverPrivateKey string, network *Network) *SimpleServer {
 	var c SimpleServer
-	s := NewServerConnection(serverPrivateKey)
+	s := NewServerConnection(serverPrivateKey, network)
 	s.SetProcessor(&c)
 	s.Start()
 	s = nil
