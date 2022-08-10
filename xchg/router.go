@@ -14,7 +14,7 @@ import (
 )
 
 type Router struct {
-	mtx sync.Mutex
+	mtxRouter sync.Mutex
 
 	nextConnectionId     uint64
 	connections          []*RouterConnection
@@ -81,13 +81,13 @@ func NewRouter(localAddress *rsa.PrivateKey, config Config) *Router {
 		c.localAddressHex = crypt_tools.RSAPublicKeyToHex(&localAddress.PublicKey)
 	}
 
-	c.Init()
+	c.init()
 	c.routerServer = NewRouterServer(config, &c)
 	c.httpServer = NewHttpServer(config, &c)
 	return &c
 }
 
-func (c *Router) Init() {
+func (c *Router) init() {
 	c.nextConnectionId = 1
 	c.connections = make([]*RouterConnection, 0)
 	c.connectionsByAddress = make(map[string]*RouterConnection)
@@ -98,8 +98,8 @@ func (c *Router) Init() {
 }
 
 func (c *Router) Start() (err error) {
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
+	c.mtxRouter.Lock()
+	defer c.mtxRouter.Unlock()
 
 	if c.chWorking != nil {
 		err = errors.New("router is already started")
@@ -107,7 +107,7 @@ func (c *Router) Start() (err error) {
 		return
 	}
 
-	c.Init()
+	c.init()
 
 	c.config.Log()
 
@@ -125,8 +125,8 @@ func (c *Router) Stop() (err error) {
 	c.routerServer.Stop()
 	c.httpServer.Stop()
 
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
+	c.mtxRouter.Lock()
+	defer c.mtxRouter.Unlock()
 
 	if c.chWorking == nil {
 		err = errors.New("router is not started")
@@ -155,21 +155,21 @@ func (c *Router) Stop() (err error) {
 		conn.Stop()
 	}
 
-	c.Init()
+	c.init()
 
 	logger.Println("router stopped")
 	return
 }
 
 func (c *Router) LocalAddressBS() []byte {
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
+	c.mtxRouter.Lock()
+	defer c.mtxRouter.Unlock()
 	return c.localAddressBS
 }
 
 func (c *Router) AddConnection(conn net.Conn) {
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
+	c.mtxRouter.Lock()
+	defer c.mtxRouter.Unlock()
 	if c.chWorking == nil {
 		return
 	}
@@ -183,32 +183,30 @@ func (c *Router) AddConnection(conn net.Conn) {
 	connection.Start()
 }
 
-func (c *Router) getConnectionByAddress(address []byte) (result *RouterConnection) {
+func (c *Router) getConnectionByAddress(address []byte) (foundConnection *RouterConnection) {
 	if len(address) < 1 || len(address) > 1024 {
 		return
 	}
+	addr58 := base58.Encode(address)
 
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
+	c.mtxRouter.Lock()
+	defer c.mtxRouter.Unlock()
 	if c.chWorking == nil {
 		return
 	}
-
-	addr58 := base58.Encode(address)
 	conn, ok := c.connectionsByAddress[addr58]
 	if ok {
-		result = conn
+		foundConnection = conn
 	}
 	return
 }
 
 func (c *Router) getConnectionById(connectionId uint64) (result *RouterConnection) {
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
+	c.mtxRouter.Lock()
+	defer c.mtxRouter.Unlock()
 	if c.chWorking == nil {
 		return
 	}
-
 	conn, ok := c.connectionsById[connectionId]
 	if ok {
 		result = conn
@@ -217,19 +215,18 @@ func (c *Router) getConnectionById(connectionId uint64) (result *RouterConnectio
 }
 
 func (c *Router) getConnectionCount() int {
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
+	c.mtxRouter.Lock()
+	defer c.mtxRouter.Unlock()
 	if c.chWorking == nil {
 		return 0
 	}
-
 	count := len(c.connections)
 	return count
 }
 
 func (c *Router) setAddressForConnection(connection *RouterConnection, address58 string) {
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
+	c.mtxRouter.Lock()
+	defer c.mtxRouter.Unlock()
 	if c.chWorking == nil {
 		return
 	}
@@ -240,12 +237,11 @@ func (c *Router) setAddressForConnection(connection *RouterConnection, address58
 }
 
 func (c *Router) beginTransaction(transaction *Transaction) (err error) {
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
+	c.mtxRouter.Lock()
+	defer c.mtxRouter.Unlock()
 	if c.chWorking == nil {
 		return
 	}
-
 	innerTransactionId := c.nextConnectionId
 	c.nextConnectionId++
 	transaction.standbyTransactionId = transaction.transactionId
@@ -265,19 +261,17 @@ func (c *Router) sendTransactionToConnection(transaction *Transaction) (err erro
 }
 
 func (c *Router) SetResponse(transaction *Transaction) {
-	c.mtx.Lock()
+	c.mtxRouter.Lock()
 	if c.chWorking == nil {
-		c.mtx.Unlock()
+		c.mtxRouter.Unlock()
 		return
 	}
-
 	originalTransaction, ok := c.transactions[transaction.transactionId]
 	if !ok || originalTransaction == nil {
-		c.mtx.Unlock()
+		c.mtxRouter.Unlock()
 		return
 	}
-
-	c.mtx.Unlock()
+	c.mtxRouter.Unlock()
 
 	transaction.transactionId = originalTransaction.standbyTransactionId
 	originalTransaction.connection.send(NewTransaction(FrameResponse, 0, 0, transaction.transactionId, 0, transaction.data))
@@ -295,7 +289,7 @@ func (c *Router) thWorker() {
 		}
 
 		if working {
-			c.mtx.Lock()
+			c.mtxRouter.Lock()
 			for i, conn := range c.connections {
 				if conn.closed {
 					c.connections = append(c.connections[:i], c.connections[i+1:]...)
@@ -304,7 +298,7 @@ func (c *Router) thWorker() {
 					break
 				}
 			}
-			c.mtx.Unlock()
+			c.mtxRouter.Unlock()
 		}
 	}
 	logger.Println("router", "th_worker", "stopped")
@@ -326,8 +320,8 @@ func (c *Router) DebugInfo() (result string) {
 		Transactions         map[uint64]*Transaction
 	}
 
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
+	c.mtxRouter.Lock()
+	defer c.mtxRouter.Unlock()
 
 	var r StatResult
 	r.NextConnectionId = c.nextConnectionId
