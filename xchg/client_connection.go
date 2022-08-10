@@ -15,10 +15,9 @@ import (
 
 type ClientConnection struct {
 	mtxClientConnection sync.Mutex
-	//edgeConnections     map[string]*EdgeConnection
-	address         string
-	remotePublicKey *rsa.PublicKey
-	localPrivateKey *rsa.PrivateKey
+	address             string
+	remotePublicKey     *rsa.PublicKey
+	localPrivateKey     *rsa.PrivateKey
 
 	aesKey              []byte
 	sessionId           uint64
@@ -41,32 +40,11 @@ func NewClientConnection(network *Network, address string, localPrivateKey58 str
 	c.authData = authData
 	c.network = network
 	c.remotePublicKey, _ = crypt_tools.RSAPublicKeyFromDer(base58.Decode(address))
-	//c.edgeConnections = make(map[string]*EdgeConnection)
 	c.localPrivateKey, _ = crypt_tools.RSAPrivateKeyFromDer(base58.Decode(localPrivateKey58))
 	c.sessionNonceCounter = 1
 
-	// Init connections
-	/*addresses := c.network.GetAddressesByPublicKey(crypt_tools.RSAPublicKeyToDer(c.remotePublicKey))
-	connections := make([]*EdgeConnection, 0)
-	for _, addr := range addresses {
-		conn := c.connection(addr)
-		connections = append(connections, conn)
-	}*/
-
 	return &c
 }
-
-/*func (c *ClientConnection) connection(addr string) *EdgeConnection {
-	c.mtxClientConnection.Lock()
-	defer c.mtxClientConnection.Unlock()
-	if conn, ok := c.edgeConnections[addr]; ok {
-		return conn
-	}
-	conn := NewEdgeConnection(addr, c.localPrivateKey)
-	c.edgeConnections[addr] = conn
-	conn.Start()
-	return conn
-}*/
 
 func (c *ClientConnection) Call(function string, data []byte) (result []byte, err error) {
 	if c.sessionId == 0 {
