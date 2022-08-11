@@ -9,8 +9,8 @@ import (
 
 	"github.com/ipoluianov/gomisc/crypt_tools"
 	"github.com/ipoluianov/gomisc/logger"
-	"github.com/ipoluianov/xchg/xchg"
 	"github.com/ipoluianov/xchg/xchg_localtest"
+	"github.com/ipoluianov/xchg/xchg_router"
 	"github.com/kardianos/osext"
 	"github.com/kardianos/service"
 )
@@ -169,14 +169,14 @@ func (p *program) Stop(_ service.Service) error {
 }
 
 /////////////////////////////
-var srv *xchg.RouterServer
-var router *xchg.Router
+var srv *xchg_router.RouterServer
+var router *xchg_router.Router
 
 func Start() error {
 	logger.Println("Application Started")
 	TuneFDs()
 
-	conf, err := xchg.LoadConfigFromFile(logger.CurrentExePath() + "/" + "config.json")
+	conf, err := xchg_router.LoadConfigFromFile(logger.CurrentExePath() + "/" + "config.json")
 	if err != nil {
 		logger.Println("configuration error:", err)
 		return err
@@ -185,7 +185,7 @@ func Start() error {
 	var privateKey *rsa.PrivateKey
 	privateKey, _ = crypt_tools.GenerateRSAKey()
 
-	router = xchg.NewRouter(privateKey, conf)
+	router = xchg_router.NewRouter(privateKey, conf)
 	router.Start()
 
 	return nil

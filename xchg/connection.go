@@ -12,7 +12,6 @@ import (
 )
 
 type Connection struct {
-	id   uint64
 	conn net.Conn
 
 	mtxBaseConnection     sync.Mutex
@@ -40,12 +39,16 @@ type ITransactionProcessor interface {
 	Disconnected()
 }
 
+type TransactionSender interface {
+	Send(transaction *Transaction) (err error)
+}
+
 func NewConnection() *Connection {
 	var c Connection
 	return &c
 }
 
-func (c *Connection) initIncomingConnection(conn net.Conn, processor ITransactionProcessor) {
+func (c *Connection) InitIncomingConnection(conn net.Conn, processor ITransactionProcessor) {
 	c.mtxBaseConnection.Lock()
 	defer c.mtxBaseConnection.Unlock()
 	if c.started {
@@ -58,7 +61,7 @@ func (c *Connection) initIncomingConnection(conn net.Conn, processor ITransactio
 	c.conn = conn
 }
 
-func (c *Connection) initOutgoingConnection(host string, processor ITransactionProcessor) {
+func (c *Connection) InitOutgoingConnection(host string, processor ITransactionProcessor) {
 	c.mtxBaseConnection.Lock()
 	defer c.mtxBaseConnection.Unlock()
 	if c.started {
@@ -69,6 +72,10 @@ func (c *Connection) initOutgoingConnection(host string, processor ITransactionP
 
 	c.processor = processor
 	c.host = host
+}
+
+func (c *Connection) IsClosed() bool {
+	return c.closed
 }
 
 func (c *Connection) IsOutgoing() bool {
@@ -266,12 +273,12 @@ func (c *Connection) thReceive() {
 	c.mtxBaseConnection.Unlock()
 }
 
-func (c *Connection) sendError(transaction *Transaction, err error) {
+func (c *Connection) SendError(transaction *Transaction, err error) {
 	//fmt.Println("SendError:", err)
-	c.send(NewTransaction(FrameError, transaction.recevied1, transaction.eid, transaction.transactionId, 0, []byte(err.Error())))
+	c.Send(NewTransaction(FrameError, transaction.Recevied1, transaction.EID, transaction.TransactionId, 0, []byte(err.Error())))
 }
 
-func (c *Connection) send(transaction *Transaction) (err error) {
+func (c *Connection) Send(transaction *Transaction) (err error) {
 	var conn net.Conn
 
 	c.mtxBaseConnection.Lock()

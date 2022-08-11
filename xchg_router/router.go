@@ -1,4 +1,4 @@
-package xchg
+package xchg_router
 
 import (
 	"crypto/rsa"
@@ -11,6 +11,7 @@ import (
 	"github.com/btcsuite/btcutil/base58"
 	"github.com/ipoluianov/gomisc/crypt_tools"
 	"github.com/ipoluianov/gomisc/logger"
+	"github.com/ipoluianov/xchg/xchg"
 )
 
 type Router struct {
@@ -22,7 +23,7 @@ type Router struct {
 	connectionsById      map[uint64]*RouterConnection
 
 	nextTransactionId uint64
-	transactions      map[uint64]*Transaction
+	transactions      map[uint64]*xchg.Transaction
 
 	config RouterConfig
 
@@ -68,7 +69,7 @@ func (c *Router) init() {
 	c.connectionsById = make(map[uint64]*RouterConnection)
 
 	c.nextTransactionId = 1
-	c.transactions = make(map[uint64]*Transaction)
+	c.transactions = make(map[uint64]*xchg.Transaction)
 }
 
 func (c *Router) Start() (err error) {
@@ -208,7 +209,7 @@ func (c *Router) setAddressForConnection(connection *RouterConnection, address58
 	c.connectionsByAddress[address58] = connection
 }
 
-func (c *Router) beginTransaction(transaction *Transaction) (err error) {
+func (c *Router) beginTransaction(transaction *xchg.Transaction) (err error) {
 	c.mtxRouter.Lock()
 	defer c.mtxRouter.Unlock()
 	if c.chWorking == nil {
@@ -216,37 +217,37 @@ func (c *Router) beginTransaction(transaction *Transaction) (err error) {
 	}
 	innerTransactionId := c.nextConnectionId
 	c.nextConnectionId++
-	transaction.standbyTransactionId = transaction.transactionId
-	transaction.transactionId = innerTransactionId
+	transaction.StandbyTransactionId = transaction.TransactionId
+	transaction.TransactionId = innerTransactionId
 	c.transactions[innerTransactionId] = transaction
 	return
 }
 
-func (c *Router) sendTransactionToConnection(transaction *Transaction) (err error) {
-	connection := c.getConnectionById(transaction.transactionId)
+func (c *Router) sendTransactionToConnection(transaction *xchg.Transaction) (err error) {
+	connection := c.getConnectionById(transaction.TransactionId)
 	if connection == nil {
 		err = errors.New("connection not found")
 		return
 	}
-	connection.send(transaction)
+	connection.Send(transaction)
 	return
 }
 
-func (c *Router) SetResponse(transaction *Transaction) {
+func (c *Router) SetResponse(transaction *xchg.Transaction) {
 	c.mtxRouter.Lock()
 	if c.chWorking == nil {
 		c.mtxRouter.Unlock()
 		return
 	}
-	originalTransaction, ok := c.transactions[transaction.transactionId]
+	originalTransaction, ok := c.transactions[transaction.TransactionId]
 	if !ok || originalTransaction == nil {
 		c.mtxRouter.Unlock()
 		return
 	}
 	c.mtxRouter.Unlock()
 
-	transaction.transactionId = originalTransaction.standbyTransactionId
-	originalTransaction.connection.send(NewTransaction(FrameResponse, 0, 0, transaction.transactionId, 0, transaction.data))
+	transaction.TransactionId = originalTransaction.StandbyTransactionId
+	originalTransaction.ResponseSender.Send(xchg.NewTransaction(xchg.FrameResponse, 0, 0, transaction.TransactionId, 0, transaction.Data))
 }
 
 func (c *Router) thWorker() {
@@ -263,7 +264,7 @@ func (c *Router) thWorker() {
 		if working {
 			c.mtxRouter.Lock()
 			for i, conn := range c.connections {
-				if conn.closed {
+				if conn.IsClosed() {
 					c.connections = append(c.connections[:i], c.connections[i+1:]...)
 					delete(c.connectionsByAddress, conn.ConfirmedRemoteAddress())
 					delete(c.connectionsById, conn.id)
@@ -289,7 +290,7 @@ func (c *Router) DebugInfo() (result string) {
 		Connections          []*RouterConnection
 		ConnectionsByAddress map[string]*RouterConnection
 		ConnectionsById      map[uint64]*RouterConnection
-		Transactions         map[uint64]*Transaction
+		Transactions         map[uint64]*xchg.Transaction
 	}
 
 	c.mtxRouter.Lock()

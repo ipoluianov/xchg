@@ -56,7 +56,7 @@ func NewEdgeConnection(xchgNode string, localAddress *rsa.PrivateKey) *EdgeConne
 
 	c.node = xchgNode
 	c.connection = NewConnection()
-	c.connection.initOutgoingConnection(c.node, &c)
+	c.connection.InitOutgoingConnection(c.node, &c)
 	c.nextTransactionId = 1
 	c.outgoingTransactions = make(map[uint64]*Transaction)
 
@@ -147,9 +147,9 @@ func (c *EdgeConnection) waitDurationOrStopping(duration time.Duration) {
 }
 
 func (c *EdgeConnection) ProcessTransaction(transaction *Transaction) {
-	switch transaction.protocolVersion {
+	switch transaction.ProtocolVersion {
 	case 0x01:
-		switch transaction.frameType {
+		switch transaction.FrameType {
 		case FrameInit2:
 			c.processInit2(transaction)
 		case FrameInit3:
@@ -165,7 +165,7 @@ func (c *EdgeConnection) ProcessTransaction(transaction *Transaction) {
 			c.processError(transaction)
 		}
 	default:
-		c.connection.sendError(transaction, errors.New("wrong protocol version"))
+		c.connection.SendError(transaction, errors.New("wrong protocol version"))
 	}
 }
 
@@ -174,7 +174,7 @@ func (c *EdgeConnection) processInit2(transaction *Transaction) {
 	defer c.mtxEdgeConnection.Unlock()
 
 	var err error
-	c.remotePublicKey, err = crypt_tools.RSAPublicKeyFromDer(transaction.data)
+	c.remotePublicKey, err = crypt_tools.RSAPublicKeyFromDer(transaction.Data)
 	if err != nil {
 		return
 	}
@@ -186,7 +186,7 @@ func (c *EdgeConnection) processInit3(transaction *Transaction) {
 	defer c.mtxEdgeConnection.Unlock()
 
 	var err error
-	c.remoteSecretBytes, err = rsa.DecryptPKCS1v15(rand.Reader, c.privateKey, transaction.data)
+	c.remoteSecretBytes, err = rsa.DecryptPKCS1v15(rand.Reader, c.privateKey, transaction.Data)
 	if err != nil {
 		return
 	}
@@ -197,7 +197,7 @@ func (c *EdgeConnection) processInit6(transaction *Transaction) {
 	c.mtxEdgeConnection.Lock()
 	defer c.mtxEdgeConnection.Unlock()
 
-	localSecretBytes, err := rsa.DecryptPKCS1v15(rand.Reader, c.privateKey, transaction.data)
+	localSecretBytes, err := rsa.DecryptPKCS1v15(rand.Reader, c.privateKey, transaction.Data)
 	if err != nil {
 		return
 	}
@@ -213,7 +213,7 @@ func (c *EdgeConnection) processInit6(transaction *Transaction) {
 }
 
 func (c *EdgeConnection) processError(transaction *Transaction) {
-	c.setTransactionResponse(transaction.transactionId, nil, errors.New(string(transaction.data)))
+	c.setTransactionResponse(transaction.TransactionId, nil, errors.New(string(transaction.Data)))
 	c.reset()
 }
 
@@ -223,13 +223,13 @@ func (c *EdgeConnection) processCall(transaction *Transaction) {
 	processor = c.processor
 	c.mtxEdgeConnection.Unlock()
 	if processor != nil {
-		resp := processor.OnEdgeReceivedCall(c, transaction.sessionId, transaction.data)
-		c.connection.send(NewTransaction(FrameResponse, 0, 0, transaction.transactionId, 0, resp))
+		resp := processor.OnEdgeReceivedCall(c, transaction.SessionId, transaction.Data)
+		c.connection.Send(NewTransaction(FrameResponse, 0, 0, transaction.TransactionId, 0, resp))
 	}
 }
 
 func (c *EdgeConnection) processResponse(transaction *Transaction) {
-	c.setTransactionResponse(transaction.transactionId, transaction.data, nil)
+	c.setTransactionResponse(transaction.TransactionId, transaction.Data, nil)
 }
 
 func (c *EdgeConnection) setTransactionResponse(transactionId uint64, data []byte, err error) {
@@ -260,7 +260,7 @@ func (c *EdgeConnection) checkConnection() {
 
 	if !c.init1Sent {
 		c.init1Sent = true
-		c.connection.send(NewTransaction(FrameInit1, 0, 0, 0, 0, crypt_tools.RSAPublicKeyToDer(c.publicKey)))
+		c.connection.Send(NewTransaction(FrameInit1, 0, 0, 0, 0, crypt_tools.RSAPublicKeyToDer(c.publicKey)))
 		return
 	}
 
@@ -268,7 +268,7 @@ func (c *EdgeConnection) checkConnection() {
 		c.init4Sent = true
 		remoteSecretBytesEcrypted, err := rsa.EncryptPKCS1v15(rand.Reader, c.remotePublicKey, c.remoteSecretBytes)
 		if err == nil {
-			c.connection.send(NewTransaction(FrameInit4, 0, 0, 0, 0, remoteSecretBytesEcrypted))
+			c.connection.Send(NewTransaction(FrameInit4, 0, 0, 0, 0, remoteSecretBytesEcrypted))
 		}
 		return
 	}
@@ -277,7 +277,7 @@ func (c *EdgeConnection) checkConnection() {
 		c.init5Sent = true
 		localSecretBytesEcrypted, err := rsa.EncryptPKCS1v15(rand.Reader, c.remotePublicKey, c.localSecretBytes)
 		if err == nil {
-			c.connection.send(NewTransaction(FrameInit5, 0, 0, 0, 0, localSecretBytesEcrypted))
+			c.connection.Send(NewTransaction(FrameInit5, 0, 0, 0, 0, localSecretBytesEcrypted))
 		}
 		return
 	}
@@ -313,10 +313,10 @@ func (c *EdgeConnection) executeTransaction(frameType byte, targetEID uint64, se
 	c.mtxEdgeConnection.Unlock()
 
 	// Send transaction
-	err = c.connection.send(t)
+	err = c.connection.Send(t)
 	if err != nil {
 		c.mtxEdgeConnection.Lock()
-		delete(c.outgoingTransactions, t.transactionId)
+		delete(c.outgoingTransactions, t.TransactionId)
 		c.mtxEdgeConnection.Unlock()
 		return
 	}
@@ -329,7 +329,7 @@ func (c *EdgeConnection) executeTransaction(frameType byte, targetEID uint64, se
 		if t.complete {
 			// Transaction complete
 			c.mtxEdgeConnection.Lock()
-			delete(c.outgoingTransactions, t.transactionId)
+			delete(c.outgoingTransactions, t.TransactionId)
 			c.mtxEdgeConnection.Unlock()
 
 			// Error recevied
@@ -349,7 +349,7 @@ func (c *EdgeConnection) executeTransaction(frameType byte, targetEID uint64, se
 
 	// Clear transactions map
 	c.mtxEdgeConnection.Lock()
-	delete(c.outgoingTransactions, t.transactionId)
+	delete(c.outgoingTransactions, t.TransactionId)
 	c.mtxEdgeConnection.Unlock()
 
 	return nil, errors.New("EdgeConnection timeout")

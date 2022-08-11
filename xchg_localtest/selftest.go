@@ -9,6 +9,7 @@ import (
 	"github.com/ipoluianov/gomisc/crypt_tools"
 	"github.com/ipoluianov/xchg/xchg"
 	"github.com/ipoluianov/xchg/xchg_examples"
+	"github.com/ipoluianov/xchg/xchg_router"
 )
 
 func GeneratePrivateKey() string {
@@ -36,15 +37,15 @@ func SelfTest() {
 	network := xchg.NewNetwork()
 	addrs := make([]string, 0)
 
-	routers := make([]*xchg.Router, 0)
+	routers := make([]*xchg_router.Router, 0)
 	for i := 0; i < 4; i++ {
 		var privateKey *rsa.PrivateKey
 		privateKey, _ = crypt_tools.GenerateRSAKey()
-		var config xchg.RouterConfig
+		var config xchg_router.RouterConfig
 		config.Init()
 		config.BinServerPort = 8484 + i
 		config.HttpServerPort = 9800 + i
-		router := xchg.NewRouter(privateKey, config)
+		router := xchg_router.NewRouter(privateKey, config)
 		router.Start()
 		routers = append(routers, router)
 		addrs = append(addrs, "127.0.0.1:"+fmt.Sprint(8484+i))

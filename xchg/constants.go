@@ -4,18 +4,6 @@ const (
 	HeaderSize = 32
 )
 
-/*
-[address2] -> [encrypted_secret1_by_address2][address1]
-[encrypted_secret1_by_address1][encrypted_secret2_by_address1] -> [encrypted_secret2_by_address2]
-*/
-
-/*
-0: init1 - A2
-1: init2 - S1A2
-2: init3 - S1A1S2A1
-3: init4 - S2A2
-*/
-
 const (
 	FrameInit1 = byte(0x01) // 1 -> 2: [addr1]
 	FrameInit2 = byte(0x02) // 2 -> 1: [addr2]

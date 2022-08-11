@@ -1,4 +1,4 @@
-package xchg
+package xchg_router
 
 import (
 	"crypto/rand"
@@ -10,10 +10,13 @@ import (
 	"sync"
 
 	"github.com/ipoluianov/gomisc/crypt_tools"
+	"github.com/ipoluianov/xchg/xchg"
 )
 
 type RouterConnection struct {
-	Connection
+	xchg.Connection
+	id uint64
+
 	mtxRouterConnection sync.Mutex
 	router              *Router
 
@@ -40,7 +43,7 @@ func NewRouterConnection(conn net.Conn, router *Router, privateKey *rsa.PrivateK
 	c.privateKey = privateKey
 	c.localSecretBytes = make([]byte, 32)
 	rand.Read(c.localSecretBytes)
-	c.initIncomingConnection(conn, &c)
+	c.InitIncomingConnection(conn, &c)
 	return &c
 }
 
@@ -50,27 +53,27 @@ func (c *RouterConnection) Id() uint64 {
 	return c.id
 }
 
-func (c *RouterConnection) ProcessTransaction(transaction *Transaction) {
-	switch transaction.protocolVersion {
+func (c *RouterConnection) ProcessTransaction(transaction *xchg.Transaction) {
+	switch transaction.ProtocolVersion {
 	case 0x01:
-		switch transaction.frameType {
-		case FrameInit1:
+		switch transaction.FrameType {
+		case xchg.FrameInit1:
 			c.processInit1(transaction)
-		case FrameInit4:
+		case xchg.FrameInit4:
 			c.processInit4(transaction)
-		case FrameInit5:
+		case xchg.FrameInit5:
 			c.processInit5(transaction)
-		case FrameResolveAddress:
+		case xchg.FrameResolveAddress:
 			c.processResolveAddress(transaction)
-		case FrameCall:
+		case xchg.FrameCall:
 			c.processCall(transaction)
-		case FrameResponse:
+		case xchg.FrameResponse:
 			c.processResponse(transaction)
 		default:
-			c.sendError(transaction, errors.New("wrong function"))
+			c.SendError(transaction, errors.New("wrong function"))
 		}
 	default:
-		c.sendError(transaction, errors.New("wrong protocol version"))
+		c.SendError(transaction, errors.New("wrong protocol version"))
 	}
 }
 
@@ -86,19 +89,19 @@ func (c *RouterConnection) ConfirmedRemoteAddress() string {
 	return c.confirmedRemoteAddress
 }
 
-func (c *RouterConnection) processInit1(transaction *Transaction) {
+func (c *RouterConnection) processInit1(transaction *xchg.Transaction) {
 	var err error
 
-	if len(transaction.data) > c.configMaxAddressSize {
-		c.sendError(transaction, errors.New("wrong address size"))
+	if len(transaction.Data) > c.configMaxAddressSize {
+		c.SendError(transaction, errors.New("wrong address size"))
 		return
 	}
 
 	// Parse PublicKey-DER
 	var rsaPublicKey *rsa.PublicKey
-	rsaPublicKey, err = x509.ParsePKCS1PublicKey(transaction.data)
+	rsaPublicKey, err = x509.ParsePKCS1PublicKey(transaction.Data)
 	if err != nil {
-		c.sendError(transaction, err)
+		c.SendError(transaction, err)
 		return
 	}
 
@@ -109,28 +112,28 @@ func (c *RouterConnection) processInit1(transaction *Transaction) {
 	c.mtxRouterConnection.Unlock()
 
 	// Send Init2 (my address)
-	c.send(NewTransaction(FrameInit2, 0, 0, 0, 0, localAddressBS))
+	c.Send(xchg.NewTransaction(xchg.FrameInit2, 0, 0, 0, 0, localAddressBS))
 
 	// Send Init3
 	{
 		var encryptedLocalSecret []byte
 		encryptedLocalSecret, err = rsa.EncryptPKCS1v15(rand.Reader, rsaPublicKey, localSecretBytes)
 		if err != nil {
-			c.sendError(transaction, err)
+			c.SendError(transaction, err)
 			return
 		}
-		c.send(NewTransaction(FrameInit3, 0, 0, 0, 0, encryptedLocalSecret))
+		c.Send(xchg.NewTransaction(xchg.FrameInit3, 0, 0, 0, 0, encryptedLocalSecret))
 	}
 }
 
-func (c *RouterConnection) processInit4(transaction *Transaction) {
+func (c *RouterConnection) processInit4(transaction *xchg.Transaction) {
 	c.mtxRouterConnection.Lock()
 	privateKey := c.privateKey
 	localSecretBytes := c.localSecretBytes
 	remotePublicKey := c.remotePublicKey
 	c.mtxRouterConnection.Unlock()
 
-	receivedSecretBytes, err := rsa.DecryptPKCS1v15(rand.Reader, privateKey, transaction.data)
+	receivedSecretBytes, err := rsa.DecryptPKCS1v15(rand.Reader, privateKey, transaction.Data)
 	if err != nil {
 		return
 	}
@@ -151,7 +154,7 @@ func (c *RouterConnection) processInit4(transaction *Transaction) {
 	c.router.setAddressForConnection(c, confirmedRemoteAddress)
 }
 
-func (c *RouterConnection) processInit5(transaction *Transaction) {
+func (c *RouterConnection) processInit5(transaction *xchg.Transaction) {
 	c.mtxRouterConnection.Lock()
 	privateKey := c.privateKey
 	remotePublicKey := c.remotePublicKey
@@ -159,45 +162,45 @@ func (c *RouterConnection) processInit5(transaction *Transaction) {
 
 	var err error
 	var remoteSecretBytes []byte
-	remoteSecretBytes, err = rsa.DecryptPKCS1v15(rand.Reader, privateKey, transaction.data)
+	remoteSecretBytes, err = rsa.DecryptPKCS1v15(rand.Reader, privateKey, transaction.Data)
 	if err != nil {
 		return
 	}
 
 	remoteSecretBytesEcrypted, err := rsa.EncryptPKCS1v15(rand.Reader, remotePublicKey, remoteSecretBytes)
 	if err == nil {
-		c.send(NewTransaction(FrameInit6, 0, 0, 0, 0, remoteSecretBytesEcrypted))
+		c.Send(xchg.NewTransaction(xchg.FrameInit6, 0, 0, 0, 0, remoteSecretBytesEcrypted))
 	}
 }
 
-func (c *RouterConnection) processResolveAddress(transaction *Transaction) {
-	connection := c.router.getConnectionByAddress(transaction.data)
+func (c *RouterConnection) processResolveAddress(transaction *xchg.Transaction) {
+	connection := c.router.getConnectionByAddress(transaction.Data)
 	if connection == nil {
-		c.sendError(transaction, errors.New("address not found"))
+		c.SendError(transaction, errors.New("address not found"))
 		return
 	}
 	data := make([]byte, 8)
 	binary.LittleEndian.PutUint64(data, connection.Id())
-	c.send(NewTransaction(FrameResponse, 0, 0, transaction.transactionId, 0, data))
+	c.Send(xchg.NewTransaction(xchg.FrameResponse, 0, 0, transaction.TransactionId, 0, data))
 }
 
-func (c *RouterConnection) processCall(transaction *Transaction) {
+func (c *RouterConnection) processCall(transaction *xchg.Transaction) {
 	var err error
-	connection := c.router.getConnectionById(transaction.eid)
+	connection := c.router.getConnectionById(transaction.EID)
 	if connection == nil {
-		c.sendError(transaction, errors.New("connection not found"))
+		c.SendError(transaction, errors.New("connection not found"))
 		return
 	}
 
 	err = c.router.beginTransaction(transaction)
 	if err != nil {
-		c.sendError(transaction, err)
+		c.SendError(transaction, err)
 		return
 	}
-	transaction.connection = c
-	connection.send(transaction)
+	transaction.ResponseSender = c
+	connection.Send(transaction)
 }
 
-func (c *RouterConnection) processResponse(transaction *Transaction) {
+func (c *RouterConnection) processResponse(transaction *xchg.Transaction) {
 	c.router.SetResponse(transaction)
 }

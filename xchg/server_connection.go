@@ -11,13 +11,15 @@ import (
 
 	"github.com/btcsuite/btcutil/base58"
 	"github.com/ipoluianov/gomisc/crypt_tools"
+	"github.com/ipoluianov/gomisc/nonce_generator"
+	"github.com/ipoluianov/gomisc/snake_counter"
 )
 
 type Session struct {
 	id           uint64
 	aesKey       []byte
 	lastAccessDT time.Time
-	snakeCounter *SnakeCounter
+	snakeCounter *snake_counter.SnakeCounter
 }
 
 type ServerConnection struct {
@@ -31,7 +33,7 @@ type ServerConnection struct {
 	lastPurgeSessionsTime time.Time
 	network               *Network
 
-	nonceGenerator *NonceGenerator
+	nonceGenerator *nonce_generator.NonceGenerator
 
 	processor ServerProcessor
 }
@@ -44,7 +46,7 @@ type ServerProcessor interface {
 func NewServerConnection(privateKey58 string, network *Network) *ServerConnection {
 	var c ServerConnection
 	c.nextSessionId = 1
-	c.nonceGenerator = NewNonceGenerator(1024 * 1024)
+	c.nonceGenerator = nonce_generator.NewNonceGenerator(1024 * 1024)
 	c.privateKey58 = privateKey58
 	c.privateKey, _ = crypt_tools.RSAPrivateKeyFromDer(base58.Decode(c.privateKey58))
 	c.edgeConnections = make(map[string]*EdgeConnection)
@@ -236,7 +238,7 @@ func (c *ServerConnection) processAuth(functionParameter []byte) (response []byt
 	session.id = sessionId
 	session.lastAccessDT = time.Now()
 	session.aesKey = make([]byte, 32)
-	session.snakeCounter = NewSnakeCounter(100, 0)
+	session.snakeCounter = snake_counter.NewSnakeCounter(100, 0)
 	rand.Read(session.aesKey)
 	c.sessionsById[sessionId] = session
 	response = make([]byte, 8+32)
