@@ -221,12 +221,12 @@ func (c *Connection) thReceive() {
 			}
 
 			restBytes := incomingDataOffset - processedLen
-			if restBytes < HeaderSize {
+			if restBytes < TransactionHeaderSize {
 				break
 			}
 
 			frameLen := int(binary.LittleEndian.Uint32(incomingData[processedLen+4:]))
-			if frameLen < HeaderSize || frameLen > c.configMaxFrameSize {
+			if frameLen < TransactionHeaderSize || frameLen > c.configMaxFrameSize {
 				err = errors.New("wrong frame size")
 				break
 			}
@@ -275,7 +275,7 @@ func (c *Connection) thReceive() {
 
 func (c *Connection) SendError(transaction *Transaction, err error) {
 	//fmt.Println("SendError:", err)
-	c.Send(NewTransaction(FrameError, transaction.Recevied1, transaction.EID, transaction.TransactionId, 0, []byte(err.Error())))
+	c.Send(NewTransaction(FrameError, transaction.EID, transaction.TransactionId, 0, []byte(err.Error())))
 }
 
 func (c *Connection) Send(transaction *Transaction) (err error) {

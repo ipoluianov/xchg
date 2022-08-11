@@ -217,7 +217,7 @@ func (c *Router) beginTransaction(transaction *xchg.Transaction) (err error) {
 	}
 	innerTransactionId := c.nextConnectionId
 	c.nextConnectionId++
-	transaction.StandbyTransactionId = transaction.TransactionId
+	transaction.OriginalTransactionId = transaction.TransactionId
 	transaction.TransactionId = innerTransactionId
 	c.transactions[innerTransactionId] = transaction
 	return
@@ -246,8 +246,8 @@ func (c *Router) SetResponse(transaction *xchg.Transaction) {
 	}
 	c.mtxRouter.Unlock()
 
-	transaction.TransactionId = originalTransaction.StandbyTransactionId
-	originalTransaction.ResponseSender.Send(xchg.NewTransaction(xchg.FrameResponse, 0, 0, transaction.TransactionId, 0, transaction.Data))
+	transaction.TransactionId = originalTransaction.OriginalTransactionId
+	originalTransaction.ResponseSender.Send(xchg.NewTransaction(xchg.FrameResponse, 0, transaction.TransactionId, originalTransaction.SessionId, transaction.Data))
 }
 
 func (c *Router) thWorker() {

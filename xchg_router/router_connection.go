@@ -112,7 +112,7 @@ func (c *RouterConnection) processInit1(transaction *xchg.Transaction) {
 	c.mtxRouterConnection.Unlock()
 
 	// Send Init2 (my address)
-	c.Send(xchg.NewTransaction(xchg.FrameInit2, 0, 0, 0, 0, localAddressBS))
+	c.Send(xchg.NewTransaction(xchg.FrameInit2, 0, 0, 0, localAddressBS))
 
 	// Send Init3
 	{
@@ -122,7 +122,7 @@ func (c *RouterConnection) processInit1(transaction *xchg.Transaction) {
 			c.SendError(transaction, err)
 			return
 		}
-		c.Send(xchg.NewTransaction(xchg.FrameInit3, 0, 0, 0, 0, encryptedLocalSecret))
+		c.Send(xchg.NewTransaction(xchg.FrameInit3, 0, 0, 0, encryptedLocalSecret))
 	}
 }
 
@@ -169,7 +169,7 @@ func (c *RouterConnection) processInit5(transaction *xchg.Transaction) {
 
 	remoteSecretBytesEcrypted, err := rsa.EncryptPKCS1v15(rand.Reader, remotePublicKey, remoteSecretBytes)
 	if err == nil {
-		c.Send(xchg.NewTransaction(xchg.FrameInit6, 0, 0, 0, 0, remoteSecretBytesEcrypted))
+		c.Send(xchg.NewTransaction(xchg.FrameInit6, 0, 0, 0, remoteSecretBytesEcrypted))
 	}
 }
 
@@ -181,7 +181,7 @@ func (c *RouterConnection) processResolveAddress(transaction *xchg.Transaction) 
 	}
 	data := make([]byte, 8)
 	binary.LittleEndian.PutUint64(data, connection.Id())
-	c.Send(xchg.NewTransaction(xchg.FrameResponse, 0, 0, transaction.TransactionId, 0, data))
+	c.Send(xchg.NewTransaction(xchg.FrameResponse, 0, transaction.TransactionId, 0, data))
 }
 
 func (c *RouterConnection) processCall(transaction *xchg.Transaction) {
