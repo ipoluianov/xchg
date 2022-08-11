@@ -1,4 +1,4 @@
-package xchg
+package xchg_network
 
 import (
 	"crypto/sha256"

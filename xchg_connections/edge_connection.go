@@ -1,4 +1,4 @@
-package xchg
+package xchg_connections
 
 import (
 	"crypto/rand"
@@ -10,13 +10,14 @@ import (
 
 	"github.com/btcsuite/btcutil/base58"
 	"github.com/ipoluianov/gomisc/crypt_tools"
+	"github.com/ipoluianov/xchg/xchg"
 )
 
 type EdgeConnection struct {
 	node string
 
 	mtxEdgeConnection sync.Mutex
-	connection        *Connection
+	connection        *xchg.Connection
 
 	started  bool
 	stopping bool
@@ -31,7 +32,7 @@ type EdgeConnection struct {
 	localSecretBytes  []byte
 	remoteSecretBytes []byte
 
-	outgoingTransactions map[uint64]*Transaction
+	outgoingTransactions map[uint64]*xchg.Transaction
 	nextTransactionId    uint64
 
 	// Initialization
@@ -55,10 +56,10 @@ func NewEdgeConnection(xchgNode string, localAddress *rsa.PrivateKey) *EdgeConne
 	var c EdgeConnection
 
 	c.node = xchgNode
-	c.connection = NewConnection()
+	c.connection = xchg.NewConnection()
 	c.connection.InitOutgoingConnection(c.node, &c)
 	c.nextTransactionId = 1
-	c.outgoingTransactions = make(map[uint64]*Transaction)
+	c.outgoingTransactions = make(map[uint64]*xchg.Transaction)
 
 	if localAddress != nil {
 		c.privateKey = localAddress
@@ -122,9 +123,9 @@ func (c *EdgeConnection) fastReset() {
 	rand.Read(c.localSecretBytes)
 
 	for _, t := range c.outgoingTransactions {
-		if !t.complete {
-			t.err = errors.New("EdgeConnection connection loss")
-			t.complete = true
+		if !t.Complete {
+			t.Err = errors.New("EdgeConnection connection loss")
+			t.Complete = true
 		}
 	}
 
@@ -146,22 +147,22 @@ func (c *EdgeConnection) waitDurationOrStopping(duration time.Duration) {
 	}
 }
 
-func (c *EdgeConnection) ProcessTransaction(transaction *Transaction) {
+func (c *EdgeConnection) ProcessTransaction(transaction *xchg.Transaction) {
 	switch transaction.ProtocolVersion {
 	case 0x01:
 		switch transaction.FrameType {
-		case FrameInit2:
+		case xchg.FrameInit2:
 			c.processInit2(transaction)
-		case FrameInit3:
+		case xchg.FrameInit3:
 			c.processInit3(transaction)
-		case FrameInit6:
+		case xchg.FrameInit6:
 			c.processInit6(transaction)
 
-		case FrameCall:
+		case xchg.FrameCall:
 			c.processCall(transaction)
-		case FrameResponse:
+		case xchg.FrameResponse:
 			c.processResponse(transaction)
-		case FrameError:
+		case xchg.FrameError:
 			c.processError(transaction)
 		}
 	default:
@@ -169,7 +170,7 @@ func (c *EdgeConnection) ProcessTransaction(transaction *Transaction) {
 	}
 }
 
-func (c *EdgeConnection) processInit2(transaction *Transaction) {
+func (c *EdgeConnection) processInit2(transaction *xchg.Transaction) {
 	c.mtxEdgeConnection.Lock()
 	defer c.mtxEdgeConnection.Unlock()
 
@@ -181,7 +182,7 @@ func (c *EdgeConnection) processInit2(transaction *Transaction) {
 	c.init2Received = true
 }
 
-func (c *EdgeConnection) processInit3(transaction *Transaction) {
+func (c *EdgeConnection) processInit3(transaction *xchg.Transaction) {
 	c.mtxEdgeConnection.Lock()
 	defer c.mtxEdgeConnection.Unlock()
 
@@ -193,7 +194,7 @@ func (c *EdgeConnection) processInit3(transaction *Transaction) {
 	c.init3Received = true
 }
 
-func (c *EdgeConnection) processInit6(transaction *Transaction) {
+func (c *EdgeConnection) processInit6(transaction *xchg.Transaction) {
 	c.mtxEdgeConnection.Lock()
 	defer c.mtxEdgeConnection.Unlock()
 
@@ -212,23 +213,23 @@ func (c *EdgeConnection) processInit6(transaction *Transaction) {
 	c.init6Received = true
 }
 
-func (c *EdgeConnection) processError(transaction *Transaction) {
+func (c *EdgeConnection) processError(transaction *xchg.Transaction) {
 	c.setTransactionResponse(transaction.TransactionId, nil, errors.New(string(transaction.Data)))
 	c.reset()
 }
 
-func (c *EdgeConnection) processCall(transaction *Transaction) {
+func (c *EdgeConnection) processCall(transaction *xchg.Transaction) {
 	var processor EdgeConnectionProcessor
 	c.mtxEdgeConnection.Lock()
 	processor = c.processor
 	c.mtxEdgeConnection.Unlock()
 	if processor != nil {
 		resp := processor.OnEdgeReceivedCall(c, transaction.SessionId, transaction.Data)
-		c.connection.Send(NewTransaction(FrameResponse, 0, transaction.TransactionId, 0, resp))
+		c.connection.Send(xchg.NewTransaction(xchg.FrameResponse, 0, transaction.TransactionId, 0, resp))
 	}
 }
 
-func (c *EdgeConnection) processResponse(transaction *Transaction) {
+func (c *EdgeConnection) processResponse(transaction *xchg.Transaction) {
 	c.setTransactionResponse(transaction.TransactionId, transaction.Data, nil)
 }
 
@@ -237,9 +238,9 @@ func (c *EdgeConnection) setTransactionResponse(transactionId uint64, data []byt
 	defer c.mtxEdgeConnection.Unlock()
 
 	if t, ok := c.outgoingTransactions[transactionId]; ok {
-		t.result = data
-		t.err = err
-		t.complete = true
+		t.Result = data
+		t.Err = err
+		t.Complete = true
 	}
 }
 
@@ -260,7 +261,7 @@ func (c *EdgeConnection) checkConnection() {
 
 	if !c.init1Sent {
 		c.init1Sent = true
-		c.connection.Send(NewTransaction(FrameInit1, 0, 0, 0, crypt_tools.RSAPublicKeyToDer(c.publicKey)))
+		c.connection.Send(xchg.NewTransaction(xchg.FrameInit1, 0, 0, 0, crypt_tools.RSAPublicKeyToDer(c.publicKey)))
 		return
 	}
 
@@ -268,7 +269,7 @@ func (c *EdgeConnection) checkConnection() {
 		c.init4Sent = true
 		remoteSecretBytesEcrypted, err := rsa.EncryptPKCS1v15(rand.Reader, c.remotePublicKey, c.remoteSecretBytes)
 		if err == nil {
-			c.connection.Send(NewTransaction(FrameInit4, 0, 0, 0, remoteSecretBytesEcrypted))
+			c.connection.Send(xchg.NewTransaction(xchg.FrameInit4, 0, 0, 0, remoteSecretBytesEcrypted))
 		}
 		return
 	}
@@ -277,14 +278,14 @@ func (c *EdgeConnection) checkConnection() {
 		c.init5Sent = true
 		localSecretBytesEcrypted, err := rsa.EncryptPKCS1v15(rand.Reader, c.remotePublicKey, c.localSecretBytes)
 		if err == nil {
-			c.connection.Send(NewTransaction(FrameInit5, 0, 0, 0, localSecretBytesEcrypted))
+			c.connection.Send(xchg.NewTransaction(xchg.FrameInit5, 0, 0, 0, localSecretBytesEcrypted))
 		}
 		return
 	}
 }
 
 func (c *EdgeConnection) RequestEID(address string) (eid uint64, err error) {
-	res, err := c.executeTransaction(FrameResolveAddress, 0, 0, base58.Decode(address), 1000*time.Millisecond)
+	res, err := c.executeTransaction(xchg.FrameResolveAddress, 0, 0, base58.Decode(address), 1000*time.Millisecond)
 	if err != nil {
 		return 0, err
 	}
@@ -296,7 +297,7 @@ func (c *EdgeConnection) RequestEID(address string) (eid uint64, err error) {
 }
 
 func (c *EdgeConnection) Call(eid uint64, sessionId uint64, frame []byte) (result []byte, err error) {
-	result, err = c.executeTransaction(FrameCall, eid, sessionId, frame, 1000*time.Millisecond)
+	result, err = c.executeTransaction(xchg.FrameCall, eid, sessionId, frame, 1000*time.Millisecond)
 	return
 }
 
@@ -308,7 +309,7 @@ func (c *EdgeConnection) executeTransaction(frameType byte, targetEID uint64, se
 	c.nextTransactionId++
 
 	// Create transaction
-	t := NewTransaction(frameType, targetEID, transactionId, sessionId, data)
+	t := xchg.NewTransaction(frameType, targetEID, transactionId, sessionId, data)
 	c.outgoingTransactions[transactionId] = t
 	c.mtxEdgeConnection.Unlock()
 
@@ -326,21 +327,21 @@ func (c *EdgeConnection) executeTransaction(frameType byte, targetEID uint64, se
 	waitingTick := int64(10)
 	waitingIterationCount := waitingDurationInMilliseconds / waitingTick
 	for i := int64(0); i < waitingIterationCount; i++ {
-		if t.complete {
+		if t.Complete {
 			// Transaction complete
 			c.mtxEdgeConnection.Lock()
 			delete(c.outgoingTransactions, t.TransactionId)
 			c.mtxEdgeConnection.Unlock()
 
 			// Error recevied
-			if t.err != nil {
+			if t.Err != nil {
 				result = nil
-				err = t.err
+				err = t.Err
 				return
 			}
 
 			// Success
-			result = t.result
+			result = t.Result
 			err = nil
 			return
 		}

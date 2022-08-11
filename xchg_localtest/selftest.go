@@ -7,8 +7,8 @@ import (
 
 	"github.com/btcsuite/btcutil/base58"
 	"github.com/ipoluianov/gomisc/crypt_tools"
-	"github.com/ipoluianov/xchg/xchg"
 	"github.com/ipoluianov/xchg/xchg_examples"
+	"github.com/ipoluianov/xchg/xchg_network"
 	"github.com/ipoluianov/xchg/xchg_router"
 )
 
@@ -34,7 +34,7 @@ func SelfTest() {
 	fmt.Println("-------------- Press Enter to start ROUTERS --------------")
 	fmt.Scanln()
 
-	network := xchg.NewNetwork()
+	network := xchg_network.NewNetwork()
 	addrs := make([]string, 0)
 
 	routers := make([]*xchg_router.Router, 0)
@@ -74,12 +74,12 @@ func SelfTest() {
 	fmt.Println("PROCESS was finished")
 }
 
-func Server(serverPrivateKey string, network *xchg.Network) {
+func Server(serverPrivateKey string, network *xchg_network.Network) {
 	ss := xchg_examples.NewSimpleServer(serverPrivateKey, network)
 	ss.Start()
 }
 
-func Client(serverPublicKey string, network *xchg.Network) {
+func Client(serverPublicKey string, network *xchg_network.Network) {
 	time.Sleep(500 * time.Millisecond)
 	var err error
 	s := xchg_examples.NewSimpleClient(serverPublicKey, network)

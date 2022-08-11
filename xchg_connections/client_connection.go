@@ -1,4 +1,4 @@
-package xchg
+package xchg_connections
 
 import (
 	"crypto/rand"
@@ -11,6 +11,7 @@ import (
 
 	"github.com/btcsuite/btcutil/base58"
 	"github.com/ipoluianov/gomisc/crypt_tools"
+	"github.com/ipoluianov/xchg/xchg_network"
 )
 
 type ClientConnection struct {
@@ -29,12 +30,12 @@ type ClientConnection struct {
 
 	secretBytes []byte
 
-	network *Network
+	network *xchg_network.Network
 
 	authData string
 }
 
-func NewClientConnection(network *Network, address string, localPrivateKey58 string, authData string) *ClientConnection {
+func NewClientConnection(network *xchg_network.Network, address string, localPrivateKey58 string, authData string) *ClientConnection {
 	var c ClientConnection
 	c.address = address
 	c.authData = authData
@@ -135,10 +136,10 @@ func (c *ClientConnection) regularCall(function string, data []byte, aesKey []by
 			c.currentEID, err = conn.RequestEID(c.address)
 			if c.currentEID != 0 {
 				c.currentConnection = conn
-				fmt.Println("Searching node ...", conn.node, "ok")
+				fmt.Println("Searching node ...", address, "ok")
 				break
 			}
-			fmt.Println("Searching node ...", conn.node, "no")
+			fmt.Println("Searching node ...", address, "no")
 			conn.Stop()
 		}
 	}

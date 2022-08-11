@@ -5,15 +5,16 @@ import (
 	"errors"
 	"time"
 
-	"github.com/ipoluianov/xchg/xchg"
+	"github.com/ipoluianov/xchg/xchg_connections"
+	"github.com/ipoluianov/xchg/xchg_network"
 )
 
 type SimpleServer struct {
 }
 
-func NewSimpleServer(serverPrivateKey string, network *xchg.Network) *SimpleServer {
+func NewSimpleServer(serverPrivateKey string, network *xchg_network.Network) *SimpleServer {
 	var c SimpleServer
-	s := xchg.NewServerConnection(serverPrivateKey, network)
+	s := xchg_connections.NewServerConnection(serverPrivateKey, network)
 	s.SetProcessor(&c)
 	s.Start()
 	s = nil

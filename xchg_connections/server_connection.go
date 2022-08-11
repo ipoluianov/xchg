@@ -1,4 +1,4 @@
-package xchg
+package xchg_connections
 
 import (
 	"crypto/rand"
@@ -13,6 +13,7 @@ import (
 	"github.com/ipoluianov/gomisc/crypt_tools"
 	"github.com/ipoluianov/gomisc/nonce_generator"
 	"github.com/ipoluianov/gomisc/snake_counter"
+	"github.com/ipoluianov/xchg/xchg_network"
 )
 
 type Session struct {
@@ -31,7 +32,7 @@ type ServerConnection struct {
 	sessionsById          map[uint64]*Session
 	nextSessionId         uint64
 	lastPurgeSessionsTime time.Time
-	network               *Network
+	network               *xchg_network.Network
 
 	nonceGenerator *nonce_generator.NonceGenerator
 
@@ -43,7 +44,7 @@ type ServerProcessor interface {
 	ServerProcessorCall(function string, parameter []byte) (response []byte, err error)
 }
 
-func NewServerConnection(privateKey58 string, network *Network) *ServerConnection {
+func NewServerConnection(privateKey58 string, network *xchg_network.Network) *ServerConnection {
 	var c ServerConnection
 	c.nextSessionId = 1
 	c.nonceGenerator = nonce_generator.NewNonceGenerator(1024 * 1024)
@@ -65,7 +66,7 @@ func (c *ServerConnection) SetProcessor(processor ServerProcessor) {
 	c.processor = processor
 }
 
-func (c *ServerConnection) SetNetwork(network *Network) {
+func (c *ServerConnection) SetNetwork(network *xchg_network.Network) {
 	c.network = network
 }
 

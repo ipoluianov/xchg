@@ -22,9 +22,9 @@ type Transaction struct {
 	OriginalTransactionId uint64
 
 	// Execution Result
-	complete bool
-	result   []byte
-	err      error
+	Complete bool
+	Result   []byte
+	Err      error
 }
 
 const (
