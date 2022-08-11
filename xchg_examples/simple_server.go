@@ -1,17 +1,19 @@
-package xchg
+package xchg_examples
 
 import (
 	"encoding/json"
 	"errors"
 	"time"
+
+	"github.com/ipoluianov/xchg/xchg"
 )
 
 type SimpleServer struct {
 }
 
-func NewSimpleServer(serverPrivateKey string, network *Network) *SimpleServer {
+func NewSimpleServer(serverPrivateKey string, network *xchg.Network) *SimpleServer {
 	var c SimpleServer
-	s := NewServerConnection(serverPrivateKey, network)
+	s := xchg.NewServerConnection(serverPrivateKey, network)
 	s.SetProcessor(&c)
 	s.Start()
 	s = nil

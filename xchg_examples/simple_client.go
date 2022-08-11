@@ -1,19 +1,20 @@
-package xchg
+package xchg_examples
 
 import (
 	"github.com/btcsuite/btcutil/base58"
 	"github.com/ipoluianov/gomisc/crypt_tools"
+	"github.com/ipoluianov/xchg/xchg"
 )
 
 type SimpleClient struct {
-	client *ClientConnection
+	client *xchg.ClientConnection
 }
 
-func NewSimpleClient(serverPublicKey58 string, network *Network) *SimpleClient {
+func NewSimpleClient(serverPublicKey58 string, network *xchg.Network) *SimpleClient {
 	var c SimpleClient
 	privateKey, _ := crypt_tools.GenerateRSAKey()
 	privateKey58 := base58.Encode(crypt_tools.RSAPrivateKeyToDer(privateKey))
-	c.client = NewClientConnection(network, serverPublicKey58, privateKey58, "pass")
+	c.client = xchg.NewClientConnection(network, serverPublicKey58, privateKey58, "pass")
 	return &c
 }
 

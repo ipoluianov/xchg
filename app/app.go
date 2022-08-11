@@ -10,6 +10,7 @@ import (
 	"github.com/ipoluianov/gomisc/crypt_tools"
 	"github.com/ipoluianov/gomisc/logger"
 	"github.com/ipoluianov/xchg/xchg"
+	"github.com/ipoluianov/xchg/xchg_localtest"
 	"github.com/kardianos/osext"
 	"github.com/kardianos/service"
 )
@@ -68,7 +69,7 @@ func TryService() bool {
 	}
 
 	if *selftestFlagPtr {
-		xchg.SelfTest()
+		xchg_localtest.SelfTest()
 		return true
 	}
 
