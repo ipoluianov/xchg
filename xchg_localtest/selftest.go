@@ -30,7 +30,6 @@ func GetPublicKeyByPrivateKey(privateKey58 string) (result string, err error) {
 }
 
 func SelfTest() {
-
 	fmt.Println("-------------- Press Enter to start ROUTERS --------------")
 	fmt.Scanln()
 
