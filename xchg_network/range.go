@@ -1,13 +1,22 @@
 package xchg_network
 
-type Range struct {
-	Prefix string
-	Hosts  []*Host
+type rng struct {
+	Prefix string  `json:"prefix"`
+	Hosts  []*host `json:"hosts"`
 }
 
-func NewRange(prefix string) *Range {
-	var c Range
+func NewRange(prefix string) *rng {
+	var c rng
 	c.Prefix = prefix
-	c.Hosts = make([]*Host, 0)
+	c.Hosts = make([]*host, 0)
 	return &c
+}
+
+func (c *rng) AddHostIfNotExists(address string) {
+	for _, h := range c.Hosts {
+		if h.Address == address {
+			return
+		}
+	}
+	c.Hosts = append(c.Hosts, NewHost(address))
 }

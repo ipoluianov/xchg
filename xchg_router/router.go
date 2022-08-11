@@ -12,6 +12,7 @@ import (
 	"github.com/ipoluianov/gomisc/crypt_tools"
 	"github.com/ipoluianov/gomisc/logger"
 	"github.com/ipoluianov/xchg/xchg"
+	"github.com/ipoluianov/xchg/xchg_network"
 )
 
 type Router struct {
@@ -39,11 +40,12 @@ type Router struct {
 
 	httpServer   *HttpServer
 	routerServer *RouterServer
+	network      *xchg_network.Network
 
 	chWorking chan interface{}
 }
 
-func NewRouter(localAddress *rsa.PrivateKey, config RouterConfig) *Router {
+func NewRouter(localAddress *rsa.PrivateKey, config RouterConfig, network *xchg_network.Network) *Router {
 	var c Router
 
 	if localAddress != nil {
@@ -55,6 +57,7 @@ func NewRouter(localAddress *rsa.PrivateKey, config RouterConfig) *Router {
 		c.localAddress64 = crypt_tools.RSAPublicKeyToBase64(&localAddress.PublicKey)
 		c.localAddressHex = crypt_tools.RSAPublicKeyToHex(&localAddress.PublicKey)
 	}
+	c.network = network
 
 	c.init()
 	c.routerServer = NewRouterServer(config.BinServerPort, &c)

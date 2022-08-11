@@ -35,7 +35,14 @@ func SelfTest() {
 	fmt.Scanln()
 
 	network := xchg_network.NewNetwork()
-	addrs := make([]string, 0)
+	for r := 0; r < 16; r++ {
+		rangePrefix := fmt.Sprintf("%X", r)
+		for i := 0; i < 4; i++ {
+			network.AddHostToRange(rangePrefix, "127.0.0.1:"+fmt.Sprint(8484+i))
+		}
+	}
+
+	fmt.Println(network.String())
 
 	routers := make([]*xchg_router.Router, 0)
 	for i := 0; i < 4; i++ {
@@ -45,12 +52,11 @@ func SelfTest() {
 		config.Init()
 		config.BinServerPort = 8484 + i
 		config.HttpServerPort = 9800 + i
-		router := xchg_router.NewRouter(privateKey, config)
+
+		router := xchg_router.NewRouter(privateKey, config, network)
 		router.Start()
 		routers = append(routers, router)
-		addrs = append(addrs, "127.0.0.1:"+fmt.Sprint(8484+i))
 	}
-	network.SetRange("", addrs)
 
 	fmt.Println("------------- Press Enter to start SERVERS --------------")
 	fmt.Scanln()

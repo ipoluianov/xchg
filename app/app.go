@@ -10,6 +10,7 @@ import (
 	"github.com/ipoluianov/gomisc/crypt_tools"
 	"github.com/ipoluianov/gomisc/logger"
 	"github.com/ipoluianov/xchg/xchg_localtest"
+	"github.com/ipoluianov/xchg/xchg_network"
 	"github.com/ipoluianov/xchg/xchg_router"
 	"github.com/kardianos/osext"
 	"github.com/kardianos/service"
@@ -185,7 +186,13 @@ func Start() error {
 	var privateKey *rsa.PrivateKey
 	privateKey, _ = crypt_tools.GenerateRSAKey()
 
-	router = xchg_router.NewRouter(privateKey, conf)
+	network, err := xchg_network.NewNetworkFromFile("xchg_network.json")
+	if err != nil {
+		logger.Println("load network error:", err)
+		return err
+	}
+
+	router = xchg_router.NewRouter(privateKey, conf, network)
 	router.Start()
 
 	return nil
