@@ -21,7 +21,7 @@ func NewHttpServer(port int, router *Router) *HttpServer {
 }
 
 func (c *HttpServer) Start() {
-	logger.Println("HttpServer starting")
+	logger.Println("[i]", "HttpServer::Start", "begin")
 	c.srv = &http.Server{
 		Addr: ":" + fmt.Sprint(c.port),
 	}
@@ -29,10 +29,10 @@ func (c *HttpServer) Start() {
 	go func() {
 		err := c.srv.ListenAndServe()
 		if err != nil && err != http.ErrServerClosed {
-			logger.Println("[HttpServer]", "[error]", "HttpServer thListen error: ", err)
+			logger.Println("[ERROR]", "HttpServer::Start", "srv.ListenAndServe() error:", err)
 		}
 	}()
-	logger.Println("HttpServer started")
+	logger.Println("[i]", "HttpServer::Start", "end")
 }
 
 func (c *HttpServer) Stop() error {

@@ -26,12 +26,13 @@ func NewRouterServer(port int, router *Router) *RouterServer {
 }
 
 func (c *RouterServer) Start() (err error) {
+	logger.Println("[i]", "RouterServer::Start", "begin")
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
 	if c.chWorking != nil {
 		err = errors.New("router_server is already started")
-		logger.Println(err)
+		logger.Println("[ERROR]", "RouterServer::Start", err.Error())
 		return
 	}
 
@@ -39,24 +40,25 @@ func (c *RouterServer) Start() (err error) {
 
 	go c.thListen()
 
-	logger.Println("router_server started")
+	logger.Println("[i]", "RouterServer::Start", "end")
 	return
 }
 
 func (c *RouterServer) Stop() (err error) {
+	logger.Println("[i]", "RouterServer::Stop", "begin")
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
 	if c.chWorking == nil {
 		err = errors.New("router_server is not started")
-		logger.Println(err)
+		logger.Println("[ERROR]", "RouterServer::Stop", err.Error())
 		return
 	}
 
-	logger.Println("router_server stopping")
+	logger.Println("[i]", "RouterServer::Stop", "stopping")
 	close(c.chWorking)
 	c.listener.Close()
-	logger.Println("router_server stopping - waiting")
+	logger.Println("[i]", "RouterServer::Stop", "waiting")
 
 	for i := 0; i < 100; i++ {
 		if c.chWorking == nil {
@@ -65,21 +67,22 @@ func (c *RouterServer) Stop() (err error) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	if c.chWorking != nil {
-		logger.Println("router_server stopping - timeout")
+		logger.Println("[ERROR]", "RouterServer::Stop", "timeout")
 	} else {
-		logger.Println("router_server stopping - waiting - ok")
+		logger.Println("[i]", "RouterServer::Stop", "waiting OK")
 	}
-	logger.Println("router_server stopped")
+	logger.Println("[i]", "RouterServer::Stop", "end")
 	return
 }
 
 func (c *RouterServer) thListen() {
-	logger.Println("router_server_th started")
+	logger.Println("[i]", "RouterServer::thListen", "begin")
 	var err error
-	logger.Println("router_server_th port =", c.port)
-	c.listener, err = net.Listen("tcp", ":"+fmt.Sprint(c.port))
+	address := ":" + fmt.Sprint(c.port)
+	logger.Println("[i]", "RouterServer::thListen", "listen point:", address)
+	c.listener, err = net.Listen("tcp", address)
 	if err != nil {
-		logger.Error("router_server_th listen error", err)
+		logger.Error("[ERROR]", "RouterServer::thListen", "net.Listen error:", err)
 	} else {
 		var conn net.Conn
 		working := true
@@ -91,7 +94,7 @@ func (c *RouterServer) thListen() {
 					working = false
 					break
 				default:
-					logger.Println("router_server_th accept error", err)
+					logger.Error("[ERROR]", "RouterServer::thListen", "listener.Accept error:", err)
 				}
 			} else {
 				c.router.AddConnection(conn)
@@ -101,6 +104,6 @@ func (c *RouterServer) thListen() {
 			}
 		}
 	}
-	logger.Println("router_server_th stopped")
+	logger.Println("[i]", "RouterServer::thListen", "end")
 	c.chWorking = nil
 }

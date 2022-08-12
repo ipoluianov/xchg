@@ -5,7 +5,6 @@ import (
 	"crypto/rsa"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
@@ -89,11 +88,9 @@ func (c *ServerConnection) connection(addr string) *PeerConnection {
 func (c *ServerConnection) purgeSessions() {
 	now := time.Now()
 	c.mtxServerConnection.Lock()
-	if now.Sub(c.lastPurgeSessionsTime).Seconds() > 5*60 {
-		fmt.Println("Purging sessions")
+	if now.Sub(c.lastPurgeSessionsTime).Seconds() > 60 {
 		for sessionId, session := range c.sessionsById {
-			if now.Sub(session.lastAccessDT).Seconds() > 30 {
-				fmt.Println("Removing session", sessionId)
+			if now.Sub(session.lastAccessDT).Seconds() > 60 {
 				delete(c.sessionsById, sessionId)
 			}
 		}

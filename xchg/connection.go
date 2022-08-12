@@ -52,7 +52,7 @@ func (c *Connection) InitIncomingConnection(conn net.Conn, processor ITransactio
 	c.mtxBaseConnection.Lock()
 	defer c.mtxBaseConnection.Unlock()
 	if c.started {
-		logger.Println("connection", "initIncomingConnection", "already started")
+		logger.Println("[ERROR]", "Connection::initIncomingConnection", "already started")
 		return
 	}
 	c.configMaxFrameSize = 100 * 1024
@@ -65,7 +65,7 @@ func (c *Connection) InitOutgoingConnection(host string, processor ITransactionP
 	c.mtxBaseConnection.Lock()
 	defer c.mtxBaseConnection.Unlock()
 	if c.started {
-		logger.Println("connection", "initOutgoingConnection", "already started")
+		logger.Println("[ERROR]", "Connection::InitOutgoingConnection", "already started")
 		return
 	}
 	c.configMaxFrameSize = 100 * 1024
@@ -94,7 +94,7 @@ func (c *Connection) Start() {
 	c.mtxBaseConnection.Lock()
 	defer c.mtxBaseConnection.Unlock()
 	if c.started {
-		logger.Println("connection", "stop", "already started")
+		logger.Println("[ERROR]", "Connection::Start", "already started")
 		return
 	}
 	c.stopping = false
@@ -103,9 +103,8 @@ func (c *Connection) Start() {
 
 func (c *Connection) Stop() {
 	c.mtxBaseConnection.Lock()
-	logger.Println("connection", "stop", "begin")
 	if !c.started {
-		logger.Println("connection", "stop", "already stopped")
+		logger.Println("[ERROR]", "Connection::Stop", "already stopped")
 		c.mtxBaseConnection.Unlock()
 		return
 	}
@@ -127,14 +126,10 @@ func (c *Connection) Stop() {
 
 	c.mtxBaseConnection.Lock()
 	if c.started {
-		logger.Println("connection", "stop", "timeout")
-	} else {
-		logger.Println("connection", "stop", "success")
+		logger.Println("[ERROR]", "Connection::Stop", "timeout")
 	}
 	c.stopping = false
 	c.mtxBaseConnection.Unlock()
-
-	logger.Println("connection", "stop", "end")
 }
 
 func (c *Connection) callProcessorConnected() {
@@ -274,7 +269,6 @@ func (c *Connection) thReceive() {
 }
 
 func (c *Connection) SendError(transaction *Transaction, err error) {
-	//fmt.Println("SendError:", err)
 	c.Send(NewTransaction(FrameError, transaction.SID, transaction.TransactionId, 0, []byte(err.Error())))
 }
 

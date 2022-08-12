@@ -76,12 +76,13 @@ func (c *Router) init() {
 }
 
 func (c *Router) Start() (err error) {
+	logger.Println("[i]", "Router::Start", "begin")
 	c.mtxRouter.Lock()
 	defer c.mtxRouter.Unlock()
 
 	if c.chWorking != nil {
 		err = errors.New("router is already started")
-		logger.Println(err)
+		logger.Println("[ERROR]", "Router::Start", err.Error())
 		return
 	}
 
@@ -91,13 +92,15 @@ func (c *Router) Start() (err error) {
 
 	go c.thWorker()
 
-	logger.Println("router started")
 	c.httpServer.Start()
 	c.routerServer.Start()
+	logger.Println("[i]", "Router::Start", "end")
 	return
 }
 
 func (c *Router) Stop() (err error) {
+	logger.Println("[i]", "Router::Stop", "begin")
+
 	c.routerServer.Stop()
 	c.httpServer.Stop()
 
@@ -106,13 +109,13 @@ func (c *Router) Stop() (err error) {
 
 	if c.chWorking == nil {
 		err = errors.New("router is not started")
-		logger.Println(err)
+		logger.Println("[ERROR]", "Router::Stop", err.Error())
 		return
 	}
 
-	logger.Println("router stopping")
+	logger.Println("[i]", "Router::Stop", "stopping")
 	close(c.chWorking)
-	logger.Println("router stopping - waiting")
+	logger.Println("[i]", "Router::Stop", "waiting")
 
 	for i := 0; i < 100; i++ {
 		if c.chWorking == nil {
@@ -121,19 +124,19 @@ func (c *Router) Stop() (err error) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	if c.chWorking != nil {
-		logger.Println("router stopping - timeout")
+		logger.Println("[ERROR]", "Router::Stop", "waiting TIMEOUT")
 	} else {
-		logger.Println("router stopping - waiting - ok")
+		logger.Println("[i]", "Router::Stop", "waiting OK")
 	}
 
-	logger.Println("router stopping - closing incoming connections")
+	logger.Println("[i]", "Router::Stop", "closing incoming connections")
 	for _, conn := range c.connections {
 		conn.Stop()
 	}
 
 	c.init()
 
-	logger.Println("router stopped")
+	logger.Println("[i]", "Router::Stop", "end")
 	return
 }
 
@@ -254,7 +257,7 @@ func (c *Router) SetResponse(transaction *xchg.Transaction) {
 }
 
 func (c *Router) thWorker() {
-	logger.Println("router", "th_worker", "started")
+	logger.Println("[i]", "Router::thWorker", "begin")
 	ticker := time.NewTicker(1000 * time.Millisecond)
 	working := true
 	for working {
@@ -277,7 +280,7 @@ func (c *Router) thWorker() {
 			c.mtxRouter.Unlock()
 		}
 	}
-	logger.Println("router", "th_worker", "stopped")
+	logger.Println("[i]", "Router::thWorker", "end")
 	c.chWorking = nil
 }
 

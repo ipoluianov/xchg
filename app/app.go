@@ -174,12 +174,12 @@ var srv *xchg_router.RouterServer
 var router *xchg_router.Router
 
 func Start() error {
-	logger.Println("Application Started")
+	logger.Println("[i]", "App::Start", "begin")
 	TuneFDs()
 
 	conf, err := xchg_router.LoadConfigFromFile(logger.CurrentExePath() + "/" + "config.json")
 	if err != nil {
-		logger.Println("configuration error:", err)
+		logger.Println("[i]", "App::Start", "xchg_router.LoadConfigFromFile error:", err)
 		return err
 	}
 
@@ -188,12 +188,14 @@ func Start() error {
 
 	network, err := xchg_network.NewNetworkFromFile("xchg_network.json")
 	if err != nil {
-		logger.Println("load network error:", err)
+		logger.Println("[i]", "App::Start", "xchg_network.NewNetworkFromFile error:", err)
 		return err
 	}
 
 	router = xchg_router.NewRouter(privateKey, conf, network)
 	router.Start()
+
+	logger.Println("[i]", "App::Start", "end")
 
 	return nil
 }
@@ -203,14 +205,14 @@ func Stop() {
 }
 
 func RunConsole() {
-	logger.Println("[app]", "Running as console application")
+	logger.Println("[i]", "App::RunConsole", "begin")
 	err := Start()
 	if err != nil {
-		logger.Println("error:", err)
+		logger.Println("[ERROR]", "App::RunConsole", "Start error:", err)
 		return
 	}
 	_, _ = fmt.Scanln()
-	logger.Println("[app]", "Console application exit")
+	logger.Println("[i]", "App::RunConsole", "end")
 }
 
 func RunAsServiceF() error {
