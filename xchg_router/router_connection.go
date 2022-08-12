@@ -186,7 +186,7 @@ func (c *RouterConnection) processResolveAddress(transaction *xchg.Transaction) 
 
 func (c *RouterConnection) processCall(transaction *xchg.Transaction) {
 	var err error
-	connection := c.router.getConnectionById(transaction.EID)
+	connection := c.router.getConnectionById(transaction.SID)
 	if connection == nil {
 		c.SendError(transaction, errors.New("connection not found"))
 		return

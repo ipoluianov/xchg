@@ -12,7 +12,7 @@ type Transaction struct {
 	FrameType       byte
 	Reserved        byte
 	FrameLen        uint32
-	EID             uint64
+	SID             uint64
 	TransactionId   uint64
 	SessionId       uint64
 	Data            []byte
@@ -40,20 +40,20 @@ const (
 	FrameInit6 = byte(0x06) // 2 -> 1: [enc(secret1, addr1)] // it is me, xchg
 
 	FrameResolveAddress  = byte(0x10) // 1 -> 2: [addr3]
-	FrameResolvedAddress = byte(0x11) // 2 -> 1: [eid3]
+	FrameResolvedAddress = byte(0x11) // 2 -> 1: [sid3]
 
-	FrameCall     = byte(0x20) // 1 -> 2: [eid3][call_frame] --- 2 -> 3: [call_frame]
+	FrameCall     = byte(0x20) // 1 -> 2: [sid3][call_frame] --- 2 -> 3: [call_frame]
 	FrameResponse = byte(0x21) // 3 -> 2: [response_frame] --- 2 -> 1: [response_frame]
 	FrameError    = byte(0xFF)
 )
 
-func NewTransaction(frameType byte, targetEID uint64, transactionId uint64, sessionId uint64, data []byte) *Transaction {
+func NewTransaction(frameType byte, targetSID uint64, transactionId uint64, sessionId uint64, data []byte) *Transaction {
 	var c Transaction
 	c.Signature = 0xAA
 	c.ProtocolVersion = 0x01
 	c.FrameType = frameType
 	c.Reserved = 0
-	c.EID = targetEID
+	c.SID = targetSID
 	c.TransactionId = transactionId
 	c.SessionId = sessionId
 	c.Data = data
@@ -73,7 +73,7 @@ func Parse(frame []byte) (tr *Transaction, err error) {
 	tr.FrameType = frame[2]
 	tr.Reserved = frame[3]
 	tr.FrameLen = binary.LittleEndian.Uint32(frame[4:])
-	tr.EID = binary.LittleEndian.Uint64(frame[8:])
+	tr.SID = binary.LittleEndian.Uint64(frame[8:])
 	tr.TransactionId = binary.LittleEndian.Uint64(frame[16:])
 	tr.SessionId = binary.LittleEndian.Uint64(frame[24:])
 	tr.Data = make([]byte, int(tr.FrameLen)-TransactionHeaderSize)
@@ -89,7 +89,7 @@ func (c *Transaction) marshal() (result []byte) {
 	result[2] = c.FrameType
 	result[3] = c.Reserved
 	binary.LittleEndian.PutUint32(result[4:], c.FrameLen)
-	binary.LittleEndian.PutUint64(result[8:], c.EID)
+	binary.LittleEndian.PutUint64(result[8:], c.SID)
 	binary.LittleEndian.PutUint64(result[16:], c.TransactionId)
 	binary.LittleEndian.PutUint64(result[24:], c.SessionId)
 	copy(result[TransactionHeaderSize:], c.Data)

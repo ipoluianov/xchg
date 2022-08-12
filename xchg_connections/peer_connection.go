@@ -284,7 +284,7 @@ func (c *PeerConnection) checkConnection() {
 	}
 }
 
-func (c *PeerConnection) RequestEID(address string) (eid uint64, err error) {
+func (c *PeerConnection) RequestSID(address string) (sid uint64, err error) {
 	res, err := c.executeTransaction(xchg.FrameResolveAddress, 0, 0, base58.Decode(address), 1000*time.Millisecond)
 	if err != nil {
 		return 0, err
@@ -292,16 +292,16 @@ func (c *PeerConnection) RequestEID(address string) (eid uint64, err error) {
 	if len(res) != 8 {
 		return 0, errors.New("EdgeConnection wrong server response")
 	}
-	eid = binary.LittleEndian.Uint64(res)
+	sid = binary.LittleEndian.Uint64(res)
 	return
 }
 
-func (c *PeerConnection) Call(eid uint64, sessionId uint64, frame []byte) (result []byte, err error) {
-	result, err = c.executeTransaction(xchg.FrameCall, eid, sessionId, frame, 1000*time.Millisecond)
+func (c *PeerConnection) Call(sid uint64, sessionId uint64, frame []byte) (result []byte, err error) {
+	result, err = c.executeTransaction(xchg.FrameCall, sid, sessionId, frame, 1000*time.Millisecond)
 	return
 }
 
-func (c *PeerConnection) executeTransaction(frameType byte, targetEID uint64, sessionId uint64, data []byte, timeout time.Duration) (result []byte, err error) {
+func (c *PeerConnection) executeTransaction(frameType byte, targetSID uint64, sessionId uint64, data []byte, timeout time.Duration) (result []byte, err error) {
 	// Get transaction ID
 	var transactionId uint64
 	c.mtxEdgeConnection.Lock()
@@ -309,7 +309,7 @@ func (c *PeerConnection) executeTransaction(frameType byte, targetEID uint64, se
 	c.nextTransactionId++
 
 	// Create transaction
-	t := xchg.NewTransaction(frameType, targetEID, transactionId, sessionId, data)
+	t := xchg.NewTransaction(frameType, targetSID, transactionId, sessionId, data)
 	c.outgoingTransactions[transactionId] = t
 	c.mtxEdgeConnection.Unlock()
 

@@ -26,7 +26,7 @@ type ClientConnection struct {
 
 	findingConnection bool
 	currentConnection *PeerConnection
-	currentEID        uint64
+	currentSID        uint64
 
 	secretBytes []byte
 
@@ -120,7 +120,7 @@ func (c *ClientConnection) regularCall(function string, data []byte, aesKey []by
 
 	c.mtxClientConnection.Lock()
 	c.findingConnection = true
-	if c.currentEID == 0 {
+	if c.currentSID == 0 {
 		fmt.Println("Searching node ...")
 		addresses := c.network.GetAddressesByPublicKey(crypt_tools.RSAPublicKeyToDer(c.remotePublicKey))
 		for _, address := range addresses {
@@ -133,8 +133,8 @@ func (c *ClientConnection) regularCall(function string, data []byte, aesKey []by
 				continue
 			}
 
-			c.currentEID, err = conn.RequestEID(c.address)
-			if c.currentEID != 0 {
+			c.currentSID, err = conn.RequestSID(c.address)
+			if c.currentSID != 0 {
 				c.currentConnection = conn
 				fmt.Println("Searching node ...", address, "ok")
 				break
@@ -144,11 +144,11 @@ func (c *ClientConnection) regularCall(function string, data []byte, aesKey []by
 		}
 	}
 	connection := c.currentConnection
-	currentEID := c.currentEID
+	currentSID := c.currentSID
 	c.findingConnection = false
 	c.mtxClientConnection.Unlock()
 
-	if connection == nil || currentEID == 0 {
+	if connection == nil || currentSID == 0 {
 		err = errors.New("address not found in network")
 		return
 	}
@@ -173,9 +173,9 @@ func (c *ClientConnection) regularCall(function string, data []byte, aesKey []by
 		copy(frame[1+len(function):], data)
 	}
 
-	result, err = connection.Call(c.currentEID, c.sessionId, frame)
+	result, err = connection.Call(c.currentSID, c.sessionId, frame)
 	if err != nil {
-		c.currentEID = 0
+		c.currentSID = 0
 		return
 	}
 
