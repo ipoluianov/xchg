@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"sync"
 )
@@ -42,6 +43,19 @@ func NewNetworkFromFile(fileName string) (*Network, error) {
 	}
 
 	return network, nil
+}
+
+func NewNetworkDefault() *Network {
+	network := NewNetwork()
+	s1 := "54.37.73.160:8484"
+	s2 := "54.37.73.229:8484"
+
+	for r := 0; r < 16; r++ {
+		rangePrefix := fmt.Sprintf("%X", r)
+		network.AddHostToRange(rangePrefix, s1)
+		network.AddHostToRange(rangePrefix, s2)
+	}
+	return NewNetwork()
 }
 
 func (c *Network) SaveToFile(fileName string) error {
