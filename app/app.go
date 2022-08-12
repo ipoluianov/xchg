@@ -186,13 +186,7 @@ func Start() error {
 	var privateKey *rsa.PrivateKey
 	privateKey, _ = crypt_tools.GenerateRSAKey()
 
-	network, err := xchg_network.NewNetworkFromFile("xchg_network.json")
-	if err != nil {
-		logger.Println("[i]", "App::Start", "xchg_network.NewNetworkFromFile error:", err)
-		return err
-	}
-
-	router = xchg_router.NewRouter(privateKey, conf, network)
+	router = xchg_router.NewRouter(privateKey, conf, xchg_network.NewNetwork())
 	router.Start()
 
 	logger.Println("[i]", "App::Start", "end")
