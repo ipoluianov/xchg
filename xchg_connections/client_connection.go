@@ -25,7 +25,7 @@ type ClientConnection struct {
 	sessionNonceCounter uint64
 
 	findingConnection bool
-	currentConnection *EdgeConnection
+	currentConnection *PeerConnection
 	currentEID        uint64
 
 	secretBytes []byte
@@ -126,7 +126,7 @@ func (c *ClientConnection) regularCall(function string, data []byte, aesKey []by
 		for _, address := range addresses {
 			fmt.Println("Searching node ...", address)
 
-			conn := NewEdgeConnection(address, c.localPrivateKey)
+			conn := NewPeerConnection(address, c.localPrivateKey)
 			conn.Start()
 			if !conn.WaitForConnection(500 * time.Millisecond) {
 				conn.Stop()

@@ -12,15 +12,19 @@ type host struct {
 func NewHost(address string) *host {
 	var c host
 	c.Address = address
+	c.online = true
+	c.recalcScore()
 	return &c
 }
 
-func (c *host) SetOnline(online bool) {
+func (c *host) setOnline(online bool) {
 	c.online = false
 }
 
 func (c *host) recalcScore() {
 	if !c.online {
 		c.Score = 0
+	} else {
+		c.Score = 1
 	}
 }

@@ -5,9 +5,12 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"io/ioutil"
+	"sync"
 )
 
 type Network struct {
+	mtx sync.Mutex
+
 	Ranges []*rng `json:"ranges"`
 }
 
@@ -42,7 +45,7 @@ func NewNetworkFromFile(fileName string) (*Network, error) {
 }
 
 func (c *Network) SaveToFile(fileName string) error {
-	bs := c.ToBytes()
+	bs := c.toBytes()
 	err := ioutil.WriteFile(fileName, bs, 0660)
 	return err
 }
@@ -51,32 +54,14 @@ func (c *Network) init() {
 	c.Ranges = make([]*rng, 0)
 }
 
-func (c *Network) SetRange(prefix string, hosts []string) {
-	foundRange := false
-	for _, r := range c.Ranges {
-		if r.Prefix == prefix {
-			for _, h := range hosts {
-				r.AddHostIfNotExists(h)
-			}
-			foundRange = true
-			break
-		}
-	}
-
-	if !foundRange {
-		r := NewRange(prefix)
-		for _, h := range hosts {
-			r.AddHostIfNotExists(h)
-		}
-		c.Ranges = append(c.Ranges, r)
-	}
-}
-
 func (c *Network) AddHostToRange(prefix string, address string) {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+
 	foundRange := false
 	for _, r := range c.Ranges {
 		if r.Prefix == prefix {
-			r.AddHostIfNotExists(address)
+			r.addHostIfNotExists(address)
 			foundRange = true
 			break
 		}
@@ -84,21 +69,26 @@ func (c *Network) AddHostToRange(prefix string, address string) {
 
 	if !foundRange {
 		r := NewRange(prefix)
-		r.AddHostIfNotExists(address)
+		r.addHostIfNotExists(address)
 		c.Ranges = append(c.Ranges, r)
 	}
 }
 
 func (c *Network) String() string {
-	return string(c.ToBytes())
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+	return string(c.toBytes())
 }
 
-func (c *Network) ToBytes() []byte {
+func (c *Network) toBytes() []byte {
 	bs, _ := json.MarshalIndent(c, "", " ")
 	return bs
 }
 
 func (c *Network) GetAddressesByPublicKey(publicKeyBS []byte) []string {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+
 	SHAPublicKeyBS := sha256.Sum256(publicKeyBS)
 	SHAPublicKeyHex := hex.EncodeToString(SHAPublicKeyBS[:])
 
@@ -125,6 +115,18 @@ func (c *Network) GetAddressesByPublicKey(publicKeyBS []byte) []string {
 			addresses = append(addresses, host.Address)
 		}
 	}
-
 	return addresses
+}
+
+func (c *Network) SetHostOnline(address string, online bool) {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+
+	for _, r := range c.Ranges {
+		for _, h := range r.Hosts {
+			if h.Address == address {
+				h.setOnline(online)
+			}
+		}
+	}
 }

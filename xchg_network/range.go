@@ -12,7 +12,7 @@ func NewRange(prefix string) *rng {
 	return &c
 }
 
-func (c *rng) AddHostIfNotExists(address string) {
+func (c *rng) addHostIfNotExists(address string) {
 	for _, h := range c.Hosts {
 		if h.Address == address {
 			return
