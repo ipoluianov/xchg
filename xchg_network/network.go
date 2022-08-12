@@ -55,7 +55,7 @@ func NewNetworkDefault() *Network {
 		network.AddHostToRange(rangePrefix, s1)
 		network.AddHostToRange(rangePrefix, s2)
 	}
-	return NewNetwork()
+	return network
 }
 
 func (c *Network) SaveToFile(fileName string) error {
