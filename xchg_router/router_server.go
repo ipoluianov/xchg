@@ -31,7 +31,7 @@ func (c *RouterServer) Start() (err error) {
 	defer c.mtx.Unlock()
 
 	if c.chWorking != nil {
-		err = errors.New("router_server is already started")
+		err = errors.New(ERR_XCHG_ROUTER_SERVER_ALREADY_STARTED)
 		logger.Println("[ERROR]", "RouterServer::Start", err.Error())
 		return
 	}
@@ -50,7 +50,7 @@ func (c *RouterServer) Stop() (err error) {
 	defer c.mtx.Unlock()
 
 	if c.chWorking == nil {
-		err = errors.New("router_server is not started")
+		err = errors.New(ERR_XCHG_ROUTER_SERVER_IS_NOT_STARTED)
 		logger.Println("[ERROR]", "RouterServer::Stop", err.Error())
 		return
 	}
@@ -107,3 +107,8 @@ func (c *RouterServer) thListen() {
 	logger.Println("[i]", "RouterServer::thListen", "end")
 	c.chWorking = nil
 }
+
+const (
+	ERR_XCHG_ROUTER_SERVER_ALREADY_STARTED = "{ERR_XCHG_ROUTER_SERVER_ALREADY_STARTED}"
+	ERR_XCHG_ROUTER_SERVER_IS_NOT_STARTED  = "{ERR_XCHG_ROUTER_SERVER_IS_NOT_STARTED}"
+)

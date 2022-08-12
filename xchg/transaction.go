@@ -64,7 +64,7 @@ func Parse(frame []byte) (tr *Transaction, err error) {
 	if len(frame) < TransactionHeaderSize ||
 		frame[0] != 0xAA ||
 		frame[1] != 0x01 {
-		err = errors.New("wrong frame")
+		err = errors.New(ERR_XCHG_TR_WRONG_FRAME)
 	}
 
 	tr = &Transaction{}
@@ -95,3 +95,7 @@ func (c *Transaction) marshal() (result []byte) {
 	copy(result[TransactionHeaderSize:], c.Data)
 	return
 }
+
+const (
+	ERR_XCHG_TR_WRONG_FRAME = "{ERR_XCHG_TR_WRONG_FRAME}"
+)

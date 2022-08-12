@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/ipoluianov/xchg/xchg"
 	"github.com/ipoluianov/xchg/xchg_connections"
 	"github.com/ipoluianov/xchg/xchg_network"
 )
@@ -29,7 +30,7 @@ func (c *SimpleServer) ServerProcessorAuth(authData []byte) (err error) {
 	if string(authData) == "pass" {
 		return nil
 	}
-	return errors.New("access denied")
+	return errors.New(xchg.ERR_XCHG_ACCESS_DENIED)
 }
 
 func (c *SimpleServer) ServerProcessorCall(function string, parameter []byte) (response []byte, err error) {
@@ -53,8 +54,12 @@ func (c *SimpleServer) ServerProcessorCall(function string, parameter []byte) (r
 		resp.C = request.A + request.B
 		response, err = json.MarshalIndent(resp, "", " ")
 	default:
-		err = errors.New("function is not implemented")
+		err = errors.New(ERR_SIMPLE_SERVER_FUNC_IS_NOT_IMPL)
 	}
 
 	return
 }
+
+const (
+	ERR_SIMPLE_SERVER_FUNC_IS_NOT_IMPL = "{ERR_SIMPLE_SERVER_FUNC_IS_NOT_IMPL}"
+)

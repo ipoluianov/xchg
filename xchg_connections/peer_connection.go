@@ -124,7 +124,7 @@ func (c *PeerConnection) fastReset() {
 
 	for _, t := range c.outgoingTransactions {
 		if !t.Complete {
-			t.Err = errors.New("EdgeConnection connection loss")
+			t.Err = errors.New(ERR_XCHG_PEER_CONN_LOSS)
 			t.Complete = true
 		}
 	}
@@ -166,7 +166,7 @@ func (c *PeerConnection) ProcessTransaction(transaction *xchg.Transaction) {
 			c.processError(transaction)
 		}
 	default:
-		c.connection.SendError(transaction, errors.New("wrong protocol version"))
+		c.connection.SendError(transaction, errors.New(ERR_XCHG_PEER_CONN_WRONG_PROT_VERSION))
 	}
 }
 
@@ -214,7 +214,8 @@ func (c *PeerConnection) processInit6(transaction *xchg.Transaction) {
 }
 
 func (c *PeerConnection) processError(transaction *xchg.Transaction) {
-	c.setTransactionResponse(transaction.TransactionId, nil, errors.New(string(transaction.Data)))
+	err := errors.New(ERR_XCHG_PEER_CONN_RCVD_ERR + ":" + string(transaction.Data))
+	c.setTransactionResponse(transaction.TransactionId, nil, err)
 	c.reset()
 }
 
@@ -290,7 +291,7 @@ func (c *PeerConnection) RequestSID(address string) (sid uint64, err error) {
 		return 0, err
 	}
 	if len(res) != 8 {
-		return 0, errors.New("EdgeConnection wrong server response")
+		return 0, errors.New(ERR_XCHG_PEER_CONN_REQ_SID_SIZE)
 	}
 	sid = binary.LittleEndian.Uint64(res)
 	return
@@ -353,5 +354,13 @@ func (c *PeerConnection) executeTransaction(frameType byte, targetSID uint64, se
 	delete(c.outgoingTransactions, t.TransactionId)
 	c.mtxEdgeConnection.Unlock()
 
-	return nil, errors.New("EdgeConnection timeout")
+	return nil, errors.New(ERR_XCHG_PEER_CONN_TR_TIMEOUT)
 }
+
+const (
+	ERR_XCHG_PEER_CONN_LOSS               = "{ERR_XCHG_PEER_CONN_LOSS}"
+	ERR_XCHG_PEER_CONN_TR_TIMEOUT         = "{ERR_XCHG_PEER_CONN_TR_TIMEOUT}"
+	ERR_XCHG_PEER_CONN_REQ_SID_SIZE       = "{ERR_XCHG_PEER_CONN_REQ_SID_SIZE}"
+	ERR_XCHG_PEER_CONN_WRONG_PROT_VERSION = "{ERR_XCHG_PEER_CONN_WRONG_PROT_VERSION}"
+	ERR_XCHG_PEER_CONN_RCVD_ERR           = "{ERR_XCHG_PEER_CONN_RCVD_ERR}"
+)

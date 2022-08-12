@@ -222,7 +222,7 @@ func (c *Connection) thReceive() {
 
 			frameLen := int(binary.LittleEndian.Uint32(incomingData[processedLen+4:]))
 			if frameLen < TransactionHeaderSize || frameLen > c.configMaxFrameSize {
-				err = errors.New("wrong frame size")
+				err = errors.New(ERR_XCHG_CONN_WRONG_FRAME_SIZE)
 				break
 			}
 
@@ -280,7 +280,7 @@ func (c *Connection) Send(transaction *Transaction) (err error) {
 	c.mtxBaseConnection.Unlock()
 
 	if conn == nil {
-		err = errors.New("no connection")
+		err = errors.New(ERR_XCHG_CONN_NO_CONNECTION)
 		return
 	}
 
@@ -301,10 +301,16 @@ func (c *Connection) Send(transaction *Transaction) (err error) {
 	}
 
 	if sentBytes != len(frame) {
-		err = errors.New("sending error")
+		err = errors.New(ERR_XCHG_CONN_SENDING_ERROR)
 	}
 	c.mtxBaseConnectionSend.Unlock()
 	atomic.AddUint64(&c.sentBytes, uint64(sentBytes))
 	atomic.AddUint64(&c.sentFrames, 1)
 	return
 }
+
+const (
+	ERR_XCHG_CONN_WRONG_FRAME_SIZE = "{ERR_XCHG_CONN_WRONG_FRAME_SIZE}"
+	ERR_XCHG_CONN_NO_CONNECTION    = "{ERR_XCHG_CONN_NO_CONNECTION}"
+	ERR_XCHG_CONN_SENDING_ERROR    = "{ERR_XCHG_CONN_SENDING_ERROR}"
+)

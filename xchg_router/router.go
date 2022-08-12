@@ -81,7 +81,7 @@ func (c *Router) Start() (err error) {
 	defer c.mtxRouter.Unlock()
 
 	if c.chWorking != nil {
-		err = errors.New("router is already started")
+		err = errors.New(ERR_ROUTER_ALREADY_STARTED)
 		logger.Println("[ERROR]", "Router::Start", err.Error())
 		return
 	}
@@ -108,7 +108,7 @@ func (c *Router) Stop() (err error) {
 	defer c.mtxRouter.Unlock()
 
 	if c.chWorking == nil {
-		err = errors.New("router is not started")
+		err = errors.New(ERR_ROUTER_IS_NOT_STARTED)
 		logger.Println("[ERROR]", "Router::Stop", err.Error())
 		return
 	}
@@ -215,7 +215,7 @@ func (c *Router) setAddressForConnection(connection *RouterConnection, address58
 	c.connectionsByAddress[address58] = connection
 }
 
-func (c *Router) beginTransaction(transaction *xchg.Transaction) (err error) {
+func (c *Router) beginTransaction(transaction *xchg.Transaction) {
 	c.mtxRouter.Lock()
 	defer c.mtxRouter.Unlock()
 	if c.chWorking == nil {
@@ -226,16 +226,6 @@ func (c *Router) beginTransaction(transaction *xchg.Transaction) (err error) {
 	transaction.OriginalTransactionId = transaction.TransactionId
 	transaction.TransactionId = innerTransactionId
 	c.transactions[innerTransactionId] = transaction
-	return
-}
-
-func (c *Router) sendTransactionToConnection(transaction *xchg.Transaction) (err error) {
-	connection := c.getConnectionById(transaction.TransactionId)
-	if connection == nil {
-		err = errors.New("connection not found")
-		return
-	}
-	connection.Send(transaction)
 	return
 }
 
@@ -320,3 +310,8 @@ func (c *Router) DebugInfo() (result string) {
 
 	return
 }
+
+const (
+	ERR_ROUTER_ALREADY_STARTED = "{ERR_ROUTER_ALREADY_STARTED}"
+	ERR_ROUTER_IS_NOT_STARTED  = "{ERR_ROUTER_IS_NOT_STARTED}"
+)

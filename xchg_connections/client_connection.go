@@ -5,12 +5,12 @@ import (
 	"crypto/rsa"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
 	"github.com/btcsuite/btcutil/base58"
 	"github.com/ipoluianov/gomisc/crypt_tools"
+	"github.com/ipoluianov/gomisc/logger"
 	"github.com/ipoluianov/xchg/xchg_network"
 )
 
@@ -65,7 +65,7 @@ func (c *ClientConnection) auth() (err error) {
 		return
 	}
 	if len(nonce) != 16 {
-		err = errors.New("wrong nonce len")
+		err = errors.New(ERR_XCHG_CL_CONN_WRONG_NONCE_LEN)
 		return
 	}
 
@@ -98,7 +98,7 @@ func (c *ClientConnection) auth() (err error) {
 	}
 
 	if len(result) != 8+32 {
-		err = errors.New("wrong auth response")
+		err = errors.New(ERR_XCHG_CL_CONN_WRONG_AUTH_RESPONSE_LEN)
 		return
 	}
 	c.sessionId = binary.LittleEndian.Uint64(result)
@@ -109,22 +109,22 @@ func (c *ClientConnection) auth() (err error) {
 
 func (c *ClientConnection) regularCall(function string, data []byte, aesKey []byte) (result []byte, err error) {
 	if len(function) > 255 {
-		err = errors.New("wrong function len")
+		err = errors.New(ERR_XCHG_CL_CONN_WRONG_FUNCTION_LEN)
 		return
 	}
 
 	if c.findingConnection {
-		err = errors.New("searching node")
+		err = errors.New(ERR_XCHG_CL_CONN_SEARCHING_NODE)
 		return
 	}
 
 	c.mtxClientConnection.Lock()
 	c.findingConnection = true
 	if c.currentSID == 0 {
-		fmt.Println("Searching node ...")
+		logger.Println("[i]", "ClientConnection::regularCall", "searching node ...")
 		addresses := c.network.GetAddressesByPublicKey(crypt_tools.RSAPublicKeyToDer(c.remotePublicKey))
 		for _, address := range addresses {
-			fmt.Println("Searching node ...", address)
+			logger.Println("[i]", "ClientConnection::regularCall", "trying node:", address)
 
 			conn := NewPeerConnection(address, c.localPrivateKey)
 			conn.Start()
@@ -136,10 +136,9 @@ func (c *ClientConnection) regularCall(function string, data []byte, aesKey []by
 			c.currentSID, err = conn.RequestSID(c.address)
 			if c.currentSID != 0 {
 				c.currentConnection = conn
-				fmt.Println("Searching node ...", address, "ok")
+				logger.Println("[i]", "ClientConnection::regularCall", "node found:", address)
 				break
 			}
-			fmt.Println("Searching node ...", address, "no")
 			conn.Stop()
 		}
 	}
@@ -149,7 +148,7 @@ func (c *ClientConnection) regularCall(function string, data []byte, aesKey []by
 	c.mtxClientConnection.Unlock()
 
 	if connection == nil || currentSID == 0 {
-		err = errors.New("address not found in network")
+		err = errors.New(ERR_XCHG_CL_CONN_NO_ROUTE_TO_PEER)
 		return
 	}
 
@@ -163,7 +162,7 @@ func (c *ClientConnection) regularCall(function string, data []byte, aesKey []by
 		copy(frame[9+len(function):], data)
 		frame, err = crypt_tools.EncryptAESGCM(frame, aesKey)
 		if err != nil {
-			err = errors.New("client_connection encrypt error: " + err.Error())
+			err = errors.New(ERR_XCHG_CL_CONN_CALL_ENC + ":" + err.Error())
 			return
 		}
 	} else {
@@ -175,12 +174,13 @@ func (c *ClientConnection) regularCall(function string, data []byte, aesKey []by
 
 	result, err = connection.Call(c.currentSID, c.sessionId, frame)
 	if err != nil {
+		err = errors.New(ERR_XCHG_CL_CONN_CALL_ERR + ":" + err.Error())
 		c.currentSID = 0
 		return
 	}
 
 	if len(result) < 1 {
-		err = errors.New("wrong response (<1)")
+		err = errors.New(ERR_XCHG_CL_CONN_WRONG_CALL_RESPONSE)
 		return
 	}
 
@@ -191,11 +191,24 @@ func (c *ClientConnection) regularCall(function string, data []byte, aesKey []by
 	}
 
 	if result[0] == 1 {
-		err = errors.New(string(result[1:]))
+		err = errors.New(ERR_XCHG_CL_CONN_FROM_PEER + ":" + string(result[1:]))
 		result = nil
 		return
 	}
 
-	err = errors.New("wrong response (status byte)")
+	err = errors.New(ERR_XCHG_CL_CONN_WRONG_CALL_RESPONSE_BYTE)
 	return
 }
+
+const (
+	ERR_XCHG_CL_CONN_WRONG_FUNCTION_LEN       = "{ERR_XCHG_CL_CONN_WRONG_FUNCTION_LEN}"
+	ERR_XCHG_CL_CONN_SEARCHING_NODE           = "{ERR_XCHG_CL_CONN_SEARCHING_NODE}"
+	ERR_XCHG_CL_CONN_NO_ROUTE_TO_PEER         = "{ERR_XCHG_CL_CONN_NO_ROUTE_TO_PEER}"
+	ERR_XCHG_CL_CONN_WRONG_CALL_RESPONSE      = "{ERR_XCHG_CL_CONN_WRONG_CALL_RESPONSE}"
+	ERR_XCHG_CL_CONN_WRONG_CALL_RESPONSE_BYTE = "{ERR_XCHG_CL_CONN_WRONG_CALL_RESPONSE_BYTE}"
+	ERR_XCHG_CL_CONN_WRONG_NONCE_LEN          = "{ERR_XCHG_CL_CONN_WRONG_NONCE_LEN}"
+	ERR_XCHG_CL_CONN_WRONG_AUTH_RESPONSE_LEN  = "{ERR_XCHG_CL_CONN_WRONG_AUTH_RESPONSE_LEN}"
+	ERR_XCHG_CL_CONN_CALL_ENC                 = "{ERR_XCHG_CL_CONN_CALL_ENC}"
+	ERR_XCHG_CL_CONN_CALL_ERR                 = "{ERR_XCHG_CL_CONN_CALL_ERR}"
+	ERR_XCHG_CL_CONN_FROM_PEER                = "{ERR_XCHG_CL_CONN_FROM_PEER}"
+)
