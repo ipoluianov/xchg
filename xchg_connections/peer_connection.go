@@ -5,6 +5,7 @@ import (
 	"crypto/rsa"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -262,23 +263,26 @@ func (c *PeerConnection) checkConnection() {
 
 	if !c.init1Sent {
 		c.init1Sent = true
+		fmt.Println("111")
 		c.connection.Send(xchg.NewTransaction(xchg.FrameInit1, 0, 0, 0, crypt_tools.RSAPublicKeyToDer(c.publicKey)))
 		return
 	}
 
-	if c.init3Received && !c.init4Sent {
+	if c.init2Received && c.init3Received && !c.init4Sent && c.remotePublicKey != nil {
 		c.init4Sent = true
 		remoteSecretBytesEcrypted, err := rsa.EncryptPKCS1v15(rand.Reader, c.remotePublicKey, c.remoteSecretBytes)
 		if err == nil {
+			fmt.Println("222")
 			c.connection.Send(xchg.NewTransaction(xchg.FrameInit4, 0, 0, 0, remoteSecretBytesEcrypted))
 		}
 		return
 	}
 
-	if c.init2Received && !c.init5Sent {
+	if c.init2Received && !c.init5Sent && c.remotePublicKey != nil {
 		c.init5Sent = true
 		localSecretBytesEcrypted, err := rsa.EncryptPKCS1v15(rand.Reader, c.remotePublicKey, c.localSecretBytes)
 		if err == nil {
+			fmt.Println("333")
 			c.connection.Send(xchg.NewTransaction(xchg.FrameInit5, 0, 0, 0, localSecretBytesEcrypted))
 		}
 		return

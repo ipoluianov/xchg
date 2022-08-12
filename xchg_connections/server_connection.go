@@ -106,6 +106,7 @@ func (c *ServerConnection) OnEdgeDissonnected(edgeConnection *PeerConnection) {
 }
 
 func (c *ServerConnection) OnEdgeReceivedCall(edgeConnection *PeerConnection, sessionId uint64, data []byte) (response []byte) {
+
 	var err error
 	// Find the session
 	var session *Session

@@ -3,6 +3,7 @@ package xchg
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -170,6 +171,7 @@ func (c *Connection) SentFrames() uint64 {
 }
 
 func (c *Connection) thReceive() {
+	fmt.Println("thReceive", c.host)
 	c.mtxBaseConnection.Lock()
 	c.started = true
 	c.mtxBaseConnection.Unlock()
@@ -181,14 +183,17 @@ func (c *Connection) thReceive() {
 
 	for !c.stopping {
 		if c.conn == nil {
+			fmt.Println("connecting", c.host)
 			c.conn, err = net.Dial("tcp", c.host)
 			if err != nil {
 				time.Sleep(100 * time.Millisecond)
+				fmt.Println("connecting timeout", c.host)
 				continue
 			}
 			incomingData = make([]byte, c.configMaxFrameSize)
 			incomingDataOffset = 0
 			c.callProcessorConnected()
+			fmt.Println("connected", c.host)
 		}
 
 		n, err = c.conn.Read(incomingData[incomingDataOffset:])
