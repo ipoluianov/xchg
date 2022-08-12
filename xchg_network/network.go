@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"strings"
 	"sync"
 )
 
@@ -69,6 +70,8 @@ func (c *Network) init() {
 }
 
 func (c *Network) AddHostToRange(prefix string, address string) {
+	prefix = strings.ToLower(prefix)
+
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
@@ -105,6 +108,7 @@ func (c *Network) GetAddressesByPublicKey(publicKeyBS []byte) []string {
 
 	SHAPublicKeyBS := sha256.Sum256(publicKeyBS)
 	SHAPublicKeyHex := hex.EncodeToString(SHAPublicKeyBS[:])
+	SHAPublicKeyHex = strings.ToLower(SHAPublicKeyHex)
 
 	var preferredRange *rng
 	preferredRangeScore := 0

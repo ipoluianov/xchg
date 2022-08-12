@@ -45,7 +45,7 @@ type ServerProcessor interface {
 }
 
 func NewServerConnection(privateKey58 string, network *xchg_network.Network) *ServerConnection {
-	logger.Println("[i]", "NewServerConnection", "begin", network.String())
+	//logger.Println("[i]", "NewServerConnection", "begin", network.String())
 	var err error
 	var c ServerConnection
 	c.nextSessionId = 1
@@ -59,16 +59,16 @@ func NewServerConnection(privateKey58 string, network *xchg_network.Network) *Se
 	c.sessionsById = make(map[uint64]*Session)
 	c.network = network
 	publicKeyBS := crypt_tools.RSAPublicKeyToDer(&c.privateKey.PublicKey)
-	logger.Println("[i]", "NewServerConnection", "creating nodes", publicKeyBS)
+	//logger.Println("[i]", "NewServerConnection", "creating nodes", publicKeyBS)
 	addresses := c.network.GetAddressesByPublicKey(publicKeyBS)
 	connections := make([]*PeerConnection, 0)
-	logger.Println("[i]", "NewServerConnection", "creating nodes", addresses)
+	//logger.Println("[i]", "NewServerConnection", "creating nodes", addresses)
 	for _, addr := range addresses {
 		conn := c.connection(addr)
 		connections = append(connections, conn)
-		logger.Println("[i]", "NewServerConnection", "added connection:", addr)
+		//logger.Println("[i]", "NewServerConnection", "added connection:", addr)
 	}
-	logger.Println("[i]", "NewServerConnection", "end")
+	//logger.Println("[i]", "NewServerConnection", "end")
 	return &c
 }
 

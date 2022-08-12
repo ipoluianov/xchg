@@ -150,7 +150,7 @@ func (c *PeerConnection) waitDurationOrStopping(duration time.Duration) {
 }
 
 func (c *PeerConnection) ProcessTransaction(transaction *xchg.Transaction) {
-	fmt.Println("ProcessTransaction", transaction.FrameType)
+	//fmt.Println("ProcessTransaction", transaction.FrameType)
 	switch transaction.ProtocolVersion {
 	case 0x01:
 		switch transaction.FrameType {

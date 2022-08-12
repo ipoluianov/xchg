@@ -1,5 +1,7 @@
 package xchg_network
 
+import "strings"
+
 type rng struct {
 	Prefix string  `json:"prefix"`
 	Hosts  []*host `json:"hosts"`
@@ -7,7 +9,7 @@ type rng struct {
 
 func NewRange(prefix string) *rng {
 	var c rng
-	c.Prefix = prefix
+	c.Prefix = strings.ToLower(prefix)
 	c.Hosts = make([]*host, 0)
 	return &c
 }
