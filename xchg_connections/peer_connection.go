@@ -5,6 +5,7 @@ import (
 	"crypto/rsa"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -134,6 +135,7 @@ func (c *PeerConnection) fastReset() {
 
 func (c *PeerConnection) Connected() {
 	c.reset()
+	fmt.Println("connected")
 }
 
 func (c *PeerConnection) Disconnected() {
@@ -148,6 +150,7 @@ func (c *PeerConnection) waitDurationOrStopping(duration time.Duration) {
 }
 
 func (c *PeerConnection) ProcessTransaction(transaction *xchg.Transaction) {
+	fmt.Println("ProcessTransaction", transaction.FrameType)
 	switch transaction.ProtocolVersion {
 	case 0x01:
 		switch transaction.FrameType {
