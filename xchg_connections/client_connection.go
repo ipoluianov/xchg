@@ -11,6 +11,7 @@ import (
 	"github.com/btcsuite/btcutil/base58"
 	"github.com/ipoluianov/gomisc/crypt_tools"
 	"github.com/ipoluianov/gomisc/logger"
+	"github.com/ipoluianov/xchg/xchg"
 	"github.com/ipoluianov/xchg/xchg_network"
 )
 
@@ -33,6 +34,18 @@ type ClientConnection struct {
 	network *xchg_network.Network
 
 	authData string
+
+	lastestNodeAddress string
+	authProcessing     bool
+}
+
+type ClientConnectionState struct {
+	SessionId         uint64
+	FindingConnection bool
+	CurrentSID        uint64
+	AuthProcessing    bool
+	LatestNodeAddress string
+	Transport         xchg.ConnectionState
 }
 
 func NewClientConnection(network *xchg_network.Network, address string, localPrivateKey58 string, authData string) *ClientConnection {
@@ -59,6 +72,11 @@ func (c *ClientConnection) Call(function string, data []byte) (result []byte, er
 }
 
 func (c *ClientConnection) auth() (err error) {
+	c.authProcessing = true
+	defer func() {
+		c.authProcessing = false
+	}()
+
 	var nonce []byte
 	nonce, err = c.regularCall("/xchg-get-nonce", nil, nil)
 	if err != nil {
@@ -124,6 +142,7 @@ func (c *ClientConnection) regularCall(function string, data []byte, aesKey []by
 		logger.Println("[i]", "ClientConnection::regularCall", "searching node ...")
 		addresses := c.network.GetAddressesByPublicKey(crypt_tools.RSAPublicKeyToDer(c.remotePublicKey))
 		for _, address := range addresses {
+			c.lastestNodeAddress = address
 			logger.Println("[i]", "ClientConnection::regularCall", "trying node:", address)
 
 			conn := NewPeerConnection(address, c.localPrivateKey)
@@ -212,3 +231,13 @@ const (
 	ERR_XCHG_CL_CONN_CALL_ERR                 = "{ERR_XCHG_CL_CONN_CALL_ERR}"
 	ERR_XCHG_CL_CONN_FROM_PEER                = "{ERR_XCHG_CL_CONN_FROM_PEER}"
 )
+
+func (c *ClientConnection) state() ClientConnectionState {
+	var state ClientConnectionState
+	state.CurrentSID = c.currentSID
+	state.AuthProcessing = c.authProcessing
+	state.FindingConnection = c.findingConnection
+	state.SessionId = c.sessionId
+	state.LatestNodeAddress = c.lastestNodeAddress
+	return state
+}

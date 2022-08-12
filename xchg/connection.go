@@ -3,7 +3,6 @@ package xchg
 import (
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -32,6 +31,14 @@ type Connection struct {
 	sentFrames     uint64
 
 	configMaxFrameSize int
+}
+
+type ConnectionState struct {
+	Host           string
+	ReceivedBytes  uint64
+	SentBytes      uint64
+	ReceivedFrames uint64
+	SentFrames     uint64
 }
 
 type ITransactionProcessor interface {
@@ -171,7 +178,6 @@ func (c *Connection) SentFrames() uint64 {
 }
 
 func (c *Connection) thReceive() {
-	fmt.Println("thReceive", c.host)
 	c.mtxBaseConnection.Lock()
 	c.started = true
 	c.mtxBaseConnection.Unlock()
@@ -183,17 +189,14 @@ func (c *Connection) thReceive() {
 
 	for !c.stopping {
 		if c.conn == nil {
-			fmt.Println("connecting", c.host)
 			c.conn, err = net.Dial("tcp", c.host)
 			if err != nil {
 				time.Sleep(100 * time.Millisecond)
-				fmt.Println("connecting timeout", c.host)
 				continue
 			}
 			incomingData = make([]byte, c.configMaxFrameSize)
 			incomingDataOffset = 0
 			c.callProcessorConnected()
-			fmt.Println("connected", c.host)
 		}
 
 		n, err = c.conn.Read(incomingData[incomingDataOffset:])
@@ -312,6 +315,18 @@ func (c *Connection) Send(transaction *Transaction) (err error) {
 	atomic.AddUint64(&c.sentBytes, uint64(sentBytes))
 	atomic.AddUint64(&c.sentFrames, 1)
 	return
+}
+
+func (c *Connection) GetState() ConnectionState {
+	c.mtxBaseConnection.Lock()
+	defer c.mtxBaseConnection.Unlock()
+	var state ConnectionState
+	state.Host = c.host
+	state.ReceivedBytes = c.receivedBytes
+	state.ReceivedFrames = c.receivedFrames
+	state.SentBytes = c.sentBytes
+	state.SentFrames = c.sentFrames
+	return state
 }
 
 const (
