@@ -10,6 +10,7 @@ import (
 
 	"github.com/btcsuite/btcutil/base58"
 	"github.com/ipoluianov/gomisc/crypt_tools"
+	"github.com/ipoluianov/gomisc/logger"
 	"github.com/ipoluianov/gomisc/nonce_generator"
 	"github.com/ipoluianov/gomisc/snake_counter"
 	"github.com/ipoluianov/xchg/xchg_network"
@@ -57,6 +58,7 @@ func NewServerConnection(privateKey58 string, network *xchg_network.Network) *Se
 	for _, addr := range addresses {
 		conn := c.connection(addr)
 		connections = append(connections, conn)
+		logger.Println("[i]", "NewServerConnection", "added connection:", addr)
 	}
 	return &c
 }
