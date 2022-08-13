@@ -3,12 +3,12 @@ package xchg_connections
 import (
 	"crypto/rand"
 	"crypto/rsa"
+	"encoding/base32"
 	"encoding/binary"
 	"errors"
 	"sync"
 	"time"
 
-	"github.com/btcsuite/btcutil/base58"
 	"github.com/ipoluianov/gomisc/crypt_tools"
 	"github.com/ipoluianov/gomisc/logger"
 	"github.com/ipoluianov/gomisc/nonce_generator"
@@ -26,7 +26,7 @@ type Session struct {
 type ServerConnection struct {
 	mtxServerConnection sync.Mutex
 	edgeConnections     map[string]*PeerConnection
-	privateKey58        string
+	privateKey32        string
 	privateKey          *rsa.PrivateKey
 
 	sessionsById          map[uint64]*Session
@@ -44,14 +44,18 @@ type ServerProcessor interface {
 	ServerProcessorCall(function string, parameter []byte) (response []byte, err error)
 }
 
-func NewServerConnection(privateKey58 string, network *xchg_network.Network) *ServerConnection {
+func NewServerConnection(privateKey32 string, network *xchg_network.Network) *ServerConnection {
 	//logger.Println("[i]", "NewServerConnection", "begin", network.String())
 	var err error
 	var c ServerConnection
 	c.nextSessionId = 1
 	c.nonceGenerator = nonce_generator.NewNonceGenerator(1024 * 1024)
-	c.privateKey58 = privateKey58
-	c.privateKey, err = crypt_tools.RSAPrivateKeyFromDer(base58.Decode(c.privateKey58))
+	c.privateKey32 = privateKey32
+	privateKeyBS, err := base32.StdEncoding.DecodeString(c.privateKey32)
+	if err != nil {
+		logger.Println("[ERROR]", "NewServerConnection", "base32.StdEncoding.DecodeString error:", err)
+	}
+	c.privateKey, err = crypt_tools.RSAPrivateKeyFromDer(privateKeyBS)
 	if err != nil {
 		logger.Println("[ERROR]", "NewServerConnection", "crypt_tools.RSAPrivateKeyFromDer error:", err)
 	}

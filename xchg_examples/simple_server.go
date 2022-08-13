@@ -13,9 +13,9 @@ import (
 type SimpleServer struct {
 }
 
-func NewSimpleServer(serverPrivateKey string, network *xchg_network.Network) *SimpleServer {
+func NewSimpleServer(serverPrivateKey32 string, network *xchg_network.Network) *SimpleServer {
 	var c SimpleServer
-	s := xchg_connections.NewServerConnection(serverPrivateKey, network)
+	s := xchg_connections.NewServerConnection(serverPrivateKey32, network)
 	s.SetProcessor(&c)
 	s.Start()
 	s = nil

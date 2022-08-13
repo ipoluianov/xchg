@@ -2,17 +2,18 @@ package xchg_localtest
 
 import (
 	"crypto/rsa"
+	"encoding/base32"
 	"fmt"
 	"time"
 
-	"github.com/btcsuite/btcutil/base58"
 	"github.com/ipoluianov/gomisc/crypt_tools"
+	"github.com/ipoluianov/xchg/xchg"
 	"github.com/ipoluianov/xchg/xchg_examples"
 	"github.com/ipoluianov/xchg/xchg_network"
 	"github.com/ipoluianov/xchg/xchg_router"
 )
 
-func GeneratePrivateKey() string {
+/*func GeneratePrivateKey() string {
 	privateKey, _ := crypt_tools.GenerateRSAKey()
 	privateKeyBS := crypt_tools.RSAPrivateKeyToDer(privateKey)
 	return base58.Encode(privateKeyBS)
@@ -28,7 +29,7 @@ func GetPublicKeyByPrivateKey(privateKey58 string) (result string, err error) {
 	publicKeyBS := crypt_tools.RSAPublicKeyToDer(&privateKey.PublicKey)
 	result = base58.Encode(publicKeyBS)
 	return
-}
+}*/
 
 func SelfTest() {
 	fmt.Println("-------------- Press Enter to start ROUTERS --------------")
@@ -37,7 +38,7 @@ func SelfTest() {
 	network := xchg_network.NewNetwork()
 	for r := 0; r < 16; r++ {
 		rangePrefix := fmt.Sprintf("%X", r)
-		for i := 0; i < 4; i++ {
+		for i := 0; i < 1; i++ {
 			network.AddHostToRange(rangePrefix, "127.0.0.1:"+fmt.Sprint(8484+i))
 		}
 	}
@@ -45,7 +46,7 @@ func SelfTest() {
 	fmt.Println(network.String())
 
 	routers := make([]*xchg_router.Router, 0)
-	for i := 0; i < 4; i++ {
+	for i := 0; i < 1; i++ {
 		var privateKey *rsa.PrivateKey
 		privateKey, _ = crypt_tools.GenerateRSAKey()
 		var config xchg_router.RouterConfig
@@ -61,11 +62,15 @@ func SelfTest() {
 	fmt.Println("------------- Press Enter to start SERVERS --------------")
 	fmt.Scanln()
 
-	serverPrivateKey := GeneratePrivateKey()
-	serverPublicKey, _ := GetPublicKeyByPrivateKey(serverPrivateKey)
-	go Server(serverPrivateKey, network)
+	serverPrivateKey, _ := crypt_tools.GenerateRSAKey()
+	serverPrivateKey32 := base32.StdEncoding.EncodeToString(crypt_tools.RSAPrivateKeyToDer(serverPrivateKey))
+	serverAddress := xchg.AddressForPublicKey(&serverPrivateKey.PublicKey)
 
-	go Client(serverPublicKey, network)
+	fmt.Println("Server address:", serverAddress)
+
+	go Server(serverPrivateKey32, network)
+
+	go Client(serverAddress, network)
 
 	fmt.Println("------------- Press Enter to stop ROUTERS -------------")
 	fmt.Scanln()
@@ -80,15 +85,15 @@ func SelfTest() {
 	fmt.Println("PROCESS was finished")
 }
 
-func Server(serverPrivateKey string, network *xchg_network.Network) {
-	ss := xchg_examples.NewSimpleServer(serverPrivateKey, network)
+func Server(serverPrivateKey32 string, network *xchg_network.Network) {
+	ss := xchg_examples.NewSimpleServer(serverPrivateKey32, network)
 	ss.Start()
 }
 
-func Client(serverPublicKey string, network *xchg_network.Network) {
+func Client(address string, network *xchg_network.Network) {
 	time.Sleep(500 * time.Millisecond)
 	var err error
-	s := xchg_examples.NewSimpleClient(serverPublicKey, network)
+	s := xchg_examples.NewSimpleClient(address, network)
 	for i := 0; i < 10000; i++ {
 		time.Sleep(500 * time.Millisecond)
 		var bs string
@@ -114,8 +119,12 @@ func RunSimpleServer() {
 		network.AddHostToRange(rangePrefix, s2)
 	}
 
-	serverPrivateKey := GeneratePrivateKey()
-	go Server(serverPrivateKey, network)
+	serverPrivateKey, _ := crypt_tools.GenerateRSAKey()
+	serverPrivateKey32 := base32.StdEncoding.EncodeToString(crypt_tools.RSAPrivateKeyToDer(serverPrivateKey))
+	serverAddress := xchg.AddressForPublicKey(&serverPrivateKey.PublicKey)
+
+	go Server(serverPrivateKey32, network)
+	fmt.Println("Server Address", serverAddress)
 
 	fmt.Println("------------- Press Enter to stop Simple Server -------------")
 	fmt.Scanln()

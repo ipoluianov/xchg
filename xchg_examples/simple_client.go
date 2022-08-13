@@ -11,11 +11,11 @@ type SimpleClient struct {
 	client *xchg_connections.ClientConnection
 }
 
-func NewSimpleClient(serverPublicKey58 string, network *xchg_network.Network) *SimpleClient {
+func NewSimpleClient(address string, network *xchg_network.Network) *SimpleClient {
 	var c SimpleClient
 	privateKey, _ := crypt_tools.GenerateRSAKey()
 	privateKey58 := base58.Encode(crypt_tools.RSAPrivateKeyToDer(privateKey))
-	c.client = xchg_connections.NewClientConnection(network, serverPublicKey58, privateKey58, "pass")
+	c.client = xchg_connections.NewClientConnection(network, address, privateKey58, "pass")
 	return &c
 }
 

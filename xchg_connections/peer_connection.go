@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/btcsuite/btcutil/base58"
 	"github.com/ipoluianov/gomisc/crypt_tools"
 	"github.com/ipoluianov/xchg/xchg"
 )
@@ -150,7 +149,7 @@ func (c *PeerConnection) waitDurationOrStopping(duration time.Duration) {
 }
 
 func (c *PeerConnection) ProcessTransaction(transaction *xchg.Transaction) {
-	//fmt.Println("ProcessTransaction", transaction.FrameType)
+	fmt.Println("ProcessTransaction", transaction.FrameType)
 	switch transaction.ProtocolVersion {
 	case 0x01:
 		switch transaction.FrameType {
@@ -288,15 +287,19 @@ func (c *PeerConnection) checkConnection() {
 	}
 }
 
-func (c *PeerConnection) RequestSID(address string) (sid uint64, err error) {
-	res, err := c.executeTransaction(xchg.FrameResolveAddress, 0, 0, base58.Decode(address), 1000*time.Millisecond)
+func (c *PeerConnection) ResolveAddress(address string) (sid uint64, publicKey *rsa.PublicKey, err error) {
+	res, err := c.executeTransaction(xchg.FrameResolveAddress, 0, 0, []byte(address), 1000*time.Millisecond)
 	if err != nil {
-		return 0, err
+		return 0, nil, err
 	}
-	if len(res) != 8 {
-		return 0, errors.New(ERR_XCHG_PEER_CONN_REQ_SID_SIZE)
+	if len(res) < 8 {
+		return 0, nil, errors.New(ERR_XCHG_PEER_CONN_REQ_SID_SIZE)
 	}
 	sid = binary.LittleEndian.Uint64(res)
+	publicKey, err = crypt_tools.RSAPublicKeyFromDer(res[8:])
+	if err != nil {
+		return 0, nil, err
+	}
 	return
 }
 

@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/btcsuite/btcutil/base58"
 	"github.com/ipoluianov/gomisc/crypt_tools"
 	"github.com/ipoluianov/gomisc/logger"
 	"github.com/ipoluianov/xchg/xchg"
@@ -162,18 +161,17 @@ func (c *Router) AddConnection(conn net.Conn) {
 	connection.Start()
 }
 
-func (c *Router) getConnectionByAddress(address []byte) (foundConnection *RouterConnection) {
-	if len(address) < 1 || len(address) > 1024 {
+func (c *Router) getConnectionByAddress(address string) (foundConnection *RouterConnection) {
+	if len(address) != 32 {
 		return
 	}
-	addr58 := base58.Encode(address)
 
 	c.mtxRouter.Lock()
 	defer c.mtxRouter.Unlock()
 	if c.chWorking == nil {
 		return
 	}
-	conn, ok := c.connectionsByAddress[addr58]
+	conn, ok := c.connectionsByAddress[address]
 	if ok {
 		foundConnection = conn
 	}
@@ -203,16 +201,16 @@ func (c *Router) getConnectionCount() int {
 	return count
 }
 
-func (c *Router) setAddressForConnection(connection *RouterConnection, address58 string) {
+func (c *Router) setAddressForConnection(connection *RouterConnection, address string) {
 	c.mtxRouter.Lock()
 	defer c.mtxRouter.Unlock()
 	if c.chWorking == nil {
 		return
 	}
-	if len(address58) == 0 {
+	if len(address) != 32 {
 		return
 	}
-	c.connectionsByAddress[address58] = connection
+	c.connectionsByAddress[address] = connection
 }
 
 func (c *Router) beginTransaction(transaction *xchg.Transaction) {

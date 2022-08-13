@@ -24,6 +24,7 @@ type RouterConnection struct {
 
 	// Remote Address
 	remotePublicKey        *rsa.PublicKey
+	remotePublicKeyBS      []byte
 	confirmedRemoteAddress string
 
 	// Local Address
@@ -51,6 +52,12 @@ func (c *RouterConnection) Id() uint64 {
 	c.mtxRouterConnection.Lock()
 	defer c.mtxRouterConnection.Unlock()
 	return c.id
+}
+
+func (c *RouterConnection) RemotePublicKeyBS() []byte {
+	c.mtxRouterConnection.Lock()
+	defer c.mtxRouterConnection.Unlock()
+	return c.remotePublicKeyBS
 }
 
 func (c *RouterConnection) ProcessTransaction(transaction *xchg.Transaction) {
@@ -107,6 +114,7 @@ func (c *RouterConnection) processInit1(transaction *xchg.Transaction) {
 
 	c.mtxRouterConnection.Lock()
 	c.remotePublicKey = rsaPublicKey
+	c.remotePublicKeyBS = crypt_tools.RSAPublicKeyToDer(c.remotePublicKey)
 	localAddressBS := c.router.localAddressBS
 	localSecretBytes := c.localSecretBytes
 	c.mtxRouterConnection.Unlock()
@@ -148,7 +156,7 @@ func (c *RouterConnection) processInit4(transaction *xchg.Transaction) {
 	}
 	c.mtxRouterConnection.Lock()
 	c.init4Received = true
-	confirmedRemoteAddress := crypt_tools.RSAPublicKeyToBase58(remotePublicKey)
+	confirmedRemoteAddress := xchg.AddressForPublicKey(remotePublicKey)
 	c.confirmedRemoteAddress = confirmedRemoteAddress
 	c.mtxRouterConnection.Unlock()
 
@@ -176,13 +184,15 @@ func (c *RouterConnection) processInit5(transaction *xchg.Transaction) {
 }
 
 func (c *RouterConnection) processResolveAddress(transaction *xchg.Transaction) {
-	connection := c.router.getConnectionByAddress(transaction.Data)
+	connection := c.router.getConnectionByAddress(string(transaction.Data))
 	if connection == nil {
 		c.SendError(transaction, errors.New(ERR_XCHG_ROUTER_CONN_NO_ROUTE_TO_PEER))
 		return
 	}
-	data := make([]byte, 8)
+	publicKey := connection.RemotePublicKeyBS()
+	data := make([]byte, 8+len(publicKey))
 	binary.LittleEndian.PutUint64(data, connection.Id())
+	copy(data[8:], publicKey)
 	c.Send(xchg.NewTransaction(xchg.FrameResponse, 0, transaction.TransactionId, 0, data))
 }
 

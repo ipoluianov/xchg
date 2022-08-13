@@ -53,10 +53,9 @@ func NewClientConnection(network *xchg_network.Network, address string, localPri
 	c.address = address
 	c.authData = authData
 	c.network = network
-	c.remotePublicKey, _ = crypt_tools.RSAPublicKeyFromDer(base58.Decode(address))
+	c.remotePublicKey = nil
 	c.localPrivateKey, _ = crypt_tools.RSAPrivateKeyFromDer(base58.Decode(localPrivateKey58))
 	c.sessionNonceCounter = 1
-
 	return &c
 }
 
@@ -152,7 +151,7 @@ func (c *ClientConnection) regularCall(function string, data []byte, aesKey []by
 				continue
 			}
 
-			c.currentSID, err = conn.RequestSID(c.address)
+			c.currentSID, c.remotePublicKey, err = conn.ResolveAddress(c.address)
 			if c.currentSID != 0 {
 				c.currentConnection = conn
 				logger.Println("[i]", "ClientConnection::regularCall", "node found:", address)
