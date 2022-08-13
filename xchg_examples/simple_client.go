@@ -1,7 +1,9 @@
 package xchg_examples
 
 import (
-	"github.com/btcsuite/btcutil/base58"
+	"encoding/base32"
+	"fmt"
+
 	"github.com/ipoluianov/gomisc/crypt_tools"
 	"github.com/ipoluianov/xchg/xchg_connections"
 	"github.com/ipoluianov/xchg/xchg_network"
@@ -14,8 +16,10 @@ type SimpleClient struct {
 func NewSimpleClient(address string, network *xchg_network.Network) *SimpleClient {
 	var c SimpleClient
 	privateKey, _ := crypt_tools.GenerateRSAKey()
-	privateKey58 := base58.Encode(crypt_tools.RSAPrivateKeyToDer(privateKey))
-	c.client = xchg_connections.NewClientConnection(network, address, privateKey58, "pass")
+	privateKey32 := base32.StdEncoding.EncodeToString(crypt_tools.RSAPrivateKeyToDer(privateKey))
+	c.client = xchg_connections.NewClientConnection(network, address, privateKey32, "pass", func(text string) {
+		fmt.Println("EVENT:", text)
+	})
 	return &c
 }
 

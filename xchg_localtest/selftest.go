@@ -13,24 +13,6 @@ import (
 	"github.com/ipoluianov/xchg/xchg_router"
 )
 
-/*func GeneratePrivateKey() string {
-	privateKey, _ := crypt_tools.GenerateRSAKey()
-	privateKeyBS := crypt_tools.RSAPrivateKeyToDer(privateKey)
-	return base58.Encode(privateKeyBS)
-}
-
-func GetPublicKeyByPrivateKey(privateKey58 string) (result string, err error) {
-	privateKeyBS := base58.Decode(privateKey58)
-	var privateKey *rsa.PrivateKey
-	privateKey, err = crypt_tools.RSAPrivateKeyFromDer(privateKeyBS)
-	if err != nil {
-		return
-	}
-	publicKeyBS := crypt_tools.RSAPublicKeyToDer(&privateKey.PublicKey)
-	result = base58.Encode(publicKeyBS)
-	return
-}*/
-
 func SelfTest() {
 	fmt.Println("-------------- Press Enter to start ROUTERS --------------")
 	fmt.Scanln()

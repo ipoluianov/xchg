@@ -3,12 +3,12 @@ package xchg_connections
 import (
 	"crypto/rand"
 	"crypto/rsa"
+	"encoding/base32"
 	"encoding/binary"
 	"errors"
 	"sync"
 	"time"
 
-	"github.com/btcsuite/btcutil/base58"
 	"github.com/ipoluianov/gomisc/crypt_tools"
 	"github.com/ipoluianov/gomisc/logger"
 	"github.com/ipoluianov/xchg/xchg"
@@ -37,7 +37,11 @@ type ClientConnection struct {
 
 	lastestNodeAddress string
 	authProcessing     bool
+
+	onEvent FuncOnEvent
 }
+
+type FuncOnEvent func(text string)
 
 type ClientConnectionState struct {
 	SessionId         uint64
@@ -48,18 +52,41 @@ type ClientConnectionState struct {
 	Transport         xchg.ConnectionState
 }
 
-func NewClientConnection(network *xchg_network.Network, address string, localPrivateKey58 string, authData string) *ClientConnection {
+func NewClientConnection(network *xchg_network.Network, address string, localPrivateKey32 string, authData string, onEvent FuncOnEvent) *ClientConnection {
 	var c ClientConnection
 	c.address = address
 	c.authData = authData
 	c.network = network
 	c.remotePublicKey = nil
-	c.localPrivateKey, _ = crypt_tools.RSAPrivateKeyFromDer(base58.Decode(localPrivateKey58))
+	localPrivateKeyBS, _ := base32.StdEncoding.DecodeString(localPrivateKey32)
+	c.localPrivateKey, _ = crypt_tools.RSAPrivateKeyFromDer(localPrivateKeyBS)
 	c.sessionNonceCounter = 1
+	c.onEvent = onEvent
 	return &c
 }
 
+func (c *ClientConnection) Dispose() {
+	c.mtxClientConnection.Lock()
+	defer c.mtxClientConnection.Unlock()
+	c.onEvent = nil
+	if c.currentConnection != nil {
+		c.currentConnection.Dispose()
+		c.currentConnection = nil
+	}
+
+}
+
+func (c *ClientConnection) CallOnEvent(text string) {
+	c.mtxClientConnection.Lock()
+	onEvent := c.onEvent
+	c.mtxClientConnection.Unlock()
+	if onEvent != nil {
+		onEvent(text)
+	}
+}
+
 func (c *ClientConnection) Call(function string, data []byte) (result []byte, err error) {
+	c.CallOnEvent("call " + function)
 	if c.sessionId == 0 {
 		err = c.auth()
 		if err != nil {

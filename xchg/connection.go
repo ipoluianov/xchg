@@ -83,6 +83,21 @@ func (c *Connection) InitOutgoingConnection(host string, processor ITransactionP
 	c.host = host
 }
 
+func (c *Connection) Dispose() {
+	c.mtxBaseConnection.Lock()
+	c.processor = nil
+	c.mtxBaseConnection.Unlock()
+
+	c.Stop()
+
+	c.mtxBaseConnection.Lock()
+	if c.conn != nil {
+		c.conn.Close()
+		c.conn = nil
+	}
+	c.mtxBaseConnection.Unlock()
+}
+
 func (c *Connection) IsClosed() bool {
 	return c.closed
 }

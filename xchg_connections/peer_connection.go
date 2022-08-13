@@ -5,7 +5,6 @@ import (
 	"crypto/rsa"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
@@ -76,6 +75,14 @@ func (c *PeerConnection) SetProcessor(processor EdgeConnectionProcessor) {
 	c.processor = processor
 }
 
+func (c *PeerConnection) Dispose() {
+	c.processor = nil
+	if c.connection != nil {
+		c.connection.Dispose()
+		c.connection = nil
+	}
+}
+
 func (c *PeerConnection) Start() {
 	if c.privateKey == nil {
 		return
@@ -89,6 +96,10 @@ func (c *PeerConnection) Start() {
 func (c *PeerConnection) Stop() {
 	c.stopping = true
 	c.connection.Stop()
+}
+
+func (c *PeerConnection) IsConnected() bool {
+	return c.init6Received
 }
 
 func (c *PeerConnection) WaitForConnection(timeout time.Duration) bool {
@@ -134,7 +145,6 @@ func (c *PeerConnection) fastReset() {
 
 func (c *PeerConnection) Connected() {
 	c.reset()
-	fmt.Println("connected")
 }
 
 func (c *PeerConnection) Disconnected() {
