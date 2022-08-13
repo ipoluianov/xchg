@@ -25,9 +25,10 @@ type Session struct {
 
 type ServerConnection struct {
 	mtxServerConnection sync.Mutex
-	edgeConnections     map[string]*PeerConnection
+	peerConnections     map[string]*PeerConnection
 	privateKey32        string
 	privateKey          *rsa.PrivateKey
+	localAddress        string
 
 	sessionsById          map[uint64]*Session
 	nextSessionId         uint64
@@ -37,6 +38,12 @@ type ServerConnection struct {
 	nonceGenerator *nonce_generator.NonceGenerator
 
 	processor ServerProcessor
+}
+
+type ServerConnectionState struct {
+	PeerConnections []PeerConnectionState
+	NextSessionId   uint64
+	SessionsCount   int
 }
 
 type ServerProcessor interface {
@@ -59,7 +66,7 @@ func NewServerConnection(privateKey32 string, network *xchg_network.Network) *Se
 	if err != nil {
 		logger.Println("[ERROR]", "NewServerConnection", "crypt_tools.RSAPrivateKeyFromDer error:", err)
 	}
-	c.edgeConnections = make(map[string]*PeerConnection)
+	c.peerConnections = make(map[string]*PeerConnection)
 	c.sessionsById = make(map[uint64]*Session)
 	c.network = network
 	publicKeyBS := crypt_tools.RSAPublicKeyToDer(&c.privateKey.PublicKey)
@@ -90,12 +97,11 @@ func (c *ServerConnection) Start() {
 func (c *ServerConnection) connection(addr string) *PeerConnection {
 	c.mtxServerConnection.Lock()
 	defer c.mtxServerConnection.Unlock()
-	if conn, ok := c.edgeConnections[addr]; ok {
+	if conn, ok := c.peerConnections[addr]; ok {
 		return conn
 	}
-	conn := NewPeerConnection(addr, c.privateKey)
-	conn.SetProcessor(c)
-	c.edgeConnections[addr] = conn
+	conn := NewPeerConnection(addr, c.privateKey, c)
+	c.peerConnections[addr] = conn
 	conn.Start()
 	return conn
 }
@@ -114,13 +120,13 @@ func (c *ServerConnection) purgeSessions() {
 	c.mtxServerConnection.Unlock()
 }
 
-func (c *ServerConnection) OnEdgeConnected(edgeConnection *PeerConnection) {
+func (c *ServerConnection) onEdgeConnected(edgeConnection *PeerConnection) {
 }
 
-func (c *ServerConnection) OnEdgeDissonnected(edgeConnection *PeerConnection) {
+func (c *ServerConnection) onEdgeDissonnected(edgeConnection *PeerConnection) {
 }
 
-func (c *ServerConnection) OnEdgeReceivedCall(edgeConnection *PeerConnection, sessionId uint64, data []byte) (response []byte) {
+func (c *ServerConnection) onEdgeReceivedCall(edgeConnection *PeerConnection, sessionId uint64, data []byte) (response []byte) {
 
 	var err error
 	// Find the session
@@ -281,6 +287,18 @@ func (c *ServerConnection) prepareResponseError(err error) []byte {
 	respFrame[0] = 1
 	copy(respFrame[1:], errBS)
 	return respFrame
+}
+
+func (c *ServerConnection) State() (state ServerConnectionState) {
+	c.mtxServerConnection.Lock()
+	defer c.mtxServerConnection.Unlock()
+	state.NextSessionId = c.nextSessionId
+	state.SessionsCount = len(c.sessionsById)
+	state.PeerConnections = make([]PeerConnectionState, 0)
+	for _, peer := range c.peerConnections {
+		state.PeerConnections = append(state.PeerConnections, peer.State())
+	}
+	return
 }
 
 const (

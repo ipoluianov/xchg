@@ -22,11 +22,13 @@ type PeerConnection struct {
 	stopping bool
 
 	// Local Address
-	publicKey  *rsa.PublicKey
-	privateKey *rsa.PrivateKey
+	publicKey    *rsa.PublicKey
+	privateKey   *rsa.PrivateKey
+	localAddress string
 
 	// Remote Address
 	remotePublicKey *rsa.PublicKey
+	remoteAddress   string
 
 	localSecretBytes  []byte
 	remoteSecretBytes []byte
@@ -45,13 +47,33 @@ type PeerConnection struct {
 	processor EdgeConnectionProcessor
 }
 
-type EdgeConnectionProcessor interface {
-	OnEdgeConnected(edgeConnection *PeerConnection)
-	OnEdgeDissonnected(edgeConnection *PeerConnection)
-	OnEdgeReceivedCall(edgeConnection *PeerConnection, sessionId uint64, data []byte) (response []byte)
+type PeerConnectionState struct {
+	BaseConnection xchg.ConnectionState
+
+	LocalAddress  string
+	RemoveAddress string
+
+	Started  bool
+	Stopping bool
+
+	ActiveTransactionsCount int
+	NextTransactionId       uint64
+
+	Init1Sent     bool
+	Init2Received bool
+	Init3Received bool
+	Init4Sent     bool
+	Init5Sent     bool
+	Init6Received bool
 }
 
-func NewPeerConnection(xchgNode string, localAddress *rsa.PrivateKey) *PeerConnection {
+type EdgeConnectionProcessor interface {
+	onEdgeConnected(edgeConnection *PeerConnection)
+	onEdgeDissonnected(edgeConnection *PeerConnection)
+	onEdgeReceivedCall(edgeConnection *PeerConnection, sessionId uint64, data []byte) (response []byte)
+}
+
+func NewPeerConnection(xchgNode string, localAddress *rsa.PrivateKey, processor EdgeConnectionProcessor) *PeerConnection {
 	var c PeerConnection
 
 	c.node = xchgNode
@@ -59,6 +81,7 @@ func NewPeerConnection(xchgNode string, localAddress *rsa.PrivateKey) *PeerConne
 	c.connection.InitOutgoingConnection(c.node, &c)
 	c.nextTransactionId = 1
 	c.outgoingTransactions = make(map[uint64]*xchg.Transaction)
+	c.processor = processor
 
 	if localAddress != nil {
 		c.privateKey = localAddress
@@ -67,12 +90,6 @@ func NewPeerConnection(xchgNode string, localAddress *rsa.PrivateKey) *PeerConne
 
 	c.fastReset()
 	return &c
-}
-
-func (c *PeerConnection) SetProcessor(processor EdgeConnectionProcessor) {
-	c.mtxEdgeConnection.Lock()
-	defer c.mtxEdgeConnection.Unlock()
-	c.processor = processor
 }
 
 func (c *PeerConnection) Dispose() {
@@ -237,7 +254,7 @@ func (c *PeerConnection) processCall(transaction *xchg.Transaction) {
 	processor = c.processor
 	c.mtxEdgeConnection.Unlock()
 	if processor != nil {
-		resp := processor.OnEdgeReceivedCall(c, transaction.SessionId, transaction.Data)
+		resp := processor.onEdgeReceivedCall(c, transaction.SessionId, transaction.Data)
 		c.connection.Send(xchg.NewTransaction(xchg.FrameResponse, 0, transaction.TransactionId, 0, resp))
 	}
 }
@@ -371,6 +388,31 @@ func (c *PeerConnection) executeTransaction(frameType byte, targetSID uint64, se
 	c.mtxEdgeConnection.Unlock()
 
 	return nil, errors.New(ERR_XCHG_PEER_CONN_TR_TIMEOUT)
+}
+
+func (c *PeerConnection) State() (state PeerConnectionState) {
+	c.mtxEdgeConnection.Lock()
+	defer c.mtxEdgeConnection.Unlock()
+	if c.connection != nil {
+		state.BaseConnection = c.connection.State()
+	}
+
+	state.LocalAddress = c.localAddress
+	state.RemoveAddress = c.remoteAddress
+
+	state.Started = c.started
+	state.Stopping = c.stopping
+
+	state.ActiveTransactionsCount = len(c.outgoingTransactions)
+	state.NextTransactionId = c.nextTransactionId
+
+	state.Init1Sent = c.init1Sent
+	state.Init2Received = c.init2Received
+	state.Init3Received = c.init3Received
+	state.Init4Sent = c.init4Sent
+	state.Init5Sent = c.init5Sent
+	state.Init6Received = c.init6Received
+	return
 }
 
 const (

@@ -11,7 +11,6 @@ import (
 
 	"github.com/ipoluianov/gomisc/crypt_tools"
 	"github.com/ipoluianov/gomisc/logger"
-	"github.com/ipoluianov/xchg/xchg"
 	"github.com/ipoluianov/xchg/xchg_network"
 )
 
@@ -44,12 +43,12 @@ type ClientConnection struct {
 type FuncOnEvent func(text string)
 
 type ClientConnectionState struct {
-	SessionId         uint64
-	FindingConnection bool
-	CurrentSID        uint64
-	AuthProcessing    bool
-	LatestNodeAddress string
-	Transport         xchg.ConnectionState
+	SessionId           uint64
+	FindingConnection   bool
+	CurrentSID          uint64
+	AuthProcessing      bool
+	LatestNodeAddress   string
+	PeerConnectionState PeerConnectionState
 }
 
 func NewClientConnection(network *xchg_network.Network, address string, localPrivateKey32 string, authData string, onEvent FuncOnEvent) *ClientConnection {
@@ -171,7 +170,7 @@ func (c *ClientConnection) regularCall(function string, data []byte, aesKey []by
 			c.lastestNodeAddress = address
 			logger.Println("[i]", "ClientConnection::regularCall", "trying node:", address)
 
-			conn := NewPeerConnection(address, c.localPrivateKey)
+			conn := NewPeerConnection(address, c.localPrivateKey, nil)
 			conn.Start()
 			if !conn.WaitForConnection(500 * time.Millisecond) {
 				conn.Stop()
@@ -258,12 +257,20 @@ const (
 	ERR_XCHG_CL_CONN_FROM_PEER                = "{ERR_XCHG_CL_CONN_FROM_PEER}"
 )
 
-func (c *ClientConnection) state() ClientConnectionState {
+func (c *ClientConnection) State() ClientConnectionState {
+	c.mtxClientConnection.Lock()
+	defer c.mtxClientConnection.Unlock()
+
 	var state ClientConnectionState
 	state.CurrentSID = c.currentSID
 	state.AuthProcessing = c.authProcessing
 	state.FindingConnection = c.findingConnection
 	state.SessionId = c.sessionId
 	state.LatestNodeAddress = c.lastestNodeAddress
+
+	if c.currentConnection != nil {
+		state.PeerConnectionState = c.currentConnection.State()
+	}
+
 	return state
 }

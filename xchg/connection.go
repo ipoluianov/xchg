@@ -39,6 +39,10 @@ type ConnectionState struct {
 	SentBytes      uint64
 	ReceivedFrames uint64
 	SentFrames     uint64
+
+	Connected bool
+	Started   bool
+	Stopping  bool
 }
 
 type ITransactionProcessor interface {
@@ -335,16 +339,18 @@ func (c *Connection) Send(transaction *Transaction) (err error) {
 	return
 }
 
-func (c *Connection) GetState() ConnectionState {
+func (c *Connection) State() (state ConnectionState) {
 	c.mtxBaseConnection.Lock()
 	defer c.mtxBaseConnection.Unlock()
-	var state ConnectionState
 	state.Host = c.host
 	state.ReceivedBytes = c.receivedBytes
 	state.ReceivedFrames = c.receivedFrames
 	state.SentBytes = c.sentBytes
 	state.SentFrames = c.sentFrames
-	return state
+	state.Connected = c.conn != nil
+	state.Started = c.started
+	state.Stopping = c.stopping
+	return
 }
 
 const (
