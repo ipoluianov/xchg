@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ipoluianov/gomisc/crypt_tools"
+	"github.com/ipoluianov/xchg/xchg"
 	"github.com/ipoluianov/xchg/xchg_network"
 )
 
@@ -178,10 +179,14 @@ func (c *ClientConnection) regularCall(function string, data []byte, aesKey []by
 
 			c.currentSID, c.remotePublicKey, err = conn.ResolveAddress(c.address)
 			if c.currentSID != 0 {
-				c.currentConnection = conn
-				//logger.Println("[i]", "ClientConnection::regularCall", "node found:", address)
-				break
+				// Check public key
+				if xchg.AddressForPublicKey(c.remotePublicKey) == c.address {
+					c.currentConnection = conn
+					//logger.Println("[i]", "ClientConnection::regularCall", "node found:", address)
+					break
+				}
 			}
+
 			conn.Stop()
 		}
 	}
