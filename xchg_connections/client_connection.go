@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/ipoluianov/gomisc/crypt_tools"
-	"github.com/ipoluianov/gomisc/logger"
 	"github.com/ipoluianov/xchg/xchg_network"
 )
 
@@ -164,11 +163,11 @@ func (c *ClientConnection) regularCall(function string, data []byte, aesKey []by
 	c.mtxClientConnection.Lock()
 	c.findingConnection = true
 	if c.currentSID == 0 {
-		logger.Println("[i]", "ClientConnection::regularCall", "searching node ...")
+		//logger.Println("[i]", "ClientConnection::regularCall", "searching node ...")
 		addresses := c.network.GetAddressesByPublicKey(crypt_tools.RSAPublicKeyToDer(c.remotePublicKey))
 		for _, address := range addresses {
 			c.lastestNodeAddress = address
-			logger.Println("[i]", "ClientConnection::regularCall", "trying node:", address)
+			//logger.Println("[i]", "ClientConnection::regularCall", "trying node:", address)
 
 			conn := NewPeerConnection(address, c.localPrivateKey, nil)
 			conn.Start()
@@ -180,7 +179,7 @@ func (c *ClientConnection) regularCall(function string, data []byte, aesKey []by
 			c.currentSID, c.remotePublicKey, err = conn.ResolveAddress(c.address)
 			if c.currentSID != 0 {
 				c.currentConnection = conn
-				logger.Println("[i]", "ClientConnection::regularCall", "node found:", address)
+				//logger.Println("[i]", "ClientConnection::regularCall", "node found:", address)
 				break
 			}
 			conn.Stop()
