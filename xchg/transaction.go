@@ -3,6 +3,7 @@ package xchg
 import (
 	"encoding/binary"
 	"errors"
+	"time"
 )
 
 type Transaction struct {
@@ -20,6 +21,7 @@ type Transaction struct {
 	// Routing Data
 	ResponseSender        TransactionSender
 	OriginalTransactionId uint64
+	BeginDT               time.Time
 
 	// Execution Result
 	Complete bool

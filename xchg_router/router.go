@@ -265,6 +265,12 @@ func (c *Router) thWorker() {
 					break
 				}
 			}
+			now := time.Now()
+			for key, t := range c.transactions {
+				if now.Sub(t.BeginDT) > 3*time.Second {
+					delete(c.transactions, key)
+				}
+			}
 			c.mtxRouter.Unlock()
 		}
 	}
