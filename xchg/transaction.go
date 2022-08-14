@@ -3,6 +3,7 @@ package xchg
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"time"
 )
 
@@ -22,6 +23,8 @@ type Transaction struct {
 	ResponseSender        TransactionSender
 	OriginalTransactionId uint64
 	BeginDT               time.Time
+	AddressSrc            string
+	AddressDest           string
 
 	// Execution Result
 	Complete bool
@@ -96,6 +99,11 @@ func (c *Transaction) marshal() (result []byte) {
 	binary.LittleEndian.PutUint64(result[24:], c.SessionId)
 	copy(result[TransactionHeaderSize:], c.Data)
 	return
+}
+
+func (c *Transaction) String() string {
+	res := fmt.Sprint(c.TransactionId) + ":[" + c.AddressSrc + "]-[" + c.AddressDest + "] t:" + fmt.Sprint(c.FrameType) + " dl:" + fmt.Sprint(len(c.Data))
+	return res
 }
 
 const (

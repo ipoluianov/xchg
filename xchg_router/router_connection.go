@@ -37,6 +37,14 @@ type RouterConnection struct {
 	init5Received bool
 }
 
+type RouterConnectionState struct {
+	Id                     uint64 `json:"id"`
+	ConfirmedRemoteAddress string `json:"confirmed_remote_address"`
+	Init1Received          bool   `json:"init1_received"`
+	Init4Received          bool   `json:"init4_received"`
+	Init5Received          bool   `json:"init5_received"`
+}
+
 func NewRouterConnection(conn net.Conn, router *Router, privateKey *rsa.PrivateKey) *RouterConnection {
 	var c RouterConnection
 	c.configMaxAddressSize = 1024
@@ -115,8 +123,9 @@ func (c *RouterConnection) processInit1(transaction *xchg.Transaction) {
 	c.mtxRouterConnection.Lock()
 	c.remotePublicKey = rsaPublicKey
 	c.remotePublicKeyBS = crypt_tools.RSAPublicKeyToDer(c.remotePublicKey)
-	localAddressBS := c.router.localAddressBS
+	localAddressBS := c.router.localPublicKeyBS
 	localSecretBytes := c.localSecretBytes
+	c.init1Received = true
 	c.mtxRouterConnection.Unlock()
 
 	// Send Init2 (my address)
@@ -177,6 +186,10 @@ func (c *RouterConnection) processInit5(transaction *xchg.Transaction) {
 		return
 	}
 
+	c.mtxRouterConnection.Lock()
+	c.init5Received = true
+	c.mtxRouterConnection.Unlock()
+
 	remoteSecretBytesEcrypted, err := rsa.EncryptPKCS1v15(rand.Reader, remotePublicKey, remoteSecretBytes)
 	if err == nil {
 		c.Send(xchg.NewTransaction(xchg.FrameInit6, 0, 0, 0, remoteSecretBytesEcrypted))
@@ -203,6 +216,9 @@ func (c *RouterConnection) processCall(transaction *xchg.Transaction) {
 		return
 	}
 
+	transaction.AddressSrc = c.confirmedRemoteAddress
+	transaction.AddressDest = connection.confirmedRemoteAddress
+
 	c.router.beginTransaction(transaction)
 	transaction.ResponseSender = c
 	connection.Send(transaction)
@@ -210,6 +226,17 @@ func (c *RouterConnection) processCall(transaction *xchg.Transaction) {
 
 func (c *RouterConnection) processResponse(transaction *xchg.Transaction) {
 	c.router.SetResponse(transaction)
+}
+
+func (c *RouterConnection) State() (state RouterConnectionState) {
+	c.mtxRouterConnection.Lock()
+	state.Id = c.id
+	state.ConfirmedRemoteAddress = c.confirmedRemoteAddress
+	state.Init1Received = c.init1Received
+	state.Init4Received = c.init4Received
+	state.Init5Received = c.init5Received
+	c.mtxRouterConnection.Unlock()
+	return
 }
 
 const (

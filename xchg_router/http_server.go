@@ -1,6 +1,7 @@
 package xchg_router
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -46,11 +47,20 @@ func (c *HttpServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch r.URL.Path {
 	case "/":
 		result = []byte("index")
-	case "/debug":
-		result = []byte(c.router.DebugInfo())
+	case "/state":
+		result = c.RouterStateJson()
 	}
 
 	w.WriteHeader(200)
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	_, _ = w.Write(result)
+}
+
+func (c *HttpServer) RouterStateJson() []byte {
+	state := c.router.State()
+	bs, err := json.MarshalIndent(state, "", " ")
+	if err != nil {
+		return []byte(err.Error())
+	}
+	return bs
 }

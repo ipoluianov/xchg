@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ipoluianov/gomisc/logger"
@@ -16,6 +17,14 @@ type RouterServer struct {
 	router    *Router
 	port      int
 	chWorking chan interface{}
+
+	acceptedConnectionsCount uint64
+}
+
+type RouterServerState struct {
+	AcceptedConnectionsCount uint64 `json:"accepted_connections_count"`
+	Port                     int    `json:"port"`
+	Started                  bool   `json:"started"`
 }
 
 func NewRouterServer(port int, router *Router) *RouterServer {
@@ -97,6 +106,7 @@ func (c *RouterServer) thListen() {
 					logger.Error("[ERROR]", "RouterServer::thListen", "listener.Accept error:", err)
 				}
 			} else {
+				atomic.AddUint64(&c.acceptedConnectionsCount, 1)
 				c.router.AddConnection(conn)
 			}
 			if !working {
@@ -106,6 +116,15 @@ func (c *RouterServer) thListen() {
 	}
 	logger.Println("[i]", "RouterServer::thListen", "end")
 	c.chWorking = nil
+}
+
+func (c *RouterServer) State() (state RouterServerState) {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+	state.Started = c.chWorking != nil
+	state.Port = c.port
+	state.AcceptedConnectionsCount = atomic.LoadUint64(&c.acceptedConnectionsCount)
+	return
 }
 
 const (
