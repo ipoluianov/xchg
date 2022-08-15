@@ -280,6 +280,7 @@ func (c *Router) beginTransaction(transaction *xchg.Transaction) {
 	c.nextTransactionId++
 	transaction.OriginalTransactionId = transaction.TransactionId
 	transaction.TransactionId = innerTransactionId
+	transaction.BeginDT = time.Now()
 	c.transactions[innerTransactionId] = transaction
 	return
 }
@@ -302,7 +303,6 @@ func (c *Router) SetResponse(transaction *xchg.Transaction) {
 
 	transaction.TransactionId = originalTransaction.OriginalTransactionId
 	originalTransaction.ResponseSender.Send(xchg.NewTransaction(xchg.FrameResponse, 0, transaction.TransactionId, originalTransaction.SessionId, transaction.Data))
-
 }
 
 func (c *Router) thWorker() {
@@ -333,7 +333,8 @@ func (c *Router) thWorker() {
 				}
 			}
 			for key, t := range c.transactions {
-				if now.Sub(t.BeginDT) > 3*time.Second {
+				duration := now.Sub(t.BeginDT)
+				if duration > 3*time.Second {
 					atomic.AddUint64(&c.statWorkerRemoveTransactionCounter, 1)
 					delete(c.transactions, key)
 				}
