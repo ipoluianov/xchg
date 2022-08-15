@@ -8,6 +8,7 @@ import (
 	"errors"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/ipoluianov/gomisc/crypt_tools"
 	"github.com/ipoluianov/xchg/xchg"
@@ -35,6 +36,8 @@ type RouterConnection struct {
 	init1Received bool
 	init4Received bool
 	init5Received bool
+
+	createdDT time.Time
 }
 
 type RouterConnectionState struct {
@@ -43,6 +46,8 @@ type RouterConnectionState struct {
 	Init1Received          bool   `json:"init1_received"`
 	Init4Received          bool   `json:"init4_received"`
 	Init5Received          bool   `json:"init5_received"`
+
+	BaseConnection xchg.ConnectionState `json:"base"`
 }
 
 func NewRouterConnection(conn net.Conn, router *Router, privateKey *rsa.PrivateKey) *RouterConnection {
@@ -53,6 +58,7 @@ func NewRouterConnection(conn net.Conn, router *Router, privateKey *rsa.PrivateK
 	c.localSecretBytes = make([]byte, 32)
 	rand.Read(c.localSecretBytes)
 	c.InitIncomingConnection(conn, &c)
+	c.createdDT = time.Now()
 	return &c
 }
 
@@ -236,6 +242,7 @@ func (c *RouterConnection) State() (state RouterConnectionState) {
 	state.Init4Received = c.init4Received
 	state.Init5Received = c.init5Received
 	c.mtxRouterConnection.Unlock()
+	state.BaseConnection = c.Connection.State()
 	return
 }
 

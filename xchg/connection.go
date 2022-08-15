@@ -34,15 +34,15 @@ type Connection struct {
 }
 
 type ConnectionState struct {
-	Host           string
-	ReceivedBytes  uint64
-	SentBytes      uint64
-	ReceivedFrames uint64
-	SentFrames     uint64
+	Host           string `json:"host"`
+	ReceivedBytes  uint64 `json:"received_bytes"`
+	SentBytes      uint64 `json:"sent_bytes"`
+	ReceivedFrames uint64 `json:"received_frames"`
+	SentFrames     uint64 `json:"sent_frames"`
 
-	Connected bool
-	Started   bool
-	Stopping  bool
+	Connected bool `json:"connected"`
+	Started   bool `json:"started"`
+	Stopping  bool `json:"stopping"`
 }
 
 type ITransactionProcessor interface {

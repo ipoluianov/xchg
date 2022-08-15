@@ -55,6 +55,7 @@ type Router struct {
 	statWorkerCounter                                uint64
 	statWorkerRemoveConnectionCounter                uint64
 	statWorkerRemoveTransactionCounter               uint64
+	statWorkerStopConnectionByInitTimeoutCounter     uint64
 
 	chWorking chan interface{}
 }
@@ -85,6 +86,7 @@ type RouterState struct {
 	StatWorkerCounter                                uint64 `json:"stat_worker_counter"`
 	StatWorkerRemoveConnectionCounter                uint64 `json:"stat_worker_remove_connection_counter"`
 	StatWorkerRemoveTransactionCounter               uint64 `json:"stat_worker_remove_transaction_counter"`
+	StatWorkerStopConnectionByInitTimeoutCounter     uint64 `json:"stat_worker_stop_connection_by_init_timeout_counter"`
 
 	Connections  []RouterConnectionState `json:"connections"`
 	Transactions []string                `json:"transactions"`
@@ -295,10 +297,12 @@ func (c *Router) SetResponse(transaction *xchg.Transaction) {
 		c.mtxRouter.Unlock()
 		return
 	}
+	delete(c.transactions, transaction.TransactionId)
 	c.mtxRouter.Unlock()
 
 	transaction.TransactionId = originalTransaction.OriginalTransactionId
 	originalTransaction.ResponseSender.Send(xchg.NewTransaction(xchg.FrameResponse, 0, transaction.TransactionId, originalTransaction.SessionId, transaction.Data))
+
 }
 
 func (c *Router) thWorker() {
@@ -315,15 +319,19 @@ func (c *Router) thWorker() {
 		if working {
 			atomic.AddUint64(&c.statWorkerCounter, 1)
 			c.mtxRouter.Lock()
+			now := time.Now()
 			for id, conn := range c.connectionsById {
 				if conn.IsClosed() {
 					atomic.AddUint64(&c.statWorkerRemoveConnectionCounter, 1)
 					delete(c.connectionsByAddress, conn.ConfirmedRemoteAddress())
 					delete(c.connectionsById, id)
-					break
+				}
+
+				if now.Sub(conn.createdDT) > 3*time.Second && len(conn.ConfirmedRemoteAddress()) == 0 {
+					atomic.AddUint64(&c.statWorkerStopConnectionByInitTimeoutCounter, 1)
+					conn.Stop()
 				}
 			}
-			now := time.Now()
 			for key, t := range c.transactions {
 				if now.Sub(t.BeginDT) > 3*time.Second {
 					atomic.AddUint64(&c.statWorkerRemoveTransactionCounter, 1)
@@ -392,6 +400,7 @@ func (c *Router) State() (state RouterState) {
 	state.StatWorkerCounter = atomic.LoadUint64(&c.statWorkerCounter)
 	state.StatWorkerRemoveConnectionCounter = atomic.LoadUint64(&c.statWorkerRemoveConnectionCounter)
 	state.StatWorkerRemoveTransactionCounter = atomic.LoadUint64(&c.statWorkerRemoveTransactionCounter)
+	state.StatWorkerStopConnectionByInitTimeoutCounter = atomic.LoadUint64(&c.statWorkerStopConnectionByInitTimeoutCounter)
 
 	return
 }
