@@ -183,6 +183,7 @@ func (c *ClientConnection) regularCall(function string, data []byte, aesKey []by
 				if xchg.AddressForPublicKey(c.remotePublicKey) == c.address {
 					if c.currentConnection != nil {
 						c.currentConnection.Stop()
+						c.currentConnection.Dispose()
 						c.currentConnection = nil
 					}
 					c.currentConnection = conn

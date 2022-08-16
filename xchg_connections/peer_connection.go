@@ -94,9 +94,14 @@ func NewPeerConnection(xchgNode string, localAddress *rsa.PrivateKey, processor 
 
 func (c *PeerConnection) Dispose() {
 	c.processor = nil
-	if c.connection != nil {
+	c.mtxEdgeConnection.Lock()
+	connection := c.connection
+	c.mtxEdgeConnection.Unlock()
+	if connection != nil {
 		c.connection.Dispose()
+		c.mtxEdgeConnection.Lock()
 		c.connection = nil
+		c.mtxEdgeConnection.Unlock()
 	}
 }
 
