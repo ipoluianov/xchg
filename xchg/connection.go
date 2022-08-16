@@ -352,9 +352,3 @@ func (c *Connection) State() (state ConnectionState) {
 	state.Stopping = c.stopping
 	return
 }
-
-const (
-	ERR_XCHG_CONN_WRONG_FRAME_SIZE = "{ERR_XCHG_CONN_WRONG_FRAME_SIZE}"
-	ERR_XCHG_CONN_NO_CONNECTION    = "{ERR_XCHG_CONN_NO_CONNECTION}"
-	ERR_XCHG_CONN_SENDING_ERROR    = "{ERR_XCHG_CONN_SENDING_ERROR}"
-)

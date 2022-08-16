@@ -125,7 +125,7 @@ func (c *Router) Start() (err error) {
 	defer c.mtxRouter.Unlock()
 
 	if c.chWorking != nil {
-		err = errors.New(ERR_ROUTER_ALREADY_STARTED)
+		err = errors.New(xchg.ERR_XCHG_ROUTER_ALREADY_STARTED)
 		logger.Println("[ERROR]", "Router::Start", err.Error())
 		return
 	}
@@ -152,7 +152,7 @@ func (c *Router) Stop() (err error) {
 	defer c.mtxRouter.Unlock()
 
 	if c.chWorking == nil {
-		err = errors.New(ERR_ROUTER_IS_NOT_STARTED)
+		err = errors.New(xchg.ERR_XCHG_ROUTER_IS_NOT_STARTED)
 		logger.Println("[ERROR]", "Router::Stop", err.Error())
 		return
 	}
@@ -405,8 +405,3 @@ func (c *Router) State() (state RouterState) {
 
 	return
 }
-
-const (
-	ERR_ROUTER_ALREADY_STARTED = "{ERR_ROUTER_ALREADY_STARTED}"
-	ERR_ROUTER_IS_NOT_STARTED  = "{ERR_ROUTER_IS_NOT_STARTED}"
-)

@@ -108,7 +108,7 @@ func (c *ClientConnection) auth() (err error) {
 		return
 	}
 	if len(nonce) != 16 {
-		err = errors.New(ERR_XCHG_CL_CONN_WRONG_NONCE_LEN)
+		err = errors.New(xchg.ERR_XCHG_CL_CONN_WRONG_NONCE_LEN)
 		return
 	}
 
@@ -141,7 +141,7 @@ func (c *ClientConnection) auth() (err error) {
 	}
 
 	if len(result) != 8+32 {
-		err = errors.New(ERR_XCHG_CL_CONN_WRONG_AUTH_RESPONSE_LEN)
+		err = errors.New(xchg.ERR_XCHG_CL_CONN_WRONG_AUTH_RESPONSE_LEN)
 		return
 	}
 	c.sessionId = binary.LittleEndian.Uint64(result)
@@ -152,12 +152,12 @@ func (c *ClientConnection) auth() (err error) {
 
 func (c *ClientConnection) regularCall(function string, data []byte, aesKey []byte) (result []byte, err error) {
 	if len(function) > 255 {
-		err = errors.New(ERR_XCHG_CL_CONN_WRONG_FUNCTION_LEN)
+		err = errors.New(xchg.ERR_XCHG_CL_CONN_WRONG_FUNCTION_LEN)
 		return
 	}
 
 	if c.findingConnection {
-		err = errors.New(ERR_XCHG_CL_CONN_SEARCHING_NODE)
+		err = errors.New(xchg.ERR_XCHG_CL_CONN_SEARCHING_NODE)
 		return
 	}
 
@@ -181,6 +181,10 @@ func (c *ClientConnection) regularCall(function string, data []byte, aesKey []by
 			if c.currentSID != 0 {
 				// Check public key
 				if xchg.AddressForPublicKey(c.remotePublicKey) == c.address {
+					if c.currentConnection != nil {
+						c.currentConnection.Stop()
+						c.currentConnection = nil
+					}
 					c.currentConnection = conn
 					//logger.Println("[i]", "ClientConnection::regularCall", "node found:", address)
 					break
@@ -190,13 +194,14 @@ func (c *ClientConnection) regularCall(function string, data []byte, aesKey []by
 			conn.Stop()
 		}
 	}
+
 	connection := c.currentConnection
 	currentSID := c.currentSID
 	c.findingConnection = false
 	c.mtxClientConnection.Unlock()
 
 	if connection == nil || currentSID == 0 {
-		err = errors.New(ERR_XCHG_CL_CONN_NO_ROUTE_TO_PEER)
+		err = errors.New(xchg.ERR_XCHG_CL_CONN_NO_ROUTE_TO_PEER)
 		return
 	}
 
@@ -210,7 +215,7 @@ func (c *ClientConnection) regularCall(function string, data []byte, aesKey []by
 		copy(frame[9+len(function):], data)
 		frame, err = crypt_tools.EncryptAESGCM(frame, aesKey)
 		if err != nil {
-			err = errors.New(ERR_XCHG_CL_CONN_CALL_ENC + ":" + err.Error())
+			err = errors.New(xchg.ERR_XCHG_CL_CONN_CALL_ENC + ":" + err.Error())
 			return
 		}
 	} else {
@@ -222,13 +227,13 @@ func (c *ClientConnection) regularCall(function string, data []byte, aesKey []by
 
 	result, err = connection.Call(c.currentSID, c.sessionId, frame)
 	if err != nil {
-		err = errors.New(ERR_XCHG_CL_CONN_CALL_ERR + ":" + err.Error())
+		err = errors.New(xchg.ERR_XCHG_CL_CONN_CALL_ERR + ":" + err.Error())
 		c.currentSID = 0
 		return
 	}
 
 	if len(result) < 1 {
-		err = errors.New(ERR_XCHG_CL_CONN_WRONG_CALL_RESPONSE)
+		err = errors.New(xchg.ERR_XCHG_CL_CONN_WRONG_CALL_RESPONSE)
 		return
 	}
 
@@ -239,27 +244,14 @@ func (c *ClientConnection) regularCall(function string, data []byte, aesKey []by
 	}
 
 	if result[0] == 1 {
-		err = errors.New(ERR_XCHG_CL_CONN_FROM_PEER + ":" + string(result[1:]))
+		err = errors.New(xchg.ERR_XCHG_CL_CONN_FROM_PEER + ":" + string(result[1:]))
 		result = nil
 		return
 	}
 
-	err = errors.New(ERR_XCHG_CL_CONN_WRONG_CALL_RESPONSE_BYTE)
+	err = errors.New(xchg.ERR_XCHG_CL_CONN_WRONG_CALL_RESPONSE_BYTE)
 	return
 }
-
-const (
-	ERR_XCHG_CL_CONN_WRONG_FUNCTION_LEN       = "{ERR_XCHG_CL_CONN_WRONG_FUNCTION_LEN}"
-	ERR_XCHG_CL_CONN_SEARCHING_NODE           = "{ERR_XCHG_CL_CONN_SEARCHING_NODE}"
-	ERR_XCHG_CL_CONN_NO_ROUTE_TO_PEER         = "{ERR_XCHG_CL_CONN_NO_ROUTE_TO_PEER}"
-	ERR_XCHG_CL_CONN_WRONG_CALL_RESPONSE      = "{ERR_XCHG_CL_CONN_WRONG_CALL_RESPONSE}"
-	ERR_XCHG_CL_CONN_WRONG_CALL_RESPONSE_BYTE = "{ERR_XCHG_CL_CONN_WRONG_CALL_RESPONSE_BYTE}"
-	ERR_XCHG_CL_CONN_WRONG_NONCE_LEN          = "{ERR_XCHG_CL_CONN_WRONG_NONCE_LEN}"
-	ERR_XCHG_CL_CONN_WRONG_AUTH_RESPONSE_LEN  = "{ERR_XCHG_CL_CONN_WRONG_AUTH_RESPONSE_LEN}"
-	ERR_XCHG_CL_CONN_CALL_ENC                 = "{ERR_XCHG_CL_CONN_CALL_ENC}"
-	ERR_XCHG_CL_CONN_CALL_ERR                 = "{ERR_XCHG_CL_CONN_CALL_ERR}"
-	ERR_XCHG_CL_CONN_FROM_PEER                = "{ERR_XCHG_CL_CONN_FROM_PEER}"
-)
 
 func (c *ClientConnection) State() ClientConnectionState {
 	c.mtxClientConnection.Lock()

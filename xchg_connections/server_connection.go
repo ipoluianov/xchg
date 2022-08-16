@@ -13,6 +13,7 @@ import (
 	"github.com/ipoluianov/gomisc/logger"
 	"github.com/ipoluianov/gomisc/nonce_generator"
 	"github.com/ipoluianov/gomisc/snake_counter"
+	"github.com/ipoluianov/xchg/xchg"
 	"github.com/ipoluianov/xchg/xchg_network"
 )
 
@@ -143,35 +144,35 @@ func (c *ServerConnection) onEdgeReceivedCall(edgeConnection *PeerConnection, se
 
 	if sessionId != 0 {
 		if session == nil {
-			response = c.prepareResponseError(errors.New(ERR_XCHG_SRV_CONN_WRONG_SESSION))
+			response = c.prepareResponseError(errors.New(xchg.ERR_XCHG_SRV_CONN_WRONG_SESSION))
 			return
 		}
 		data, err = crypt_tools.DecryptAESGCM(data, session.aesKey)
 		if err != nil {
-			response = c.prepareResponseError(errors.New(ERR_XCHG_SRV_CONN_DECR + ":" + err.Error()))
+			response = c.prepareResponseError(errors.New(xchg.ERR_XCHG_SRV_CONN_DECR + ":" + err.Error()))
 			return
 		}
 		if len(data) < 9 {
-			response = c.prepareResponseError(errors.New(ERR_XCHG_SRV_CONN_WRONG_LEN9))
+			response = c.prepareResponseError(errors.New(xchg.ERR_XCHG_SRV_CONN_WRONG_LEN9))
 			return
 		}
 		callNonce := binary.LittleEndian.Uint64(data)
 		err = session.snakeCounter.TestAndDeclare(int(callNonce))
 		if err != nil {
-			response = c.prepareResponseError(errors.New(ERR_XCHG_SRV_CONN_WRONG_NONCE))
+			response = c.prepareResponseError(errors.New(xchg.ERR_XCHG_SRV_CONN_WRONG_NONCE))
 			return
 		}
 		data = data[8:]
 	} else {
 		if len(data) < 1 {
-			response = c.prepareResponseError(errors.New(ERR_XCHG_SRV_CONN_WRONG_LEN1))
+			response = c.prepareResponseError(errors.New(xchg.ERR_XCHG_SRV_CONN_WRONG_LEN1))
 			return
 		}
 	}
 
 	functionLen := int(data[0])
 	if len(data) < 1+functionLen {
-		response = c.prepareResponseError(errors.New(ERR_XCHG_SRV_CONN_WRONG_LEN_FN))
+		response = c.prepareResponseError(errors.New(xchg.ERR_XCHG_SRV_CONN_WRONG_LEN_FN))
 		return
 	}
 	function := string(data[1 : 1+functionLen])
@@ -183,7 +184,7 @@ func (c *ServerConnection) onEdgeReceivedCall(edgeConnection *PeerConnection, se
 	c.mtxServerConnection.Unlock()
 
 	if processor == nil {
-		response = c.prepareResponseError(errors.New(ERR_XCHG_SRV_CONN_NOT_IMPL))
+		response = c.prepareResponseError(errors.New(xchg.ERR_XCHG_SRV_CONN_NOT_IMPL))
 		return
 	}
 
@@ -208,13 +209,13 @@ func (c *ServerConnection) onEdgeReceivedCall(edgeConnection *PeerConnection, se
 
 func (c *ServerConnection) processAuth(functionParameter []byte) (response []byte, err error) {
 	if len(functionParameter) < 4 {
-		err = errors.New(ERR_XCHG_SRV_CONN_AUTH_DATA_LEN4)
+		err = errors.New(xchg.ERR_XCHG_SRV_CONN_AUTH_DATA_LEN4)
 		return
 	}
 
 	remotePublicKeyBSLen := binary.LittleEndian.Uint32(functionParameter)
 	if len(functionParameter) < 4+int(remotePublicKeyBSLen) {
-		err = errors.New(ERR_XCHG_SRV_CONN_AUTH_DATA_LEN_PK)
+		err = errors.New(xchg.ERR_XCHG_SRV_CONN_AUTH_DATA_LEN_PK)
 		return
 	}
 
@@ -234,13 +235,13 @@ func (c *ServerConnection) processAuth(functionParameter []byte) (response []byt
 	}
 
 	if len(parameter) < 16 {
-		err = errors.New(ERR_XCHG_SRV_CONN_AUTH_DATA_LEN_NONCE)
+		err = errors.New(xchg.ERR_XCHG_SRV_CONN_AUTH_DATA_LEN_NONCE)
 		return
 	}
 
 	nonce := parameter[0:16]
 	if !c.nonceGenerator.Check(nonce) {
-		err = errors.New(ERR_XCHG_SRV_CONN_AUTH_WRONG_NONCE)
+		err = errors.New(xchg.ERR_XCHG_SRV_CONN_AUTH_WRONG_NONCE)
 		return
 	}
 
@@ -300,17 +301,3 @@ func (c *ServerConnection) State() (state ServerConnectionState) {
 	}
 	return
 }
-
-const (
-	ERR_XCHG_SRV_CONN_WRONG_SESSION       = "{ERR_XCHG_SRV_CONN_WRONG_SESSION}"
-	ERR_XCHG_SRV_CONN_DECR                = "{ERR_XCHG_SRV_CONN_DECR}"
-	ERR_XCHG_SRV_CONN_WRONG_LEN9          = "{ERR_XCHG_SRV_CONN_WRONG_LEN9}"
-	ERR_XCHG_SRV_CONN_WRONG_NONCE         = "{ERR_XCHG_SRV_CONN_WRONG_NONCE}"
-	ERR_XCHG_SRV_CONN_WRONG_LEN1          = "{ERR_XCHG_SRV_CONN_WRONG_LEN1}"
-	ERR_XCHG_SRV_CONN_WRONG_LEN_FN        = "{ERR_XCHG_SRV_CONN_WRONG_LEN_FN}"
-	ERR_XCHG_SRV_CONN_AUTH_DATA_LEN4      = "{ERR_XCHG_SRV_CONN_AUTH_DATA_LEN4}"
-	ERR_XCHG_SRV_CONN_NOT_IMPL            = "{ERR_XCHG_SRV_CONN_NOT_IMPL}"
-	ERR_XCHG_SRV_CONN_AUTH_DATA_LEN_NONCE = "{ERR_XCHG_SRV_CONN_AUTH_DATA_LEN_NONCE}"
-	ERR_XCHG_SRV_CONN_AUTH_DATA_LEN_PK    = "{ERR_XCHG_SRV_CONN_AUTH_DATA_LEN_PK}"
-	ERR_XCHG_SRV_CONN_AUTH_WRONG_NONCE    = "{ERR_XCHG_SRV_CONN_AUTH_WRONG_NONCE}"
-)

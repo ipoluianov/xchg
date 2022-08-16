@@ -5,6 +5,8 @@ import (
 	"errors"
 	"io/ioutil"
 	"os"
+
+	"github.com/ipoluianov/xchg/xchg"
 )
 
 type RouterConfig struct {
@@ -34,7 +36,7 @@ func LoadConfigFromFile(filePath string) (conf RouterConfig, err error) {
 
 	} else {
 		if fi.IsDir() {
-			err = errors.New(ERR_XCHG_ROUTER_CONFIG_IS_DIRECTORY)
+			err = errors.New(xchg.ERR_XCHG_ROUTER_CONFIG_IS_DIRECTORY)
 			return
 		}
 		bs, err = ioutil.ReadFile(filePath)
@@ -49,7 +51,3 @@ func LoadConfigFromFile(filePath string) (conf RouterConfig, err error) {
 
 	return
 }
-
-const (
-	ERR_XCHG_ROUTER_CONFIG_IS_DIRECTORY = "{ERR_XCHG_ROUTER_CONFIG_IS_DIRECTORY}"
-)

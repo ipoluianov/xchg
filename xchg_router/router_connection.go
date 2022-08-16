@@ -91,10 +91,10 @@ func (c *RouterConnection) ProcessTransaction(transaction *xchg.Transaction) {
 		case xchg.FrameResponse:
 			c.processResponse(transaction)
 		default:
-			c.SendError(transaction, errors.New(ERR_XCHG_ROUTER_CONN_WRONG_FRAME_TYPE))
+			c.SendError(transaction, errors.New(xchg.ERR_XCHG_ROUTER_CONN_WRONG_FRAME_TYPE))
 		}
 	default:
-		c.SendError(transaction, errors.New(ERR_XCHG_ROUTER_CONN_WRONG_PROTOCOL_VERSION))
+		c.SendError(transaction, errors.New(xchg.ERR_XCHG_ROUTER_CONN_WRONG_PROTOCOL_VERSION))
 	}
 }
 
@@ -114,7 +114,7 @@ func (c *RouterConnection) processInit1(transaction *xchg.Transaction) {
 	var err error
 
 	if len(transaction.Data) > c.configMaxAddressSize {
-		c.SendError(transaction, errors.New(ERR_XCHG_ROUTER_CONN_WRONG_PUBLIC_KEY_SIZE))
+		c.SendError(transaction, errors.New(xchg.ERR_XCHG_ROUTER_CONN_WRONG_PUBLIC_KEY_SIZE))
 		return
 	}
 
@@ -142,7 +142,7 @@ func (c *RouterConnection) processInit1(transaction *xchg.Transaction) {
 		var encryptedLocalSecret []byte
 		encryptedLocalSecret, err = rsa.EncryptPKCS1v15(rand.Reader, rsaPublicKey, localSecretBytes)
 		if err != nil {
-			c.SendError(transaction, errors.New(ERR_XCHG_ROUTER_CONN_ENC+":"+err.Error()))
+			c.SendError(transaction, errors.New(xchg.ERR_XCHG_ROUTER_CONN_ENC+":"+err.Error()))
 			return
 		}
 		c.Send(xchg.NewTransaction(xchg.FrameInit3, 0, 0, 0, encryptedLocalSecret))
@@ -158,7 +158,7 @@ func (c *RouterConnection) processInit4(transaction *xchg.Transaction) {
 
 	receivedSecretBytes, err := rsa.DecryptPKCS1v15(rand.Reader, privateKey, transaction.Data)
 	if err != nil {
-		err = errors.New(ERR_XCHG_ROUTER_CONN_DECR4 + ":" + err.Error())
+		err = errors.New(xchg.ERR_XCHG_ROUTER_CONN_DECR4 + ":" + err.Error())
 		return
 	}
 	if len(receivedSecretBytes) != len(localSecretBytes) {
@@ -188,7 +188,7 @@ func (c *RouterConnection) processInit5(transaction *xchg.Transaction) {
 	var remoteSecretBytes []byte
 	remoteSecretBytes, err = rsa.DecryptPKCS1v15(rand.Reader, privateKey, transaction.Data)
 	if err != nil {
-		err = errors.New(ERR_XCHG_ROUTER_CONN_DECR5 + ":" + err.Error())
+		err = errors.New(xchg.ERR_XCHG_ROUTER_CONN_DECR5 + ":" + err.Error())
 		return
 	}
 
@@ -205,7 +205,7 @@ func (c *RouterConnection) processInit5(transaction *xchg.Transaction) {
 func (c *RouterConnection) processResolveAddress(transaction *xchg.Transaction) {
 	connection := c.router.getConnectionByAddress(string(transaction.Data))
 	if connection == nil {
-		c.SendError(transaction, errors.New(ERR_XCHG_ROUTER_CONN_NO_ROUTE_TO_PEER))
+		c.SendError(transaction, errors.New(xchg.ERR_XCHG_ROUTER_CONN_NO_ROUTE_TO_PEER))
 		return
 	}
 	publicKey := connection.RemotePublicKeyBS()
@@ -218,7 +218,7 @@ func (c *RouterConnection) processResolveAddress(transaction *xchg.Transaction) 
 func (c *RouterConnection) processCall(transaction *xchg.Transaction) {
 	connection := c.router.getConnectionById(transaction.SID)
 	if connection == nil {
-		c.SendError(transaction, errors.New(ERR_XCHG_ROUTER_CONN_NO_ROUTE_TO_PEER))
+		c.SendError(transaction, errors.New(xchg.ERR_XCHG_ROUTER_CONN_NO_ROUTE_TO_PEER))
 		return
 	}
 
@@ -245,13 +245,3 @@ func (c *RouterConnection) State() (state RouterConnectionState) {
 	state.BaseConnection = c.Connection.State()
 	return
 }
-
-const (
-	ERR_XCHG_ROUTER_CONN_WRONG_FRAME_TYPE       = "{ERR_XCHG_ROUTER_CONN_WRONG_FRAME_TYPE}"
-	ERR_XCHG_ROUTER_CONN_WRONG_PROTOCOL_VERSION = "{ERR_XCHG_ROUTER_CONN_WRONG_PROTOCOL_VERSION}"
-	ERR_XCHG_ROUTER_CONN_WRONG_PUBLIC_KEY_SIZE  = "{ERR_XCHG_ROUTER_CONN_WRONG_PUBLIC_KEY_SIZE}"
-	ERR_XCHG_ROUTER_CONN_ENC                    = "{ERR_XCHG_ROUTER_CONN_ENC}"
-	ERR_XCHG_ROUTER_CONN_DECR4                  = "{ERR_XCHG_ROUTER_CONN_DECR4}"
-	ERR_XCHG_ROUTER_CONN_DECR5                  = "{ERR_XCHG_ROUTER_CONN_DECR5}"
-	ERR_XCHG_ROUTER_CONN_NO_ROUTE_TO_PEER       = "{ERR_XCHG_ROUTER_CONN_NO_ROUTE_TO_PEER}"
-)

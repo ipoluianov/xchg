@@ -105,7 +105,3 @@ func (c *Transaction) String() string {
 	res := fmt.Sprint(c.TransactionId) + ":[" + c.AddressSrc + "]-[" + c.AddressDest + "] t:" + fmt.Sprint(c.FrameType) + " dl:" + fmt.Sprint(len(c.Data))
 	return res
 }
-
-const (
-	ERR_XCHG_TR_WRONG_FRAME = "{ERR_XCHG_TR_WRONG_FRAME}"
-)

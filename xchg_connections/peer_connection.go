@@ -152,7 +152,7 @@ func (c *PeerConnection) fastReset() {
 
 	for _, t := range c.outgoingTransactions {
 		if !t.Complete {
-			t.Err = errors.New(ERR_XCHG_PEER_CONN_LOSS)
+			t.Err = errors.New(xchg.ERR_XCHG_PEER_CONN_LOSS)
 			t.Complete = true
 		}
 	}
@@ -195,7 +195,7 @@ func (c *PeerConnection) ProcessTransaction(transaction *xchg.Transaction) {
 			c.processError(transaction)
 		}
 	default:
-		c.connection.SendError(transaction, errors.New(ERR_XCHG_PEER_CONN_WRONG_PROT_VERSION))
+		c.connection.SendError(transaction, errors.New(xchg.ERR_XCHG_PEER_CONN_WRONG_PROT_VERSION))
 	}
 }
 
@@ -243,7 +243,7 @@ func (c *PeerConnection) processInit6(transaction *xchg.Transaction) {
 }
 
 func (c *PeerConnection) processError(transaction *xchg.Transaction) {
-	err := errors.New(ERR_XCHG_PEER_CONN_RCVD_ERR + ":" + string(transaction.Data))
+	err := errors.New(xchg.ERR_XCHG_PEER_CONN_RCVD_ERR + ":" + string(transaction.Data))
 	c.setTransactionResponse(transaction.TransactionId, nil, err)
 	c.reset()
 }
@@ -320,7 +320,7 @@ func (c *PeerConnection) ResolveAddress(address string) (sid uint64, publicKey *
 		return 0, nil, err
 	}
 	if len(res) < 8 {
-		return 0, nil, errors.New(ERR_XCHG_PEER_CONN_REQ_SID_SIZE)
+		return 0, nil, errors.New(xchg.ERR_XCHG_PEER_CONN_REQ_SID_SIZE)
 	}
 	sid = binary.LittleEndian.Uint64(res)
 	publicKey, err = crypt_tools.RSAPublicKeyFromDer(res[8:])
@@ -387,7 +387,7 @@ func (c *PeerConnection) executeTransaction(frameType byte, targetSID uint64, se
 	delete(c.outgoingTransactions, t.TransactionId)
 	c.mtxEdgeConnection.Unlock()
 
-	return nil, errors.New(ERR_XCHG_PEER_CONN_TR_TIMEOUT)
+	return nil, errors.New(xchg.ERR_XCHG_PEER_CONN_TR_TIMEOUT)
 }
 
 func (c *PeerConnection) State() (state PeerConnectionState) {
@@ -414,11 +414,3 @@ func (c *PeerConnection) State() (state PeerConnectionState) {
 	state.Init6Received = c.init6Received
 	return
 }
-
-const (
-	ERR_XCHG_PEER_CONN_LOSS               = "{ERR_XCHG_PEER_CONN_LOSS}"
-	ERR_XCHG_PEER_CONN_TR_TIMEOUT         = "{ERR_XCHG_PEER_CONN_TR_TIMEOUT}"
-	ERR_XCHG_PEER_CONN_REQ_SID_SIZE       = "{ERR_XCHG_PEER_CONN_REQ_SID_SIZE}"
-	ERR_XCHG_PEER_CONN_WRONG_PROT_VERSION = "{ERR_XCHG_PEER_CONN_WRONG_PROT_VERSION}"
-	ERR_XCHG_PEER_CONN_RCVD_ERR           = "{ERR_XCHG_PEER_CONN_RCVD_ERR}"
-)

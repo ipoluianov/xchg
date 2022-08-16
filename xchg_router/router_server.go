@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ipoluianov/gomisc/logger"
+	"github.com/ipoluianov/xchg/xchg"
 )
 
 type RouterServer struct {
@@ -40,7 +41,7 @@ func (c *RouterServer) Start() (err error) {
 	defer c.mtx.Unlock()
 
 	if c.chWorking != nil {
-		err = errors.New(ERR_XCHG_ROUTER_SERVER_ALREADY_STARTED)
+		err = errors.New(xchg.ERR_XCHG_ROUTER_SERVER_ALREADY_STARTED)
 		logger.Println("[ERROR]", "RouterServer::Start", err.Error())
 		return
 	}
@@ -59,7 +60,7 @@ func (c *RouterServer) Stop() (err error) {
 	defer c.mtx.Unlock()
 
 	if c.chWorking == nil {
-		err = errors.New(ERR_XCHG_ROUTER_SERVER_IS_NOT_STARTED)
+		err = errors.New(xchg.ERR_XCHG_ROUTER_SERVER_IS_NOT_STARTED)
 		logger.Println("[ERROR]", "RouterServer::Stop", err.Error())
 		return
 	}
@@ -126,8 +127,3 @@ func (c *RouterServer) State() (state RouterServerState) {
 	state.AcceptedConnectionsCount = atomic.LoadUint64(&c.acceptedConnectionsCount)
 	return
 }
-
-const (
-	ERR_XCHG_ROUTER_SERVER_ALREADY_STARTED = "{ERR_XCHG_ROUTER_SERVER_ALREADY_STARTED}"
-	ERR_XCHG_ROUTER_SERVER_IS_NOT_STARTED  = "{ERR_XCHG_ROUTER_SERVER_IS_NOT_STARTED}"
-)

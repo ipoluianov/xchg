@@ -54,12 +54,8 @@ func (c *SimpleServer) ServerProcessorCall(function string, parameter []byte) (r
 		resp.C = request.A + request.B
 		response, err = json.MarshalIndent(resp, "", " ")
 	default:
-		err = errors.New(ERR_SIMPLE_SERVER_FUNC_IS_NOT_IMPL)
+		err = errors.New(xchg.ERR_SIMPLE_SERVER_FUNC_IS_NOT_IMPL)
 	}
 
 	return
 }
-
-const (
-	ERR_SIMPLE_SERVER_FUNC_IS_NOT_IMPL = "{ERR_SIMPLE_SERVER_FUNC_IS_NOT_IMPL}"
-)
