@@ -72,7 +72,22 @@ func (c *ClientConnection) Dispose() {
 		c.currentConnection.Dispose()
 		c.currentConnection = nil
 	}
+}
 
+func (c *ClientConnection) Reset() {
+	c.mtxClientConnection.Lock()
+	c.reset()
+	c.mtxClientConnection.Unlock()
+}
+
+func (c *ClientConnection) reset() {
+	c.currentSID = 0
+	c.sessionId = 0
+	if c.currentConnection != nil {
+		c.currentConnection.Stop()
+		c.currentConnection.Dispose()
+		c.currentConnection = nil
+	}
 }
 
 func (c *ClientConnection) CallOnEvent(text string) {
@@ -164,6 +179,7 @@ func (c *ClientConnection) regularCall(function string, data []byte, aesKey []by
 	c.mtxClientConnection.Lock()
 	c.findingConnection = true
 	if c.currentSID == 0 {
+		c.reset()
 		//logger.Println("[i]", "ClientConnection::regularCall", "searching node ...")
 		addresses := c.network.GetAddressesByPublicKey(crypt_tools.RSAPublicKeyToDer(c.remotePublicKey))
 		for _, address := range addresses {
@@ -181,11 +197,6 @@ func (c *ClientConnection) regularCall(function string, data []byte, aesKey []by
 			if c.currentSID != 0 {
 				// Check public key
 				if xchg.AddressForPublicKey(c.remotePublicKey) == c.address {
-					if c.currentConnection != nil {
-						c.currentConnection.Stop()
-						c.currentConnection.Dispose()
-						c.currentConnection = nil
-					}
 					c.currentConnection = conn
 					//logger.Println("[i]", "ClientConnection::regularCall", "node found:", address)
 					break
@@ -193,11 +204,13 @@ func (c *ClientConnection) regularCall(function string, data []byte, aesKey []by
 			}
 
 			conn.Stop()
+			conn.Dispose()
 		}
 	}
 
 	connection := c.currentConnection
 	currentSID := c.currentSID
+	sessionId := c.sessionId
 	c.findingConnection = false
 	c.mtxClientConnection.Unlock()
 
@@ -216,6 +229,7 @@ func (c *ClientConnection) regularCall(function string, data []byte, aesKey []by
 		copy(frame[9+len(function):], data)
 		frame, err = crypt_tools.EncryptAESGCM(frame, aesKey)
 		if err != nil {
+			c.Reset()
 			err = errors.New(xchg.ERR_XCHG_CL_CONN_CALL_ENC + ":" + err.Error())
 			return
 		}
@@ -226,31 +240,44 @@ func (c *ClientConnection) regularCall(function string, data []byte, aesKey []by
 		copy(frame[1+len(function):], data)
 	}
 
-	result, err = connection.Call(c.currentSID, c.sessionId, frame)
+	result, err = connection.Call(currentSID, sessionId, frame)
+
+	if xchg.NeedToChangeNode(err) {
+		c.Reset()
+		return
+	}
+
 	if err != nil {
 		err = errors.New(xchg.ERR_XCHG_CL_CONN_CALL_ERR + ":" + err.Error())
-		c.currentSID = 0
 		return
 	}
 
 	if len(result) < 1 {
 		err = errors.New(xchg.ERR_XCHG_CL_CONN_WRONG_CALL_RESPONSE)
+		c.Reset()
 		return
 	}
 
 	if result[0] == 0 {
+		// Success response
 		result = result[1:]
 		err = nil
 		return
 	}
 
 	if result[0] == 1 {
+		// Error response
 		err = errors.New(xchg.ERR_XCHG_CL_CONN_FROM_PEER + ":" + string(result[1:]))
+		if xchg.NeedToMakeSession(err) {
+			// Any server error - make new session
+			c.sessionId = 0
+		}
 		result = nil
 		return
 	}
 
 	err = errors.New(xchg.ERR_XCHG_CL_CONN_WRONG_CALL_RESPONSE_BYTE)
+	c.Reset()
 	return
 }
 

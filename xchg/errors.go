@@ -1,5 +1,7 @@
 package xchg
 
+import "strings"
+
 const (
 	ERR_XCHG_ACCESS_DENIED = "{ERR_XCHG_ACCESS_DENIED}"
 
@@ -54,9 +56,33 @@ const (
 	ERR_XCHG_ROUTER_CONN_NO_ROUTE_TO_PEER       = "{ERR_XCHG_ROUTER_CONN_NO_ROUTE_TO_PEER}"
 	ERR_XCHG_ROUTER_SERVER_ALREADY_STARTED      = "{ERR_XCHG_ROUTER_SERVER_ALREADY_STARTED}"
 	ERR_XCHG_ROUTER_SERVER_IS_NOT_STARTED       = "{ERR_XCHG_ROUTER_SERVER_IS_NOT_STARTED}"
-	ERR_XCHG_ROUTER_ALREADY_STARTED             = "{ERR_ROUTER_ALREADY_STARTED}"
-	ERR_XCHG_ROUTER_IS_NOT_STARTED              = "{ERR_ROUTER_IS_NOT_STARTED}"
+	ERR_XCHG_ROUTER_ALREADY_STARTED             = "{ERR_XCHG_ROUTER_ALREADY_STARTED}"
+	ERR_XCHG_ROUTER_IS_NOT_STARTED              = "{ERR_XCHG_ROUTER_IS_NOT_STARTED}"
 
 	// Other
 	ERR_SIMPLE_SERVER_FUNC_IS_NOT_IMPL = "{ERR_SIMPLE_SERVER_FUNC_IS_NOT_IMPL}"
 )
+
+// Reason to make session
+func NeedToMakeSession(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := err.Error()
+	if strings.Contains(errStr, "{ERR_XCHG_SRV_CONN_") {
+		return true
+	}
+	return false
+}
+
+// Reason to change node
+func NeedToChangeNode(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := err.Error()
+	if strings.Contains(errStr, "{ERR_XCHG_ROUTER_") {
+		return true
+	}
+	return false
+}
