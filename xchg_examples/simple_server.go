@@ -3,7 +3,6 @@ package xchg_examples
 import (
 	"encoding/json"
 	"errors"
-	"time"
 
 	"github.com/ipoluianov/xchg/xchg"
 	"github.com/ipoluianov/xchg/xchg_connections"
@@ -11,19 +10,26 @@ import (
 )
 
 type SimpleServer struct {
+	serverPrivateKey32 string
+	network            *xchg_network.Network
+	serverConnection   *xchg_connections.ServerConnection
 }
 
 func NewSimpleServer(serverPrivateKey32 string, network *xchg_network.Network) *SimpleServer {
 	var c SimpleServer
-	s := xchg_connections.NewServerConnection(serverPrivateKey32, network)
-	s.SetProcessor(&c)
-	s.Start()
-	s = nil
+	c.serverPrivateKey32 = serverPrivateKey32
+	c.network = network
+	c.serverConnection = xchg_connections.NewServerConnection()
+	c.serverConnection.SetProcessor(&c)
 	return &c
 }
 
 func (c *SimpleServer) Start() {
-	time.Sleep(1000 * time.Second)
+	c.serverConnection.Start(c.serverPrivateKey32, c.network)
+}
+
+func (c *SimpleServer) Stop() {
+	c.serverConnection.Stop()
 }
 
 func (c *SimpleServer) ServerProcessorAuth(authData []byte) (err error) {

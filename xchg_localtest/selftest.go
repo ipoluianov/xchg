@@ -50,7 +50,8 @@ func SelfTest() {
 
 	fmt.Println("Server address:", serverAddress)
 
-	go Server(serverPrivateKey32, network)
+	ss := xchg_examples.NewSimpleServer(serverPrivateKey32, network)
+	ss.Start()
 
 	go Client(serverAddress, network)
 
@@ -61,15 +62,12 @@ func SelfTest() {
 		router.Stop()
 	}
 
+	ss.Stop()
+
 	fmt.Println("------------- Press Enter to stop PROCESS -------------")
 	fmt.Scanln()
 
 	fmt.Println("PROCESS was finished")
-}
-
-func Server(serverPrivateKey32 string, network *xchg_network.Network) {
-	ss := xchg_examples.NewSimpleServer(serverPrivateKey32, network)
-	ss.Start()
 }
 
 func Client(address string, network *xchg_network.Network) {
@@ -105,7 +103,9 @@ func RunSimpleServer() {
 	serverPrivateKey32 := base32.StdEncoding.EncodeToString(crypt_tools.RSAPrivateKeyToDer(serverPrivateKey))
 	serverAddress := xchg.AddressForPublicKey(&serverPrivateKey.PublicKey)
 
-	go Server(serverPrivateKey32, network)
+	ss := xchg_examples.NewSimpleServer(serverPrivateKey32, network)
+	ss.Start()
+
 	fmt.Println("Server Address", serverAddress)
 
 	fmt.Println("------------- Press Enter to stop Simple Server -------------")

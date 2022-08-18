@@ -31,6 +31,9 @@ type Connection struct {
 	sentFrames     uint64
 
 	configMaxFrameSize int
+
+	incomingData       []byte
+	incomingDataOffset int
 }
 
 type ConnectionState struct {
@@ -203,25 +206,22 @@ func (c *Connection) thReceive() {
 
 	var n int
 	var err error
-	incomingData := make([]byte, c.configMaxFrameSize)
-	incomingDataOffset := 0
+	c.incomingDataOffset = 0
+	c.adjustInputBufferDown(c.incomingDataOffset)
 
 	for !c.stopping {
 		if c.conn == nil {
-			//fmt.Println("connecting to", c.host)
 			c.conn, err = net.Dial("tcp", c.host)
 			if err != nil {
 				time.Sleep(100 * time.Millisecond)
-				//fmt.Println("connecting to", c.host, " timeout")
 				continue
 			}
-			incomingData = make([]byte, c.configMaxFrameSize)
-			incomingDataOffset = 0
+			c.incomingDataOffset = 0
+			c.adjustInputBufferDown(c.incomingDataOffset)
 			c.callProcessorConnected()
-			//fmt.Println("connecting to", c.host, " OK")
 		}
 
-		n, err = c.conn.Read(incomingData[incomingDataOffset:])
+		n, err = c.conn.Read(c.incomingData[c.incomingDataOffset:])
 		if c.stopping {
 			break
 		}
@@ -236,25 +236,27 @@ func (c *Connection) thReceive() {
 
 		atomic.AddUint64(&c.receivedBytes, uint64(n))
 
-		incomingDataOffset += n
+		c.incomingDataOffset += n
 		processedLen := 0
 		frames := 0
 		for {
 			// Find Signature
-			for processedLen < incomingDataOffset && incomingData[processedLen] != 0xAA {
+			for processedLen < c.incomingDataOffset && c.incomingData[processedLen] != 0xAA {
 				processedLen++
 			}
 
-			restBytes := incomingDataOffset - processedLen
+			restBytes := c.incomingDataOffset - processedLen
 			if restBytes < TransactionHeaderSize {
 				break
 			}
 
-			frameLen := int(binary.LittleEndian.Uint32(incomingData[processedLen+4:]))
+			frameLen := int(binary.LittleEndian.Uint32(c.incomingData[processedLen+4:]))
 			if frameLen < TransactionHeaderSize || frameLen > c.configMaxFrameSize {
 				err = errors.New(ERR_XCHG_CONN_WRONG_FRAME_SIZE)
 				break
 			}
+
+			c.adjustInputBufferUp(frameLen)
 
 			if restBytes < frameLen {
 				break
@@ -263,7 +265,7 @@ func (c *Connection) thReceive() {
 			atomic.AddUint64(&c.receivedFrames, 1)
 
 			var transaction *Transaction
-			transaction, err = Parse(incomingData[processedLen:])
+			transaction, err = Parse(c.incomingData[processedLen:])
 			if err == nil {
 				c.mtxBaseConnection.Lock()
 				if c.processor != nil {
@@ -285,10 +287,10 @@ func (c *Connection) thReceive() {
 			}
 		}
 
-		for i := processedLen; i < incomingDataOffset; i++ {
-			incomingData[i-processedLen] = incomingData[i]
+		for i := processedLen; i < c.incomingDataOffset; i++ {
+			c.incomingData[i-processedLen] = c.incomingData[i]
 		}
-		incomingDataOffset -= processedLen
+		c.incomingDataOffset -= processedLen
 	}
 
 	c.disconnect()
@@ -296,6 +298,29 @@ func (c *Connection) thReceive() {
 	c.mtxBaseConnection.Lock()
 	c.started = false
 	c.mtxBaseConnection.Unlock()
+}
+
+func (c *Connection) adjustInputBufferUp(needSize int) {
+	if len(c.incomingData) >= needSize {
+		return
+	}
+	pSize := needSize + (4096 - (needSize % 4096))
+	if pSize == len(c.incomingData) {
+		return
+	}
+	newBuffer := make([]byte, pSize)
+	copy(newBuffer, c.incomingData)
+	c.incomingData = newBuffer
+}
+
+func (c *Connection) adjustInputBufferDown(needSize int) {
+	pSize := needSize + (4096 - (needSize % 4096))
+	if pSize == len(c.incomingData) {
+		return
+	}
+	newBuffer := make([]byte, pSize)
+	copy(newBuffer, c.incomingData)
+	c.incomingData = newBuffer
 }
 
 func (c *Connection) SendError(transaction *Transaction, err error) {

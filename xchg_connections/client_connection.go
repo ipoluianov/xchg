@@ -101,41 +101,76 @@ func (c *ClientConnection) CallOnEvent(text string) {
 
 func (c *ClientConnection) Call(function string, data []byte) (result []byte, err error) {
 	c.CallOnEvent("call " + function)
-	if c.sessionId == 0 {
+
+	c.mtxClientConnection.Lock()
+	sessionId := c.sessionId
+	c.mtxClientConnection.Unlock()
+
+	if sessionId == 0 {
 		err = c.auth()
 		if err != nil {
 			return
 		}
 	}
-	result, err = c.regularCall(function, data, c.aesKey)
+
+	c.mtxClientConnection.Lock()
+	sessionId = c.sessionId
+	aesKey := make([]byte, len(c.aesKey))
+	copy(aesKey, c.aesKey)
+	c.mtxClientConnection.Unlock()
+
+	result, err = c.regularCall(function, data, aesKey)
+
 	return
 }
 
 func (c *ClientConnection) auth() (err error) {
+	c.mtxClientConnection.Lock()
+	if c.authProcessing {
+		c.mtxClientConnection.Unlock()
+		return
+	}
 	c.authProcessing = true
+	c.mtxClientConnection.Unlock()
+
 	defer func() {
+		c.mtxClientConnection.Lock()
 		c.authProcessing = false
+		c.mtxClientConnection.Unlock()
 	}()
 
 	var nonce []byte
 	nonce, err = c.regularCall("/xchg-get-nonce", nil, nil)
 	if err != nil {
+		err = errors.New(xchg.ERR_XCHG_CL_CONN_AUTH_GET_NONCE + ":" + err.Error())
 		return
 	}
 	if len(nonce) != 16 {
-		err = errors.New(xchg.ERR_XCHG_CL_CONN_WRONG_NONCE_LEN)
+		err = errors.New(xchg.ERR_XCHG_CL_CONN_AUTH_WRONG_NONCE_LEN)
 		return
 	}
 
-	localPublicKeyBS := crypt_tools.RSAPublicKeyToDer(&c.localPrivateKey.PublicKey)
+	c.mtxClientConnection.Lock()
+	localPrivateKey := c.localPrivateKey
+	remotePublicKey := c.remotePublicKey
+	authData := make([]byte, len(c.authData))
+	copy(authData, []byte(c.authData))
+	c.mtxClientConnection.Unlock()
+	if c.localPrivateKey == nil {
+		err = errors.New(xchg.ERR_XCHG_CL_CONN_AUTH_NO_LOCAL_PRIVATE_KEY)
+		return
+	}
 
-	authFrameSecret := make([]byte, 16+len(c.authData))
+	localPublicKeyBS := crypt_tools.RSAPublicKeyToDer(&localPrivateKey.PublicKey)
+
+	authFrameSecret := make([]byte, 16+len(authData))
 	copy(authFrameSecret, nonce)
-	copy(authFrameSecret[16:], []byte(c.authData))
+	copy(authFrameSecret[16:], []byte(authData))
 
 	var encryptedAuthFrame []byte
-	encryptedAuthFrame, err = rsa.EncryptPKCS1v15(rand.Reader, c.remotePublicKey, []byte(authFrameSecret))
+	encryptedAuthFrame, err = rsa.EncryptPKCS1v15(rand.Reader, remotePublicKey, []byte(authFrameSecret))
 	if err != nil {
+		err = errors.New(xchg.ERR_XCHG_CL_CONN_AUTH_ENC + ":" + err.Error())
 		return
 	}
 
@@ -147,83 +182,114 @@ func (c *ClientConnection) auth() (err error) {
 	var result []byte
 	result, err = c.regularCall("/xchg-auth", authFrame, nil)
 	if err != nil {
+		err = errors.New(xchg.ERR_XCHG_CL_CONN_AUTH_AUTH + ":" + err.Error())
 		return
 	}
 
-	result, err = rsa.DecryptPKCS1v15(rand.Reader, c.localPrivateKey, result)
+	result, err = rsa.DecryptPKCS1v15(rand.Reader, localPrivateKey, result)
 	if err != nil {
+		err = errors.New(xchg.ERR_XCHG_CL_CONN_AUTH_DECR + ":" + err.Error())
 		return
 	}
 
 	if len(result) != 8+32 {
-		err = errors.New(xchg.ERR_XCHG_CL_CONN_WRONG_AUTH_RESPONSE_LEN)
+		err = errors.New(xchg.ERR_XCHG_CL_CONN_AUTH_WRONG_AUTH_RESP_LEN)
 		return
 	}
+
+	c.mtxClientConnection.Lock()
 	c.sessionId = binary.LittleEndian.Uint64(result)
 	c.aesKey = make([]byte, 32)
 	copy(c.aesKey, result[8:])
+	c.mtxClientConnection.Unlock()
+
 	return
 }
 
 func (c *ClientConnection) regularCall(function string, data []byte, aesKey []byte) (result []byte, err error) {
 	if len(function) > 255 {
-		err = errors.New(xchg.ERR_XCHG_CL_CONN_WRONG_FUNCTION_LEN)
-		return
-	}
-
-	if c.findingConnection {
-		err = errors.New(xchg.ERR_XCHG_CL_CONN_SEARCHING_NODE)
+		err = errors.New(xchg.ERR_XCHG_CL_CONN_CALL_WRONG_FUNCTION_LEN)
 		return
 	}
 
 	c.mtxClientConnection.Lock()
-	c.findingConnection = true
-	if c.currentSID == 0 {
+	address := c.address
+	alreadySearching := false
+	if c.findingConnection {
+		alreadySearching = true
+	}
+	currentSID := c.currentSID
+	if currentSID == 0 && !c.findingConnection {
+		c.findingConnection = true
 		c.reset()
-		//logger.Println("[i]", "ClientConnection::regularCall", "searching node ...")
-		addresses := c.network.GetAddressesByPublicKey(crypt_tools.RSAPublicKeyToDer(c.remotePublicKey))
+	}
+	localPrivateKey := c.localPrivateKey
+	c.mtxClientConnection.Unlock()
+
+	if alreadySearching {
+		err = errors.New(xchg.ERR_XCHG_CL_CONN_CALL_SEARCHING_NODE)
+		return
+	}
+
+	if localPrivateKey == nil {
+		err = errors.New(xchg.ERR_XCHG_CL_CONN_CALL_NO_LOCAL_PRIVATE_KEY)
+		return
+	}
+
+	if currentSID == 0 {
+		addresses := c.network.GetNodesAddressesByAddress(address)
 		for _, address := range addresses {
 			c.lastestNodeAddress = address
-			//logger.Println("[i]", "ClientConnection::regularCall", "trying node:", address)
 
-			conn := NewPeerConnection(address, c.localPrivateKey, nil)
+			conn := NewPeerConnection(address, localPrivateKey, nil)
 			conn.Start()
 			if !conn.WaitForConnection(500 * time.Millisecond) {
 				conn.Stop()
+				conn.Dispose()
 				continue
 			}
 
-			c.currentSID, c.remotePublicKey, err = conn.ResolveAddress(c.address)
-			if c.currentSID != 0 {
-				// Check public key
-				if xchg.AddressForPublicKey(c.remotePublicKey) == c.address {
-					c.currentConnection = conn
-					//logger.Println("[i]", "ClientConnection::regularCall", "node found:", address)
-					break
-				}
+			var remotePublicKey *rsa.PublicKey
+			currentSID, remotePublicKey, err = conn.ResolveAddress(c.address)
+			if err != nil || currentSID == 0 || remotePublicKey == nil || xchg.AddressForPublicKey(remotePublicKey) != c.address {
+				conn.Stop()
+				conn.Dispose()
+				continue
 			}
 
-			conn.Stop()
-			conn.Dispose()
+			c.mtxClientConnection.Lock()
+			c.currentConnection = conn
+			c.currentSID = currentSID
+			c.remotePublicKey = remotePublicKey
+			c.mtxClientConnection.Unlock()
+			break
 		}
+
+		c.mtxClientConnection.Lock()
+		c.findingConnection = false
+		c.mtxClientConnection.Unlock()
 	}
 
+	c.mtxClientConnection.Lock()
 	connection := c.currentConnection
-	currentSID := c.currentSID
 	sessionId := c.sessionId
-	c.findingConnection = false
+	currentSID = c.currentSID
 	c.mtxClientConnection.Unlock()
 
 	if connection == nil || currentSID == 0 {
-		err = errors.New(xchg.ERR_XCHG_CL_CONN_NO_ROUTE_TO_PEER)
+		err = errors.New(xchg.ERR_XCHG_CL_CONN_CALL_NO_ROUTE_TO_PEER)
 		return
 	}
+
+	c.mtxClientConnection.Lock()
+	sessionNonceCounter := c.sessionNonceCounter
+	c.sessionNonceCounter++
+	c.mtxClientConnection.Unlock()
 
 	var frame []byte
 	if len(aesKey) == 32 {
 		frame = make([]byte, 8+1+len(function)+len(data))
-		binary.LittleEndian.PutUint64(frame, c.sessionNonceCounter)
-		c.sessionNonceCounter++
+		binary.LittleEndian.PutUint64(frame, sessionNonceCounter)
 		frame[8] = byte(len(function))
 		copy(frame[9:], function)
 		copy(frame[9+len(function):], data)
@@ -253,7 +319,7 @@ func (c *ClientConnection) regularCall(function string, data []byte, aesKey []by
 	}
 
 	if len(result) < 1 {
-		err = errors.New(xchg.ERR_XCHG_CL_CONN_WRONG_CALL_RESPONSE)
+		err = errors.New(xchg.ERR_XCHG_CL_CONN_CALL_RESP_LEN)
 		c.Reset()
 		return
 	}
@@ -267,7 +333,7 @@ func (c *ClientConnection) regularCall(function string, data []byte, aesKey []by
 
 	if result[0] == 1 {
 		// Error response
-		err = errors.New(xchg.ERR_XCHG_CL_CONN_FROM_PEER + ":" + string(result[1:]))
+		err = errors.New(xchg.ERR_XCHG_CL_CONN_CALL_FROM_PEER + ":" + string(result[1:]))
 		if xchg.NeedToMakeSession(err) {
 			// Any server error - make new session
 			c.sessionId = 0
@@ -276,7 +342,7 @@ func (c *ClientConnection) regularCall(function string, data []byte, aesKey []by
 		return
 	}
 
-	err = errors.New(xchg.ERR_XCHG_CL_CONN_WRONG_CALL_RESPONSE_BYTE)
+	err = errors.New(xchg.ERR_XCHG_CL_CONN_CALL_RESP_STATUS_BYTE)
 	c.Reset()
 	return
 }

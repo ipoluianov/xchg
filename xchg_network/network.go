@@ -1,11 +1,13 @@
 package xchg_network
 
 import (
-	"crypto/sha256"
+	"encoding/base32"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"math/rand"
+	"sort"
 	"strings"
 	"sync"
 )
@@ -13,7 +15,8 @@ import (
 type Network struct {
 	mtx sync.Mutex
 
-	Ranges []*rng `json:"ranges"`
+	Ranges   []*rng  `json:"ranges"`
+	Gateways []*host `json:"gateways"`
 }
 
 func NewNetwork() *Network {
@@ -67,6 +70,7 @@ func (c *Network) SaveToFile(fileName string) error {
 
 func (c *Network) init() {
 	c.Ranges = make([]*rng, 0)
+	c.Gateways = make([]*host, 0)
 }
 
 func (c *Network) AddHostToRange(prefix string, address string) {
@@ -102,12 +106,16 @@ func (c *Network) toBytes() []byte {
 	return bs
 }
 
-func (c *Network) GetAddressesByPublicKey(publicKeyBS []byte) []string {
+func (c *Network) GetNodesAddressesByAddress(address string) []string {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
-	SHAPublicKeyBS := sha256.Sum256(publicKeyBS)
-	SHAPublicKeyHex := hex.EncodeToString(SHAPublicKeyBS[:])
+	addressBS, err := base32.StdEncoding.DecodeString(strings.ToUpper(address))
+	if err != nil {
+		return make([]string, 0)
+	}
+
+	SHAPublicKeyHex := hex.EncodeToString(addressBS)
 	SHAPublicKeyHex = strings.ToLower(SHAPublicKeyHex)
 
 	var preferredRange *rng
@@ -127,12 +135,19 @@ func (c *Network) GetAddressesByPublicKey(publicKeyBS []byte) []string {
 	}
 
 	addresses := make([]string, 0)
-
 	if preferredRange != nil {
 		for _, host := range preferredRange.Hosts {
 			addresses = append(addresses, host.Address)
 		}
 	}
+
+	// Randomize
+	rnd := make([]byte, len(addresses))
+	rand.Read(rnd)
+	sort.Slice(addresses, func(i, j int) bool {
+		return rnd[i] < rnd[j]
+	})
+
 	return addresses
 }
 

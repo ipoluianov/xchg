@@ -11,7 +11,17 @@ import (
 
 const Base32Alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
 
+// XCHG:    kqfc2fwogggtlsf7vnh46hhgdjmheiqvqycapj2f2xe2d5jz
+// ONIONv2: expyuzz4wqqyqhjn
+// ONIONv3: 2gzyxa5ihm7nsggfxnu52rck2vv4rvmdlkiu3zzui5du4xyclen53wid
+
+const AddressBytesSize = 30
+const AddressSize = int((AddressBytesSize * 8) / 5)
+
 func AddressForPublicKey(publicKey *rsa.PublicKey) string {
+	if publicKey == nil {
+		return ""
+	}
 	bs := crypt_tools.RSAPublicKeyToDer(publicKey)
 	return AddressForPublicKeyBS(bs)
 }
@@ -27,12 +37,12 @@ func AddressForPublicKeyBS(publicKeyBS []byte) string {
 		hash = h[:]
 	}
 
-	return strings.ToLower(base32.StdEncoding.EncodeToString(hash[:20]))
+	return strings.ToLower(base32.StdEncoding.EncodeToString(hash[:AddressBytesSize]))
 }
 
 func NormalizeAddress(address string) string {
 	addressBS := []byte(strings.ToUpper(address))
-	result := make([]byte, 0, 32)
+	result := make([]byte, 0, AddressSize)
 	for _, b := range addressBS {
 		if (b >= 'A' && b <= 'Z') || (b >= '2' && b <= 7) {
 			result = append(result, b)

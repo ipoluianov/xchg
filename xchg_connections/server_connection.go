@@ -52,35 +52,9 @@ type ServerProcessor interface {
 	ServerProcessorCall(function string, parameter []byte) (response []byte, err error)
 }
 
-func NewServerConnection(privateKey32 string, network *xchg_network.Network) *ServerConnection {
-	//logger.Println("[i]", "NewServerConnection", "begin", network.String())
-	var err error
+func NewServerConnection() *ServerConnection {
 	var c ServerConnection
-	c.nextSessionId = 1
-	c.nonceGenerator = nonce_generator.NewNonceGenerator(1024 * 1024)
-	c.privateKey32 = privateKey32
-	privateKeyBS, err := base32.StdEncoding.DecodeString(c.privateKey32)
-	if err != nil {
-		logger.Println("[ERROR]", "NewServerConnection", "base32.StdEncoding.DecodeString error:", err)
-	}
-	c.privateKey, err = crypt_tools.RSAPrivateKeyFromDer(privateKeyBS)
-	if err != nil {
-		logger.Println("[ERROR]", "NewServerConnection", "crypt_tools.RSAPrivateKeyFromDer error:", err)
-	}
-	c.peerConnections = make(map[string]*PeerConnection)
-	c.sessionsById = make(map[uint64]*Session)
-	c.network = network
-	publicKeyBS := crypt_tools.RSAPublicKeyToDer(&c.privateKey.PublicKey)
-	//logger.Println("[i]", "NewServerConnection", "creating nodes", publicKeyBS)
-	addresses := c.network.GetAddressesByPublicKey(publicKeyBS)
-	connections := make([]*PeerConnection, 0)
-	//logger.Println("[i]", "NewServerConnection", "creating nodes", addresses)
-	for _, addr := range addresses {
-		conn := c.connection(addr)
-		connections = append(connections, conn)
-		//logger.Println("[i]", "NewServerConnection", "added connection:", addr)
-	}
-	//logger.Println("[i]", "NewServerConnection", "end")
+	c.init()
 	return &c
 }
 
@@ -92,19 +66,54 @@ func (c *ServerConnection) SetNetwork(network *xchg_network.Network) {
 	c.network = network
 }
 
-func (c *ServerConnection) Start() {
+func (c *ServerConnection) init() {
+	for _, conn := range c.peerConnections {
+		conn.Stop()
+		conn.Dispose()
+	}
+
+	c.nextSessionId = 1
+	c.nonceGenerator = nonce_generator.NewNonceGenerator(1024 * 1024)
+	c.peerConnections = make(map[string]*PeerConnection)
+	c.sessionsById = make(map[uint64]*Session)
 }
 
-func (c *ServerConnection) connection(addr string) *PeerConnection {
-	c.mtxServerConnection.Lock()
-	defer c.mtxServerConnection.Unlock()
-	if conn, ok := c.peerConnections[addr]; ok {
-		return conn
+func (c *ServerConnection) Start(privateKey32 string, network *xchg_network.Network) {
+	var err error
+
+	c.init()
+
+	c.privateKey32 = privateKey32
+	privateKeyBS, err := base32.StdEncoding.DecodeString(c.privateKey32)
+	if err != nil {
+		logger.Println("[ERROR]", "NewServerConnection", "base32.StdEncoding.DecodeString error:", err)
 	}
-	conn := NewPeerConnection(addr, c.privateKey, c)
-	c.peerConnections[addr] = conn
-	conn.Start()
-	return conn
+	c.privateKey, err = crypt_tools.RSAPrivateKeyFromDer(privateKeyBS)
+	if err != nil {
+		logger.Println("[ERROR]", "NewServerConnection", "crypt_tools.RSAPrivateKeyFromDer error:", err)
+	}
+	c.localAddress = xchg.AddressForPublicKey(&c.privateKey.PublicKey)
+
+	c.ReinitNetwork(network)
+}
+
+func (c *ServerConnection) ReinitNetwork(network *xchg_network.Network) {
+	c.mtxServerConnection.Lock()
+	c.init()
+	c.network = network
+	addresses := c.network.GetNodesAddressesByAddress(c.localAddress)
+	for _, addr := range addresses {
+		conn := NewPeerConnection(addr, c.privateKey, c)
+		conn.Start()
+		c.peerConnections[addr] = conn
+	}
+	c.mtxServerConnection.Unlock()
+}
+
+func (c *ServerConnection) Stop() {
+	c.mtxServerConnection.Lock()
+	c.init()
+	c.mtxServerConnection.Unlock()
 }
 
 func (c *ServerConnection) purgeSessions() {

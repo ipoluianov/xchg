@@ -208,7 +208,7 @@ func (c *Router) AddConnection(conn net.Conn) {
 
 func (c *Router) getConnectionByAddress(address string) (foundConnection *RouterConnection) {
 	atomic.AddUint64(&c.statGetConnectionByAddressCounter, 1)
-	if len(address) != 32 {
+	if len(address) != xchg.AddressSize {
 		atomic.AddUint64(&c.statGetConnectionByAddressErrAddressSizeCounter, 1)
 		return
 	}
@@ -262,7 +262,7 @@ func (c *Router) setAddressForConnection(connection *RouterConnection, address s
 	if c.chWorking == nil {
 		return
 	}
-	if len(address) != 32 {
+	if len(address) != xchg.AddressSize {
 		atomic.AddUint64(&c.statSetAddressForConnectionErrAddressSizeCounter, 1)
 		return
 	}
