@@ -5,6 +5,7 @@ import (
 	"crypto/rsa"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -13,7 +14,8 @@ import (
 )
 
 type PeerConnection struct {
-	node string
+	internalId string
+	node       string
 
 	mtxEdgeConnection sync.Mutex
 	connection        *xchg.Connection
@@ -73,12 +75,14 @@ type EdgeConnectionProcessor interface {
 	onEdgeReceivedCall(edgeConnection *PeerConnection, sessionId uint64, data []byte) (response []byte)
 }
 
-func NewPeerConnection(xchgNode string, localAddress *rsa.PrivateKey, processor EdgeConnectionProcessor) *PeerConnection {
+func NewPeerConnection(xchgNode string, localAddress *rsa.PrivateKey, processor EdgeConnectionProcessor, internalId string) *PeerConnection {
 	var c PeerConnection
+
+	c.internalId = internalId
 
 	c.node = xchgNode
 	c.connection = xchg.NewConnection()
-	c.connection.InitOutgoingConnection(c.node, &c)
+	c.connection.InitOutgoingConnection(c.node, &c, "peer/"+c.internalId)
 	c.nextTransactionId = 1
 	c.outgoingTransactions = make(map[uint64]*xchg.Transaction)
 	c.processor = processor
@@ -166,11 +170,11 @@ func (c *PeerConnection) fastReset() {
 }
 
 func (c *PeerConnection) Connected() {
-	c.reset()
+	c.fastReset()
 }
 
 func (c *PeerConnection) Disconnected() {
-	c.reset()
+	c.fastReset()
 }
 
 func (c *PeerConnection) waitDurationOrStopping(duration time.Duration) {
@@ -245,6 +249,7 @@ func (c *PeerConnection) processInit6(transaction *xchg.Transaction) {
 		}
 	}
 	c.init6Received = true
+	fmt.Println("connected to xchg", c.internalId)
 }
 
 func (c *PeerConnection) processError(transaction *xchg.Transaction) {

@@ -25,7 +25,7 @@ func SelfTest() {
 		}
 	}
 
-	fmt.Println(network.String())
+	//fmt.Println(network.String())
 
 	routers := make([]*xchg_router.Router, 0)
 	for i := 0; i < 1; i++ {
@@ -74,9 +74,10 @@ func Client(address string, network *xchg_network.Network) {
 	time.Sleep(500 * time.Millisecond)
 	var err error
 	s := xchg_examples.NewSimpleClient(address, network)
-	for i := 0; i < 10000; i++ {
+	for i := 0; i < 10; i++ {
 		time.Sleep(500 * time.Millisecond)
 		var bs string
+		fmt.Println("=============== CALLING ==============")
 		bs, err = s.Version()
 		if err != nil {
 			fmt.Println("ERROR", err)

@@ -323,7 +323,14 @@ func (c *Router) thWorker() {
 			for id, conn := range c.connectionsById {
 				if conn.IsClosed() {
 					atomic.AddUint64(&c.statWorkerRemoveConnectionCounter, 1)
-					delete(c.connectionsByAddress, conn.ConfirmedRemoteAddress())
+
+					connByAddr, connByAddrFound := c.connectionsByAddress[conn.ConfirmedRemoteAddress()]
+					if connByAddrFound {
+						if connByAddr.id == conn.id {
+							delete(c.connectionsByAddress, conn.ConfirmedRemoteAddress())
+						}
+					}
+
 					delete(c.connectionsById, id)
 				}
 

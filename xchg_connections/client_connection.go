@@ -6,6 +6,7 @@ import (
 	"encoding/base32"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -241,7 +242,7 @@ func (c *ClientConnection) regularCall(function string, data []byte, aesKey []by
 		for _, address := range addresses {
 			c.lastestNodeAddress = address
 
-			conn := NewPeerConnection(address, localPrivateKey, nil)
+			conn := NewPeerConnection(address, localPrivateKey, nil, "client")
 			conn.Start()
 			if !conn.WaitForConnection(500 * time.Millisecond) {
 				conn.Stop()
@@ -250,7 +251,9 @@ func (c *ClientConnection) regularCall(function string, data []byte, aesKey []by
 			}
 
 			var remotePublicKey *rsa.PublicKey
+			fmt.Println("Resolve", c.address)
 			currentSID, remotePublicKey, err = conn.ResolveAddress(c.address)
+			fmt.Println("Resolve res", err)
 			if err != nil || currentSID == 0 || remotePublicKey == nil || xchg.AddressForPublicKey(remotePublicKey) != c.address {
 				conn.Stop()
 				conn.Dispose()

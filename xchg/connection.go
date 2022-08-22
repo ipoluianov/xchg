@@ -3,6 +3,7 @@ package xchg
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -12,7 +13,8 @@ import (
 )
 
 type Connection struct {
-	conn net.Conn
+	internalId string
+	conn       net.Conn
 
 	mtxBaseConnection     sync.Mutex
 	mtxBaseConnectionSend sync.Mutex
@@ -63,9 +65,10 @@ func NewConnection() *Connection {
 	return &c
 }
 
-func (c *Connection) InitIncomingConnection(conn net.Conn, processor ITransactionProcessor) {
+func (c *Connection) InitIncomingConnection(conn net.Conn, processor ITransactionProcessor, internalId string) {
 	c.mtxBaseConnection.Lock()
 	defer c.mtxBaseConnection.Unlock()
+	c.internalId = internalId
 	if c.started {
 		logger.Println("[ERROR]", "Connection::initIncomingConnection", "already started")
 		return
@@ -76,9 +79,10 @@ func (c *Connection) InitIncomingConnection(conn net.Conn, processor ITransactio
 	c.conn = conn
 }
 
-func (c *Connection) InitOutgoingConnection(host string, processor ITransactionProcessor) {
+func (c *Connection) InitOutgoingConnection(host string, processor ITransactionProcessor, internalId string) {
 	c.mtxBaseConnection.Lock()
 	defer c.mtxBaseConnection.Unlock()
+	c.internalId = internalId
 	if c.started {
 		logger.Println("[ERROR]", "Connection::InitOutgoingConnection", "already started")
 		return
@@ -199,6 +203,8 @@ func (c *Connection) SentFrames() uint64 {
 	return atomic.LoadUint64(&c.sentFrames)
 }
 
+var count = 0
+
 func (c *Connection) thReceive() {
 	c.mtxBaseConnection.Lock()
 	c.started = true
@@ -211,14 +217,23 @@ func (c *Connection) thReceive() {
 
 	for !c.stopping {
 		if c.conn == nil {
+			fmt.Println("connecting", c.internalId)
 			c.conn, err = net.Dial("tcp", c.host)
 			if err != nil {
+				fmt.Println("connecting err", c.internalId)
 				time.Sleep(100 * time.Millisecond)
+
 				continue
 			}
 			c.incomingDataOffset = 0
 			c.adjustInputBufferDown(c.incomingDataOffset)
+			//fmt.Println("connecting ok1", c.internalId)
+			/*if count == 2 {
+				fmt.Println("connecting ok11111111", c.internalId)
+			}*/
+			//count++
 			c.callProcessorConnected()
+			//fmt.Println("connecting ok2", c.internalId)
 		}
 
 		n, err = c.conn.Read(c.incomingData[c.incomingDataOffset:])
@@ -230,6 +245,7 @@ func (c *Connection) thReceive() {
 				break
 			} else {
 				c.disconnect()
+				fmt.Println("disconnect", c.internalId)
 				continue
 			}
 		}

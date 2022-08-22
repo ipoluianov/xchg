@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"net"
 	"sync"
 	"time"
@@ -57,7 +58,7 @@ func NewRouterConnection(conn net.Conn, router *Router, privateKey *rsa.PrivateK
 	c.privateKey = privateKey
 	c.localSecretBytes = make([]byte, 32)
 	rand.Read(c.localSecretBytes)
-	c.InitIncomingConnection(conn, &c)
+	c.InitIncomingConnection(conn, &c, "router")
 	c.createdDT = time.Now()
 	return &c
 }
@@ -205,6 +206,7 @@ func (c *RouterConnection) processInit5(transaction *xchg.Transaction) {
 func (c *RouterConnection) processResolveAddress(transaction *xchg.Transaction) {
 	connection := c.router.getConnectionByAddress(string(transaction.Data))
 	if connection == nil {
+		fmt.Println("processResolveAddress - NO CONNECTION")
 		c.SendError(transaction, errors.New(xchg.ERR_XCHG_ROUTER_CONN_NO_ROUTE_TO_PEER))
 		return
 	}

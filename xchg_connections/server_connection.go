@@ -103,7 +103,7 @@ func (c *ServerConnection) ReinitNetwork(network *xchg_network.Network) {
 	c.network = network
 	addresses := c.network.GetNodesAddressesByAddress(c.localAddress)
 	for _, addr := range addresses {
-		conn := NewPeerConnection(addr, c.privateKey, c)
+		conn := NewPeerConnection(addr, c.privateKey, c, "server")
 		conn.Start()
 		c.peerConnections[addr] = conn
 	}
