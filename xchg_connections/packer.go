@@ -25,6 +25,9 @@ func UnpackBytes(zippedData []byte) (result []byte, err error) {
 	buf := bytes.NewReader(zippedData)
 	var zipFile *zip.Reader
 	zipFile, err = zip.NewReader(buf, buf.Size())
+	if err != nil {
+		return
+	}
 	var file fs.File
 	file, err = zipFile.Open("data")
 	if err == nil {
