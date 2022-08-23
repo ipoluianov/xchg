@@ -3,7 +3,6 @@ package xchg
 import (
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -138,7 +137,7 @@ func (c *Connection) Start() {
 func (c *Connection) Stop() {
 	c.mtxBaseConnection.Lock()
 	if !c.started {
-		logger.Println("[ERROR]", "Connection::Stop", "already stopped")
+		//logger.Println("[ERROR]", "Connection::Stop", "already stopped")
 		c.mtxBaseConnection.Unlock()
 		return
 	}
@@ -168,10 +167,11 @@ func (c *Connection) Stop() {
 
 func (c *Connection) callProcessorConnected() {
 	c.mtxBaseConnection.Lock()
-	if c.processor != nil {
-		c.processor.Connected()
-	}
+	processor := c.processor
 	c.mtxBaseConnection.Unlock()
+	if processor != nil {
+		processor.Connected()
+	}
 }
 
 func (c *Connection) disconnect() {
@@ -179,10 +179,15 @@ func (c *Connection) disconnect() {
 	if c.conn != nil {
 		c.conn.Close()
 		c.conn = nil
-		if c.processor != nil {
-			c.processor.Disconnected()
-		}
 	}
+	processor := c.processor
+	c.mtxBaseConnection.Unlock()
+
+	if processor != nil {
+		processor.Disconnected()
+	}
+
+	c.mtxBaseConnection.Lock()
 	c.closed = true
 	c.mtxBaseConnection.Unlock()
 }
@@ -217,23 +222,19 @@ func (c *Connection) thReceive() {
 
 	for !c.stopping {
 		if c.conn == nil {
-			fmt.Println("connecting", c.internalId)
-			c.conn, err = net.Dial("tcp", c.host)
+			var conn net.Conn
+			conn, err = net.Dial("tcp", c.host)
 			if err != nil {
-				fmt.Println("connecting err", c.internalId)
 				time.Sleep(100 * time.Millisecond)
-
 				continue
 			}
 			c.incomingDataOffset = 0
 			c.adjustInputBufferDown(c.incomingDataOffset)
-			//fmt.Println("connecting ok1", c.internalId)
-			/*if count == 2 {
-				fmt.Println("connecting ok11111111", c.internalId)
-			}*/
-			//count++
 			c.callProcessorConnected()
-			//fmt.Println("connecting ok2", c.internalId)
+
+			c.mtxBaseConnection.Lock()
+			c.conn = conn
+			c.mtxBaseConnection.Unlock()
 		}
 
 		n, err = c.conn.Read(c.incomingData[c.incomingDataOffset:])
@@ -245,7 +246,6 @@ func (c *Connection) thReceive() {
 				break
 			} else {
 				c.disconnect()
-				fmt.Println("disconnect", c.internalId)
 				continue
 			}
 		}
@@ -345,7 +345,6 @@ func (c *Connection) SendError(transaction *Transaction, err error) {
 
 func (c *Connection) Send(transaction *Transaction) (err error) {
 	var conn net.Conn
-
 	c.mtxBaseConnection.Lock()
 	conn = c.conn
 	c.mtxBaseConnection.Unlock()

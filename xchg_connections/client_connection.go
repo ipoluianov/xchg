@@ -6,7 +6,6 @@ import (
 	"encoding/base32"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
@@ -67,11 +66,16 @@ func NewClientConnection(network *xchg_network.Network, address string, localPri
 
 func (c *ClientConnection) Dispose() {
 	c.mtxClientConnection.Lock()
-	defer c.mtxClientConnection.Unlock()
+	currentConnection := c.currentConnection
+	c.mtxClientConnection.Unlock()
+
 	c.onEvent = nil
-	if c.currentConnection != nil {
-		c.currentConnection.Dispose()
+
+	if currentConnection != nil {
+		currentConnection.Dispose()
+		c.mtxClientConnection.Lock()
 		c.currentConnection = nil
+		c.mtxClientConnection.Unlock()
 	}
 }
 
@@ -251,9 +255,7 @@ func (c *ClientConnection) regularCall(function string, data []byte, aesKey []by
 			}
 
 			var remotePublicKey *rsa.PublicKey
-			fmt.Println("Resolve", c.address)
 			currentSID, remotePublicKey, err = conn.ResolveAddress(c.address)
-			fmt.Println("Resolve res", err)
 			if err != nil || currentSID == 0 || remotePublicKey == nil || xchg.AddressForPublicKey(remotePublicKey) != c.address {
 				conn.Stop()
 				conn.Dispose()

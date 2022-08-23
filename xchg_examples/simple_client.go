@@ -2,7 +2,6 @@ package xchg_examples
 
 import (
 	"encoding/base32"
-	"fmt"
 
 	"github.com/ipoluianov/gomisc/crypt_tools"
 	"github.com/ipoluianov/xchg/xchg_connections"
@@ -17,9 +16,7 @@ func NewSimpleClient(address string, network *xchg_network.Network) *SimpleClien
 	var c SimpleClient
 	privateKey, _ := crypt_tools.GenerateRSAKey()
 	privateKey32 := base32.StdEncoding.EncodeToString(crypt_tools.RSAPrivateKeyToDer(privateKey))
-	c.client = xchg_connections.NewClientConnection(network, address, privateKey32, "pass", func(text string) {
-		fmt.Println("EVENT:", text)
-	})
+	c.client = xchg_connections.NewClientConnection(network, address, privateKey32, "pass", nil)
 	return &c
 }
 

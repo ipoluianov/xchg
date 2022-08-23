@@ -5,7 +5,6 @@ import (
 	"crypto/rsa"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
@@ -249,7 +248,7 @@ func (c *PeerConnection) processInit6(transaction *xchg.Transaction) {
 		}
 	}
 	c.init6Received = true
-	fmt.Println("connected to xchg", c.internalId)
+	//fmt.Println("connected to xchg", c.internalId)
 }
 
 func (c *PeerConnection) processError(transaction *xchg.Transaction) {
@@ -295,33 +294,66 @@ func (c *PeerConnection) thBackground() {
 	}
 }
 
-func (c *PeerConnection) checkConnection() {
-	c.mtxEdgeConnection.Lock()
-	defer c.mtxEdgeConnection.Unlock()
+func (c *PeerConnection) checkConnection() (connectionIsReady bool) {
+	var err error
 
-	if !c.init1Sent {
-		c.init1Sent = true
-		c.connection.Send(xchg.NewTransaction(xchg.FrameInit1, 0, 0, 0, crypt_tools.RSAPublicKeyToDer(c.publicKey)))
+	c.mtxEdgeConnection.Lock()
+	connection := c.connection
+	init1Sent := c.init1Sent
+	init2Received := c.init2Received
+	init3Received := c.init3Received
+	init4Sent := c.init4Sent
+	init5Sent := c.init5Sent
+	init6Received := c.init6Received
+	remotePublicKey := c.remotePublicKey
+	remoteSecretBytes := c.remoteSecretBytes
+	c.mtxEdgeConnection.Unlock()
+	if connection == nil {
 		return
 	}
 
-	if c.init2Received && c.init3Received && !c.init4Sent && c.remotePublicKey != nil {
-		c.init4Sent = true
-		remoteSecretBytesEcrypted, err := rsa.EncryptPKCS1v15(rand.Reader, c.remotePublicKey, c.remoteSecretBytes)
+	if !init1Sent {
+		err = connection.Send(xchg.NewTransaction(xchg.FrameInit1, 0, 0, 0, crypt_tools.RSAPublicKeyToDer(c.publicKey)))
 		if err == nil {
-			c.connection.Send(xchg.NewTransaction(xchg.FrameInit4, 0, 0, 0, remoteSecretBytesEcrypted))
+			c.mtxEdgeConnection.Lock()
+			c.init1Sent = true
+			c.mtxEdgeConnection.Unlock()
 		}
 		return
 	}
 
-	if c.init2Received && !c.init5Sent && c.remotePublicKey != nil {
-		c.init5Sent = true
+	if init2Received && init3Received && !init4Sent && remotePublicKey != nil {
+		var remoteSecretBytesEcrypted []byte
+		remoteSecretBytesEcrypted, err = rsa.EncryptPKCS1v15(rand.Reader, remotePublicKey, remoteSecretBytes)
+		if err == nil {
+			err = connection.Send(xchg.NewTransaction(xchg.FrameInit4, 0, 0, 0, remoteSecretBytesEcrypted))
+			if err == nil {
+				c.mtxEdgeConnection.Lock()
+				c.init4Sent = true
+				c.mtxEdgeConnection.Unlock()
+			}
+		}
+		return
+	}
+
+	if init2Received && !init5Sent && remotePublicKey != nil {
 		localSecretBytesEcrypted, err := rsa.EncryptPKCS1v15(rand.Reader, c.remotePublicKey, c.localSecretBytes)
 		if err == nil {
-			c.connection.Send(xchg.NewTransaction(xchg.FrameInit5, 0, 0, 0, localSecretBytesEcrypted))
+			err = connection.Send(xchg.NewTransaction(xchg.FrameInit5, 0, 0, 0, localSecretBytesEcrypted))
+			if err == nil {
+				c.mtxEdgeConnection.Lock()
+				c.init5Sent = true
+				c.mtxEdgeConnection.Unlock()
+			}
 		}
 		return
 	}
+
+	if init6Received {
+		connectionIsReady = true
+	}
+
+	return
 }
 
 func (c *PeerConnection) ResolveAddress(address string) (sid uint64, publicKey *rsa.PublicKey, err error) {
