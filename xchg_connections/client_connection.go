@@ -300,6 +300,7 @@ func (c *ClientConnection) regularCall(function string, data []byte, aesKey []by
 		frame[8] = byte(len(function))
 		copy(frame[9:], function)
 		copy(frame[9+len(function):], data)
+		frame = PackBytes(frame)
 		frame, err = crypt_tools.EncryptAESGCM(frame, aesKey)
 		if err != nil {
 			c.Reset()
@@ -331,6 +332,12 @@ func (c *ClientConnection) regularCall(function string, data []byte, aesKey []by
 		if err != nil {
 			c.Reset()
 			err = errors.New(xchg.ERR_XCHG_CL_CONN_CALL_DECRYPT + ":" + err.Error())
+			return
+		}
+		result, err = UnpackBytes(result)
+		if err != nil {
+			c.Reset()
+			err = errors.New(xchg.ERR_XCHG_CL_CONN_CALL_UNPACK + ":" + err.Error())
 			return
 		}
 	}

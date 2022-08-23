@@ -162,6 +162,11 @@ func (c *ServerConnection) onEdgeReceivedCall(edgeConnection *PeerConnection, se
 			response = c.prepareResponseError(errors.New(xchg.ERR_XCHG_SRV_CONN_DECR + ":" + err.Error()))
 			return
 		}
+		data, err = UnpackBytes(data)
+		if err != nil {
+			response = c.prepareResponseError(errors.New(xchg.ERR_XCHG_SRV_CONN_UNPACK + ":" + err.Error()))
+			return
+		}
 		if len(data) < 9 {
 			response = c.prepareResponseError(errors.New(xchg.ERR_XCHG_SRV_CONN_WRONG_LEN9))
 			return
@@ -217,6 +222,7 @@ func (c *ServerConnection) onEdgeReceivedCall(edgeConnection *PeerConnection, se
 	}
 
 	if encryped {
+		response = PackBytes(response)
 		response, err = crypt_tools.EncryptAESGCM(response, session.aesKey)
 		if err != nil {
 			return
