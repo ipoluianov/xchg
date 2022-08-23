@@ -217,6 +217,8 @@ func (c *ClientConnection) regularCall(function string, data []byte, aesKey []by
 		return
 	}
 
+	encrypted := false
+
 	c.mtxClientConnection.Lock()
 	address := c.address
 	alreadySearching := false
@@ -304,6 +306,7 @@ func (c *ClientConnection) regularCall(function string, data []byte, aesKey []by
 			err = errors.New(xchg.ERR_XCHG_CL_CONN_CALL_ENC + ":" + err.Error())
 			return
 		}
+		encrypted = true
 	} else {
 		frame = make([]byte, 1+len(function)+len(data))
 		frame[0] = byte(len(function))
@@ -321,6 +324,15 @@ func (c *ClientConnection) regularCall(function string, data []byte, aesKey []by
 	if err != nil {
 		err = errors.New(xchg.ERR_XCHG_CL_CONN_CALL_ERR + ":" + err.Error())
 		return
+	}
+
+	if encrypted {
+		result, err = crypt_tools.DecryptAESGCM(result, aesKey)
+		if err != nil {
+			c.Reset()
+			err = errors.New(xchg.ERR_XCHG_CL_CONN_CALL_DECRYPT + ":" + err.Error())
+			return
+		}
 	}
 
 	if len(result) < 1 {

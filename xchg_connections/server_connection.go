@@ -141,6 +141,7 @@ func (c *ServerConnection) onEdgeReceivedCall(edgeConnection *PeerConnection, se
 	var err error
 	// Find the session
 	var session *Session
+	encryped := false
 	if sessionId != 0 {
 		c.mtxServerConnection.Lock()
 		var ok bool
@@ -165,6 +166,7 @@ func (c *ServerConnection) onEdgeReceivedCall(edgeConnection *PeerConnection, se
 			response = c.prepareResponseError(errors.New(xchg.ERR_XCHG_SRV_CONN_WRONG_LEN9))
 			return
 		}
+		encryped = true
 		callNonce := binary.LittleEndian.Uint64(data)
 		err = session.snakeCounter.TestAndDeclare(int(callNonce))
 		if err != nil {
@@ -213,6 +215,14 @@ func (c *ServerConnection) onEdgeReceivedCall(edgeConnection *PeerConnection, se
 	} else {
 		response = c.prepareResponse(resp)
 	}
+
+	if encryped {
+		response, err = crypt_tools.EncryptAESGCM(response, session.aesKey)
+		if err != nil {
+			return
+		}
+	}
+
 	return
 }
 
