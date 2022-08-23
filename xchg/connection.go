@@ -72,7 +72,7 @@ func (c *Connection) InitIncomingConnection(conn net.Conn, processor ITransactio
 		logger.Println("[ERROR]", "Connection::initIncomingConnection", "already started")
 		return
 	}
-	c.configMaxFrameSize = 100 * 1024
+	c.configMaxFrameSize = 128 * 1024
 
 	c.processor = processor
 	c.conn = conn
@@ -86,7 +86,7 @@ func (c *Connection) InitOutgoingConnection(host string, processor ITransactionP
 		logger.Println("[ERROR]", "Connection::InitOutgoingConnection", "already started")
 		return
 	}
-	c.configMaxFrameSize = 100 * 1024
+	c.configMaxFrameSize = 128 * 1024
 
 	c.processor = processor
 	c.host = host
