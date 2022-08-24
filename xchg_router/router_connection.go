@@ -7,7 +7,9 @@ import (
 	"encoding/binary"
 	"errors"
 	"net"
+	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ipoluianov/gomisc/crypt_tools"
@@ -20,6 +22,8 @@ type RouterConnection struct {
 
 	mtxRouterConnection sync.Mutex
 	router              *Router
+
+	transactions map[uint64]*xchg.Transaction
 
 	localSecretBytes []byte
 
@@ -37,6 +41,11 @@ type RouterConnection struct {
 	init4Received bool
 	init5Received bool
 
+	statSetResponseCounter                 uint64
+	statSetResponseErrNoTransactionCounter uint64
+	statWorkerRemoveTransactionCounter     uint64
+	statBeginTransactionCounter            uint64
+
 	createdDT time.Time
 }
 
@@ -48,6 +57,15 @@ type RouterConnectionState struct {
 	Init5Received          bool   `json:"init5_received"`
 
 	BaseConnection xchg.ConnectionState `json:"base"`
+
+	StatBeginTransactionCounter            uint64 `json:"stat_begin_transaction_counter"`
+	StatSetResponseCounter                 uint64 `json:"stat_set_response_counter"`
+	StatSetResponseErrNoTransactionCounter uint64 `json:"stat_set_response_err_no_transaction_counter"`
+	StatWorkerRemoveTransactionCounter     uint64 `json:"stat_worker_remove_transaction_counter"`
+
+	NextTransactionId uint64   `json:"next_transaction_id"`
+	TransactionsCount int      `json:"transactions_count"`
+	Transactions      []string `json:"transactions"`
 }
 
 func NewRouterConnection(conn net.Conn, router *Router, privateKey *rsa.PrivateKey) *RouterConnection {
@@ -59,6 +77,8 @@ func NewRouterConnection(conn net.Conn, router *Router, privateKey *rsa.PrivateK
 	rand.Read(c.localSecretBytes)
 	c.InitIncomingConnection(conn, &c, "router")
 	c.createdDT = time.Now()
+	//c.nextTransactionId = 1
+	c.transactions = make(map[uint64]*xchg.Transaction)
 	return &c
 }
 
@@ -205,7 +225,6 @@ func (c *RouterConnection) processInit5(transaction *xchg.Transaction) {
 func (c *RouterConnection) processResolveAddress(transaction *xchg.Transaction) {
 	connection := c.router.getConnectionByAddress(string(transaction.Data))
 	if connection == nil {
-		//fmt.Println("processResolveAddress - NO CONNECTION")
 		c.SendError(transaction, errors.New(xchg.ERR_XCHG_ROUTER_CONN_NO_ROUTE_TO_PEER))
 		return
 	}
@@ -225,14 +244,58 @@ func (c *RouterConnection) processCall(transaction *xchg.Transaction) {
 
 	transaction.AddressSrc = c.confirmedRemoteAddress
 	transaction.AddressDest = connection.confirmedRemoteAddress
+	transaction.SID = c.id // Source SID
 
-	c.router.beginTransaction(transaction)
+	atomic.AddUint64(&c.statBeginTransactionCounter, 1)
+
+	c.mtxRouterConnection.Lock()
+	transaction.BeginDT = time.Now()
+	transaction.WaitingResponseFromSID = connection.id
+	c.transactions[transaction.TransactionId] = transaction
+	c.mtxRouterConnection.Unlock()
+
 	transaction.ResponseSender = c
 	connection.Send(transaction)
 }
 
 func (c *RouterConnection) processResponse(transaction *xchg.Transaction) {
-	c.router.SetResponse(transaction)
+	connection := c.router.getConnectionById(transaction.SID)
+	if connection == nil {
+		return
+	}
+	transaction.SID = c.id // Received Response from
+	connection.SetResponse(transaction)
+}
+
+func (c *RouterConnection) clearTransactions() {
+	now := time.Now()
+	for key, t := range c.transactions {
+		duration := now.Sub(t.BeginDT)
+		if duration > 10*time.Second {
+			atomic.AddUint64(&c.statWorkerRemoveTransactionCounter, 1)
+			delete(c.transactions, key)
+		}
+	}
+}
+
+func (c *RouterConnection) SetResponse(transaction *xchg.Transaction) {
+	atomic.AddUint64(&c.statSetResponseCounter, 1)
+	c.mtxRouterConnection.Lock()
+	originalTransaction, ok := c.transactions[transaction.TransactionId]
+	if !ok || originalTransaction == nil {
+		atomic.AddUint64(&c.statSetResponseErrNoTransactionCounter, 1)
+		c.mtxRouterConnection.Unlock()
+		return
+	}
+	if originalTransaction.WaitingResponseFromSID != transaction.SID {
+		c.mtxRouterConnection.Unlock()
+		return
+	}
+
+	delete(c.transactions, transaction.TransactionId)
+	c.mtxRouterConnection.Unlock()
+
+	originalTransaction.ResponseSender.Send(xchg.NewTransaction(xchg.FrameResponse, 0, transaction.TransactionId, transaction.SessionId, transaction.Data))
 }
 
 func (c *RouterConnection) State() (state RouterConnectionState) {
@@ -242,7 +305,29 @@ func (c *RouterConnection) State() (state RouterConnectionState) {
 	state.Init1Received = c.init1Received
 	state.Init4Received = c.init4Received
 	state.Init5Received = c.init5Received
+
+	state.Transactions = make([]string, 0, len(c.transactions))
+	state.TransactionsCount = len(c.transactions)
+
+	state.StatBeginTransactionCounter = atomic.LoadUint64(&c.statBeginTransactionCounter)
+	state.StatSetResponseCounter = atomic.LoadUint64(&c.statSetResponseCounter)
+	state.StatSetResponseErrNoTransactionCounter = atomic.LoadUint64(&c.statSetResponseErrNoTransactionCounter)
+	state.StatWorkerRemoveTransactionCounter = atomic.LoadUint64(&c.statWorkerRemoveTransactionCounter)
+
+	transactions := make([]*xchg.Transaction, 0, len(c.transactions))
+	for _, t := range c.transactions {
+		transactions = append(transactions, t)
+	}
+
 	c.mtxRouterConnection.Unlock()
+	sort.Slice(transactions, func(i, j int) bool {
+		return transactions[i].TransactionId < transactions[j].TransactionId
+	})
+
+	for _, t := range transactions {
+		state.Transactions = append(state.Transactions, t.String())
+	}
+
 	state.BaseConnection = c.Connection.State()
 	return
 }

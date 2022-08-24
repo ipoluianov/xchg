@@ -20,11 +20,11 @@ type Transaction struct {
 	Data            []byte
 
 	// Routing Data
-	ResponseSender        TransactionSender
-	OriginalTransactionId uint64
-	BeginDT               time.Time
-	AddressSrc            string
-	AddressDest           string
+	ResponseSender         TransactionSender
+	BeginDT                time.Time
+	AddressSrc             string
+	AddressDest            string
+	WaitingResponseFromSID uint64
 
 	// Execution Result
 	Complete bool

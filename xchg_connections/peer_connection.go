@@ -264,7 +264,7 @@ func (c *PeerConnection) processCall(transaction *xchg.Transaction) {
 	c.mtxEdgeConnection.Unlock()
 	if processor != nil {
 		resp := processor.onEdgeReceivedCall(c, transaction.SessionId, transaction.Data)
-		c.connection.Send(xchg.NewTransaction(xchg.FrameResponse, 0, transaction.TransactionId, 0, resp))
+		c.connection.Send(xchg.NewTransaction(xchg.FrameResponse, transaction.SID, transaction.TransactionId, transaction.SessionId, resp))
 	}
 }
 

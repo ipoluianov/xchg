@@ -22,9 +22,6 @@ type Router struct {
 	connectionsByAddress map[string]*RouterConnection
 	connectionsById      map[uint64]*RouterConnection
 
-	nextTransactionId uint64
-	transactions      map[uint64]*xchg.Transaction
-
 	config RouterConfig
 
 	// Local Address
@@ -49,12 +46,8 @@ type Router struct {
 	statGetConnectionByIdNotFoundCounter             uint64
 	statSetAddressForConnectionCounter               uint64
 	statSetAddressForConnectionErrAddressSizeCounter uint64
-	statBeginTransactionCounter                      uint64
-	statSetResponseCounter                           uint64
-	statSetResponseErrNoTransactionCounter           uint64
 	statWorkerCounter                                uint64
 	statWorkerRemoveConnectionCounter                uint64
-	statWorkerRemoveTransactionCounter               uint64
 	statWorkerStopConnectionByInitTimeoutCounter     uint64
 
 	chWorking chan interface{}
@@ -62,10 +55,8 @@ type Router struct {
 
 type RouterState struct {
 	NextConnectionId          uint64 `json:"next_connection_id"`
-	NextTransactionId         uint64 `json:"next_transaction_id"`
 	ConnectionsCount          int    `json:"connections_count"`
 	ConnectionsByAddressCount int    `json:"connections_by_address_count"`
-	TransactionsCount         int    `json:"transactions_count"`
 
 	Server RouterServerState `json:"server"`
 
@@ -80,16 +71,11 @@ type RouterState struct {
 	StatGetConnectionByIdNotFoundCounter             uint64 `json:"stat_get_connection_by_id_not_found_counter"`
 	StatSetAddressForConnectionCounter               uint64 `json:"stat_set_address_for_connection_counter"`
 	StatSetAddressForConnectionErrAddressSizeCounter uint64 `json:"stat_set_address_for_connection_err_addr_size_counter"`
-	StatBeginTransactionCounter                      uint64 `json:"stat_begin_transaction_counter"`
-	StatSetResponseCounter                           uint64 `json:"stat_set_response_counter"`
-	StatSetResponseErrNoTransactionCounter           uint64 `json:"stat_set_response_err_no_transaction_counter"`
 	StatWorkerCounter                                uint64 `json:"stat_worker_counter"`
 	StatWorkerRemoveConnectionCounter                uint64 `json:"stat_worker_remove_connection_counter"`
-	StatWorkerRemoveTransactionCounter               uint64 `json:"stat_worker_remove_transaction_counter"`
 	StatWorkerStopConnectionByInitTimeoutCounter     uint64 `json:"stat_worker_stop_connection_by_init_timeout_counter"`
 
-	Connections  []RouterConnectionState `json:"connections"`
-	Transactions []string                `json:"transactions"`
+	Connections []RouterConnectionState `json:"connections"`
 }
 
 func NewRouter(localAddress *rsa.PrivateKey, config RouterConfig, network *xchg_network.Network) *Router {
@@ -114,9 +100,6 @@ func (c *Router) init() {
 	c.nextConnectionId = 1
 	c.connectionsByAddress = make(map[string]*RouterConnection)
 	c.connectionsById = make(map[uint64]*RouterConnection)
-
-	c.nextTransactionId = 1
-	c.transactions = make(map[uint64]*xchg.Transaction)
 }
 
 func (c *Router) Start() (err error) {
@@ -269,42 +252,6 @@ func (c *Router) setAddressForConnection(connection *RouterConnection, address s
 	c.connectionsByAddress[address] = connection
 }
 
-func (c *Router) beginTransaction(transaction *xchg.Transaction) {
-	atomic.AddUint64(&c.statBeginTransactionCounter, 1)
-	c.mtxRouter.Lock()
-	defer c.mtxRouter.Unlock()
-	if c.chWorking == nil {
-		return
-	}
-	innerTransactionId := c.nextTransactionId
-	c.nextTransactionId++
-	transaction.OriginalTransactionId = transaction.TransactionId
-	transaction.TransactionId = innerTransactionId
-	transaction.BeginDT = time.Now()
-	c.transactions[innerTransactionId] = transaction
-	return
-}
-
-func (c *Router) SetResponse(transaction *xchg.Transaction) {
-	atomic.AddUint64(&c.statSetResponseCounter, 1)
-	c.mtxRouter.Lock()
-	if c.chWorking == nil {
-		c.mtxRouter.Unlock()
-		return
-	}
-	originalTransaction, ok := c.transactions[transaction.TransactionId]
-	if !ok || originalTransaction == nil {
-		atomic.AddUint64(&c.statSetResponseErrNoTransactionCounter, 1)
-		c.mtxRouter.Unlock()
-		return
-	}
-	delete(c.transactions, transaction.TransactionId)
-	c.mtxRouter.Unlock()
-
-	transaction.TransactionId = originalTransaction.OriginalTransactionId
-	originalTransaction.ResponseSender.Send(xchg.NewTransaction(xchg.FrameResponse, 0, transaction.TransactionId, originalTransaction.SessionId, transaction.Data))
-}
-
 func (c *Router) thWorker() {
 	logger.Println("[i]", "Router::thWorker", "begin")
 	ticker := time.NewTicker(1000 * time.Millisecond)
@@ -339,13 +286,6 @@ func (c *Router) thWorker() {
 					conn.Stop()
 				}
 			}
-			for key, t := range c.transactions {
-				duration := now.Sub(t.BeginDT)
-				if duration > 3*time.Second {
-					atomic.AddUint64(&c.statWorkerRemoveTransactionCounter, 1)
-					delete(c.transactions, key)
-				}
-			}
 			c.mtxRouter.Unlock()
 		}
 	}
@@ -357,20 +297,13 @@ func (c *Router) State() (state RouterState) {
 	atomic.AddUint64(&c.statStateCounter, 1)
 	c.mtxRouter.Lock()
 	state.NextConnectionId = c.nextConnectionId
-	state.NextTransactionId = c.nextTransactionId
 
 	state.ConnectionsCount = len(c.connectionsById)
 	state.ConnectionsByAddressCount = len(c.connectionsByAddress)
 	state.Connections = make([]RouterConnectionState, 0, len(c.connectionsById))
-	state.Transactions = make([]string, 0, len(c.transactions))
 	connections := make([]*RouterConnection, 0, len(c.connectionsById))
 	for _, conn := range c.connectionsById {
 		connections = append(connections, conn)
-	}
-	state.TransactionsCount = len(c.transactions)
-	transactions := make([]*xchg.Transaction, 0, len(c.transactions))
-	for _, t := range c.transactions {
-		transactions = append(transactions, t)
 	}
 	routerServer := c.routerServer
 	c.mtxRouter.Unlock()
@@ -382,13 +315,6 @@ func (c *Router) State() (state RouterState) {
 		return state.Connections[i].Id < state.Connections[j].Id
 	})
 
-	sort.Slice(transactions, func(i, j int) bool {
-		return transactions[i].TransactionId < transactions[j].TransactionId
-	})
-
-	for _, t := range transactions {
-		state.Transactions = append(state.Transactions, t.String())
-	}
 	state.Server = routerServer.State()
 
 	state.StatStateCounter = atomic.LoadUint64(&c.statStateCounter)
@@ -402,12 +328,8 @@ func (c *Router) State() (state RouterState) {
 	state.StatGetConnectionByIdNotFoundCounter = atomic.LoadUint64(&c.statGetConnectionByIdNotFoundCounter)
 	state.StatSetAddressForConnectionCounter = atomic.LoadUint64(&c.statSetAddressForConnectionCounter)
 	state.StatSetAddressForConnectionErrAddressSizeCounter = atomic.LoadUint64(&c.statSetAddressForConnectionErrAddressSizeCounter)
-	state.StatBeginTransactionCounter = atomic.LoadUint64(&c.statBeginTransactionCounter)
-	state.StatSetResponseCounter = atomic.LoadUint64(&c.statSetResponseCounter)
-	state.StatSetResponseErrNoTransactionCounter = atomic.LoadUint64(&c.statSetResponseErrNoTransactionCounter)
 	state.StatWorkerCounter = atomic.LoadUint64(&c.statWorkerCounter)
 	state.StatWorkerRemoveConnectionCounter = atomic.LoadUint64(&c.statWorkerRemoveConnectionCounter)
-	state.StatWorkerRemoveTransactionCounter = atomic.LoadUint64(&c.statWorkerRemoveTransactionCounter)
 	state.StatWorkerStopConnectionByInitTimeoutCounter = atomic.LoadUint64(&c.statWorkerStopConnectionByInitTimeoutCounter)
 
 	return
