@@ -5,6 +5,7 @@ import (
 	"crypto/rsa"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -33,6 +34,8 @@ type PeerConnection struct {
 
 	localSecretBytes  []byte
 	remoteSecretBytes []byte
+
+	incomingTransactions map[string]*xchg.Transaction
 
 	outgoingTransactions map[uint64]*xchg.Transaction
 	nextTransactionId    uint64
@@ -84,6 +87,7 @@ func NewPeerConnection(xchgNode string, localAddress *rsa.PrivateKey, processor 
 	c.connection.InitOutgoingConnection(c.node, &c, "peer/"+c.internalId)
 	c.nextTransactionId = 1
 	c.outgoingTransactions = make(map[uint64]*xchg.Transaction)
+	c.incomingTransactions = make(map[string]*xchg.Transaction)
 	c.processor = processor
 
 	if localAddress != nil {
@@ -248,12 +252,11 @@ func (c *PeerConnection) processInit6(transaction *xchg.Transaction) {
 		}
 	}
 	c.init6Received = true
-	//fmt.Println("connected to xchg", c.internalId)
 }
 
 func (c *PeerConnection) processError(transaction *xchg.Transaction) {
 	err := errors.New(xchg.ERR_XCHG_PEER_CONN_RCVD_ERR + ":" + string(transaction.Data))
-	c.setTransactionResponse(transaction.TransactionId, nil, err)
+	c.setTransactionResponseError(transaction.TransactionId, err)
 	c.reset()
 }
 
@@ -261,25 +264,90 @@ func (c *PeerConnection) processCall(transaction *xchg.Transaction) {
 	var processor EdgeConnectionProcessor
 	c.mtxEdgeConnection.Lock()
 	processor = c.processor
+	var incomingTransaction *xchg.Transaction
+
+	var ok bool
+	incomingTransactionCode := fmt.Sprint(transaction.SID, "-", transaction.TransactionId)
+	if incomingTransaction, ok = c.incomingTransactions[incomingTransactionCode]; !ok {
+		incomingTransaction = xchg.NewTransaction(transaction.FrameType, transaction.SID, transaction.TransactionId, transaction.SessionId, make([]byte, 0))
+		incomingTransaction.Offset = 0
+		incomingTransaction.TotalSize = transaction.TotalSize
+		c.incomingTransactions[incomingTransactionCode] = incomingTransaction
+	}
+
+	if len(incomingTransaction.Data) != int(incomingTransaction.TotalSize) {
+		incomingTransaction.Data = make([]byte, int(incomingTransaction.TotalSize))
+	}
+	copy(incomingTransaction.Data[transaction.Offset:], transaction.Data)
+	incomingTransaction.ReceivedDataLen += len(transaction.Data)
+
+	if incomingTransaction.ReceivedDataLen < int(incomingTransaction.TotalSize) {
+		c.mtxEdgeConnection.Unlock()
+		return
+	}
+	delete(c.incomingTransactions, incomingTransactionCode)
 	c.mtxEdgeConnection.Unlock()
+
 	if processor != nil {
-		resp := processor.onEdgeReceivedCall(c, transaction.SessionId, transaction.Data)
-		c.connection.Send(xchg.NewTransaction(xchg.FrameResponse, transaction.SID, transaction.TransactionId, transaction.SessionId, resp))
+		resp := processor.onEdgeReceivedCall(c, incomingTransaction.SessionId, incomingTransaction.Data)
+		trResponse := xchg.NewTransaction(xchg.FrameResponse, incomingTransaction.SID, incomingTransaction.TransactionId, incomingTransaction.SessionId, resp)
+
+		offset := 0
+		blockSize := 1024
+		for offset < len(trResponse.Data) {
+			currentBlockSize := blockSize
+			restDataLen := len(trResponse.Data) - offset
+			if restDataLen < currentBlockSize {
+				currentBlockSize = restDataLen
+			}
+
+			blockTransaction := xchg.NewTransaction(trResponse.FrameType, trResponse.SID, trResponse.TransactionId, trResponse.SessionId, trResponse.Data[offset:offset+currentBlockSize])
+			blockTransaction.Offset = uint32(offset)
+			blockTransaction.TotalSize = uint32(len(trResponse.Data))
+
+			err := c.connection.Send(blockTransaction)
+			if err != nil {
+				break
+			}
+			offset += currentBlockSize
+		}
 	}
 }
 
 func (c *PeerConnection) processResponse(transaction *xchg.Transaction) {
-	c.setTransactionResponse(transaction.TransactionId, transaction.Data, nil)
+	c.setTransactionResponse(transaction)
 }
 
-func (c *PeerConnection) setTransactionResponse(transactionId uint64, data []byte, err error) {
+func (c *PeerConnection) setTransactionResponseError(transactionId uint64, err error) {
 	c.mtxEdgeConnection.Lock()
 	defer c.mtxEdgeConnection.Unlock()
 
 	if t, ok := c.outgoingTransactions[transactionId]; ok {
-		t.Result = data
+		t.Result = make([]byte, 0)
 		t.Err = err
 		t.Complete = true
+	}
+}
+
+func (c *PeerConnection) setTransactionResponse(transaction *xchg.Transaction) {
+	c.mtxEdgeConnection.Lock()
+	defer c.mtxEdgeConnection.Unlock()
+
+	if t, ok := c.outgoingTransactions[transaction.TransactionId]; ok {
+		if transaction.Err == nil {
+			if len(t.Result) != int(transaction.TotalSize) {
+				t.Result = make([]byte, transaction.TotalSize)
+			}
+			copy(t.Result[transaction.Offset:], transaction.Data)
+			t.ReceivedDataLen += len(transaction.Data)
+			if t.ReceivedDataLen >= int(transaction.TotalSize) {
+				t.Complete = true
+			}
+		} else {
+			t.Result = transaction.Data
+			t.Err = transaction.Err
+			t.Complete = true
+		}
 	}
 }
 
@@ -390,12 +458,27 @@ func (c *PeerConnection) executeTransaction(frameType byte, targetSID uint64, se
 	c.mtxEdgeConnection.Unlock()
 
 	// Send transaction
-	err = c.connection.Send(t)
-	if err != nil {
-		c.mtxEdgeConnection.Lock()
-		delete(c.outgoingTransactions, t.TransactionId)
-		c.mtxEdgeConnection.Unlock()
-		return
+	offset := 0
+	blockSize := 1024
+	for offset < len(data) {
+		currentBlockSize := blockSize
+		restDataLen := len(data) - offset
+		if restDataLen < currentBlockSize {
+			currentBlockSize = restDataLen
+		}
+
+		blockTransaction := xchg.NewTransaction(frameType, targetSID, transactionId, sessionId, data[offset:offset+currentBlockSize])
+		blockTransaction.Offset = uint32(offset)
+		blockTransaction.TotalSize = uint32(len(data))
+
+		err = c.connection.Send(blockTransaction)
+		if err != nil {
+			c.mtxEdgeConnection.Lock()
+			delete(c.outgoingTransactions, t.TransactionId)
+			c.mtxEdgeConnection.Unlock()
+			return
+		}
+		offset += currentBlockSize
 	}
 
 	// Wait for response

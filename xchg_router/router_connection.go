@@ -268,14 +268,14 @@ func (c *RouterConnection) processResponse(transaction *xchg.Transaction) {
 }
 
 func (c *RouterConnection) clearTransactions() {
-	now := time.Now()
+	/*now := time.Now()
 	for key, t := range c.transactions {
 		duration := now.Sub(t.BeginDT)
 		if duration > 10*time.Second {
 			atomic.AddUint64(&c.statWorkerRemoveTransactionCounter, 1)
 			delete(c.transactions, key)
 		}
-	}
+	}*/
 }
 
 func (c *RouterConnection) SetResponse(transaction *xchg.Transaction) {
@@ -292,10 +292,13 @@ func (c *RouterConnection) SetResponse(transaction *xchg.Transaction) {
 		return
 	}
 
-	delete(c.transactions, transaction.TransactionId)
+	//delete(c.transactions, transaction.TransactionId)
 	c.mtxRouterConnection.Unlock()
 
-	originalTransaction.ResponseSender.Send(xchg.NewTransaction(xchg.FrameResponse, 0, transaction.TransactionId, transaction.SessionId, transaction.Data))
+	trResponse := xchg.NewTransaction(xchg.FrameResponse, 0, transaction.TransactionId, transaction.SessionId, transaction.Data)
+	trResponse.Offset = transaction.Offset
+	trResponse.TotalSize = transaction.TotalSize
+	originalTransaction.ResponseSender.Send(trResponse)
 }
 
 func (c *RouterConnection) State() (state RouterConnectionState) {

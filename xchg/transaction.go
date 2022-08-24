@@ -8,7 +8,7 @@ import (
 )
 
 type Transaction struct {
-	// Header - 32 bytes + Data
+	// Header - 40 bytes + Data
 	Signature       byte
 	ProtocolVersion byte
 	FrameType       byte
@@ -17,6 +17,8 @@ type Transaction struct {
 	SID             uint64
 	TransactionId   uint64
 	SessionId       uint64
+	Offset          uint32
+	TotalSize       uint32
 	Data            []byte
 
 	// Routing Data
@@ -26,6 +28,8 @@ type Transaction struct {
 	AddressDest            string
 	WaitingResponseFromSID uint64
 
+	ReceivedDataLen int
+
 	// Execution Result
 	Complete bool
 	Result   []byte
@@ -33,7 +37,7 @@ type Transaction struct {
 }
 
 const (
-	TransactionHeaderSize = 32
+	TransactionHeaderSize = 40
 )
 
 const (
@@ -62,6 +66,8 @@ func NewTransaction(frameType byte, targetSID uint64, transactionId uint64, sess
 	c.TransactionId = transactionId
 	c.SessionId = sessionId
 	c.Data = data
+	c.Offset = 0
+	c.TotalSize = uint32(len(data))
 	return &c
 }
 
@@ -81,13 +87,15 @@ func Parse(frame []byte) (tr *Transaction, err error) {
 	tr.SID = binary.LittleEndian.Uint64(frame[8:])
 	tr.TransactionId = binary.LittleEndian.Uint64(frame[16:])
 	tr.SessionId = binary.LittleEndian.Uint64(frame[24:])
+	tr.Offset = binary.LittleEndian.Uint32(frame[32:])
+	tr.TotalSize = binary.LittleEndian.Uint32(frame[36:])
 	tr.Data = make([]byte, int(tr.FrameLen)-TransactionHeaderSize)
 	copy(tr.Data, frame[TransactionHeaderSize:])
 	return
 }
 
 func (c *Transaction) marshal() (result []byte) {
-	c.FrameLen = uint32(32 + len(c.Data))
+	c.FrameLen = uint32(TransactionHeaderSize + len(c.Data))
 	result = make([]byte, TransactionHeaderSize+len(c.Data))
 	result[0] = 0xAA // Signature
 	result[1] = c.ProtocolVersion
@@ -97,6 +105,8 @@ func (c *Transaction) marshal() (result []byte) {
 	binary.LittleEndian.PutUint64(result[8:], c.SID)
 	binary.LittleEndian.PutUint64(result[16:], c.TransactionId)
 	binary.LittleEndian.PutUint64(result[24:], c.SessionId)
+	binary.LittleEndian.PutUint32(result[32:], c.Offset)
+	binary.LittleEndian.PutUint32(result[36:], c.TotalSize)
 	copy(result[TransactionHeaderSize:], c.Data)
 	return
 }
