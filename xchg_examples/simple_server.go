@@ -42,7 +42,7 @@ func (c *SimpleServer) ServerProcessorAuth(authData []byte) (err error) {
 func (c *SimpleServer) ServerProcessorCall(function string, parameter []byte) (response []byte, err error) {
 	switch function {
 	case "version":
-		response = []byte("simple server 2.42")
+		response = []byte("simple server 2.42 0123456789|0123456789|0123456789|0123456789")
 		//response = make([]byte, 122400)
 	case "json-api":
 		type InputStruct struct {

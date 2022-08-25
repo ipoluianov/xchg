@@ -7,7 +7,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"net"
-	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -23,7 +22,7 @@ type RouterConnection struct {
 	mtxRouterConnection sync.Mutex
 	router              *Router
 
-	transactions map[uint64]*xchg.Transaction
+	receiveResponseFrom map[uint64]bool
 
 	localSecretBytes []byte
 
@@ -78,7 +77,7 @@ func NewRouterConnection(conn net.Conn, router *Router, privateKey *rsa.PrivateK
 	c.InitIncomingConnection(conn, &c, "router")
 	c.createdDT = time.Now()
 	//c.nextTransactionId = 1
-	c.transactions = make(map[uint64]*xchg.Transaction)
+	c.receiveResponseFrom = make(map[uint64]bool)
 	return &c
 }
 
@@ -242,19 +241,20 @@ func (c *RouterConnection) processCall(transaction *xchg.Transaction) {
 		return
 	}
 
-	transaction.AddressSrc = c.confirmedRemoteAddress
-	transaction.AddressDest = connection.confirmedRemoteAddress
+	//transaction.AddressSrc = c.confirmedRemoteAddress
+	//transaction.AddressDest = connection.confirmedRemoteAddress
 	transaction.SID = c.id // Source SID
 
 	atomic.AddUint64(&c.statBeginTransactionCounter, 1)
 
 	c.mtxRouterConnection.Lock()
-	transaction.BeginDT = time.Now()
-	transaction.WaitingResponseFromSID = connection.id
-	c.transactions[transaction.TransactionId] = transaction
+	//transaction.BeginDT = time.Now()
+	if _, ok := c.receiveResponseFrom[connection.id]; !ok {
+		c.receiveResponseFrom[connection.id] = true
+	}
 	c.mtxRouterConnection.Unlock()
 
-	transaction.ResponseSender = c
+	//transaction.ResponseSender = c
 	connection.Send(transaction)
 }
 
@@ -267,38 +267,19 @@ func (c *RouterConnection) processResponse(transaction *xchg.Transaction) {
 	connection.SetResponse(transaction)
 }
 
-func (c *RouterConnection) clearTransactions() {
-	/*now := time.Now()
-	for key, t := range c.transactions {
-		duration := now.Sub(t.BeginDT)
-		if duration > 10*time.Second {
-			atomic.AddUint64(&c.statWorkerRemoveTransactionCounter, 1)
-			delete(c.transactions, key)
-		}
-	}*/
-}
-
 func (c *RouterConnection) SetResponse(transaction *xchg.Transaction) {
 	atomic.AddUint64(&c.statSetResponseCounter, 1)
 	c.mtxRouterConnection.Lock()
-	originalTransaction, ok := c.transactions[transaction.TransactionId]
-	if !ok || originalTransaction == nil {
-		atomic.AddUint64(&c.statSetResponseErrNoTransactionCounter, 1)
+	if _, ok := c.receiveResponseFrom[transaction.SID]; !ok {
 		c.mtxRouterConnection.Unlock()
 		return
 	}
-	if originalTransaction.WaitingResponseFromSID != transaction.SID {
-		c.mtxRouterConnection.Unlock()
-		return
-	}
-
-	//delete(c.transactions, transaction.TransactionId)
 	c.mtxRouterConnection.Unlock()
 
 	trResponse := xchg.NewTransaction(xchg.FrameResponse, 0, transaction.TransactionId, transaction.SessionId, transaction.Data)
 	trResponse.Offset = transaction.Offset
 	trResponse.TotalSize = transaction.TotalSize
-	originalTransaction.ResponseSender.Send(trResponse)
+	c.Send(trResponse)
 }
 
 func (c *RouterConnection) State() (state RouterConnectionState) {
@@ -309,27 +290,27 @@ func (c *RouterConnection) State() (state RouterConnectionState) {
 	state.Init4Received = c.init4Received
 	state.Init5Received = c.init5Received
 
-	state.Transactions = make([]string, 0, len(c.transactions))
-	state.TransactionsCount = len(c.transactions)
+	//state.Transactions = make([]string, 0, len(c.transactions))
+	//state.TransactionsCount = len(c.transactions)
 
 	state.StatBeginTransactionCounter = atomic.LoadUint64(&c.statBeginTransactionCounter)
 	state.StatSetResponseCounter = atomic.LoadUint64(&c.statSetResponseCounter)
 	state.StatSetResponseErrNoTransactionCounter = atomic.LoadUint64(&c.statSetResponseErrNoTransactionCounter)
 	state.StatWorkerRemoveTransactionCounter = atomic.LoadUint64(&c.statWorkerRemoveTransactionCounter)
 
-	transactions := make([]*xchg.Transaction, 0, len(c.transactions))
+	/*transactions := make([]*xchg.Transaction, 0, len(c.transactions))
 	for _, t := range c.transactions {
 		transactions = append(transactions, t)
-	}
+	}*/
 
 	c.mtxRouterConnection.Unlock()
-	sort.Slice(transactions, func(i, j int) bool {
+	/*sort.Slice(transactions, func(i, j int) bool {
 		return transactions[i].TransactionId < transactions[j].TransactionId
 	})
 
 	for _, t := range transactions {
 		state.Transactions = append(state.Transactions, t.String())
-	}
+	}*/
 
 	state.BaseConnection = c.Connection.State()
 	return

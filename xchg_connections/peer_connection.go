@@ -255,6 +255,7 @@ func (c *PeerConnection) processInit6(transaction *xchg.Transaction) {
 }
 
 func (c *PeerConnection) processError(transaction *xchg.Transaction) {
+	//fmt.Println("ERROR recevied", c.internalId, string(transaction.Data))
 	err := errors.New(xchg.ERR_XCHG_PEER_CONN_RCVD_ERR + ":" + string(transaction.Data))
 	c.setTransactionResponseError(transaction.TransactionId, err)
 	c.reset()
@@ -265,6 +266,8 @@ func (c *PeerConnection) processCall(transaction *xchg.Transaction) {
 	c.mtxEdgeConnection.Lock()
 	processor = c.processor
 	var incomingTransaction *xchg.Transaction
+
+	//fmt.Println("processCall recv ", transaction.Data, c.internalId)
 
 	var ok bool
 	incomingTransactionCode := fmt.Sprint(transaction.SID, "-", transaction.TransactionId)
@@ -293,7 +296,7 @@ func (c *PeerConnection) processCall(transaction *xchg.Transaction) {
 		trResponse := xchg.NewTransaction(xchg.FrameResponse, incomingTransaction.SID, incomingTransaction.TransactionId, incomingTransaction.SessionId, resp)
 
 		offset := 0
-		blockSize := 1024
+		blockSize := 10
 		for offset < len(trResponse.Data) {
 			currentBlockSize := blockSize
 			restDataLen := len(trResponse.Data) - offset
@@ -459,7 +462,7 @@ func (c *PeerConnection) executeTransaction(frameType byte, targetSID uint64, se
 
 	// Send transaction
 	offset := 0
-	blockSize := 1024
+	blockSize := 10 * 1024
 	for offset < len(data) {
 		currentBlockSize := blockSize
 		restDataLen := len(data) - offset
@@ -479,6 +482,7 @@ func (c *PeerConnection) executeTransaction(frameType byte, targetSID uint64, se
 			return
 		}
 		offset += currentBlockSize
+		//fmt.Println("executeTransaction send ", currentBlockSize, c.internalId)
 	}
 
 	// Wait for response

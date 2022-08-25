@@ -4,7 +4,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"time"
 )
 
 type Transaction struct {
@@ -21,19 +20,11 @@ type Transaction struct {
 	TotalSize       uint32
 	Data            []byte
 
-	// Routing Data
-	ResponseSender         TransactionSender
-	BeginDT                time.Time
-	AddressSrc             string
-	AddressDest            string
-	WaitingResponseFromSID uint64
-
-	ReceivedDataLen int
-
 	// Execution Result
-	Complete bool
-	Result   []byte
-	Err      error
+	ReceivedDataLen int
+	Complete        bool
+	Result          []byte
+	Err             error
 }
 
 const (
@@ -112,6 +103,6 @@ func (c *Transaction) marshal() (result []byte) {
 }
 
 func (c *Transaction) String() string {
-	res := fmt.Sprint(c.TransactionId) + ":[" + c.AddressSrc + "]-[" + c.AddressDest + "] t:" + fmt.Sprint(c.FrameType) + " dl:" + fmt.Sprint(len(c.Data))
+	res := fmt.Sprint(c.TransactionId) + "t:" + fmt.Sprint(c.FrameType) + " dl:" + fmt.Sprint(len(c.Data))
 	return res
 }
