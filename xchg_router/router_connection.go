@@ -236,17 +236,6 @@ func (c *RouterConnection) processResolveAddress(transaction *xchg.Transaction) 
 	c.Send(xchg.NewTransaction(xchg.FrameResponse, 0, transaction.TransactionId, 0, data))
 }
 
-func (c *RouterConnection) callBackWorker() {
-	now := time.Now()
-	c.mtxRouterConnection.Lock()
-	for key, dt := range c.receiveResponseFrom {
-		if now.Sub(dt) > 10*time.Second {
-			delete(c.receiveResponseFrom, key)
-		}
-	}
-	c.mtxRouterConnection.Unlock()
-}
-
 func (c *RouterConnection) processCall(transaction *xchg.Transaction) {
 	connection := c.router.getConnectionById(transaction.SID)
 	if connection == nil {
@@ -260,8 +249,14 @@ func (c *RouterConnection) processCall(transaction *xchg.Transaction) {
 
 	c.mtxRouterConnection.Lock()
 	c.receiveResponseFrom[connection.id] = time.Now()
+
+	now := time.Now()
 	if time.Now().Sub(c.callBackWorkerLastDT) > 60*time.Second {
-		c.callBackWorker()
+		for key, dt := range c.receiveResponseFrom {
+			if now.Sub(dt) > 60*time.Second {
+				delete(c.receiveResponseFrom, key)
+			}
+		}
 		c.callBackWorkerLastDT = time.Now()
 	}
 	c.mtxRouterConnection.Unlock()
