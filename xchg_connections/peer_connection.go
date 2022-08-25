@@ -468,7 +468,7 @@ func (c *PeerConnection) executeTransaction(frameType byte, targetSID uint64, se
 
 	// Send transaction
 	offset := 0
-	blockSize := 10 * 1024
+	blockSize := 1 * 1024
 	for offset < len(data) {
 		currentBlockSize := blockSize
 		restDataLen := len(data) - offset
