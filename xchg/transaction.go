@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"time"
 )
 
 type Transaction struct {
@@ -21,6 +22,7 @@ type Transaction struct {
 	Data            []byte
 
 	// Execution Result
+	BeginDT         time.Time
 	ReceivedDataLen int
 	Complete        bool
 	Result          []byte

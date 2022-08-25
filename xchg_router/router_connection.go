@@ -22,7 +22,7 @@ type RouterConnection struct {
 	mtxRouterConnection sync.Mutex
 	router              *Router
 
-	receiveResponseFrom map[uint64]bool
+	receiveResponseFrom map[uint64]time.Time
 
 	localSecretBytes []byte
 
@@ -46,6 +46,8 @@ type RouterConnection struct {
 	statBeginTransactionCounter            uint64
 
 	createdDT time.Time
+
+	callBackWorkerLastDT time.Time
 }
 
 type RouterConnectionState struct {
@@ -77,7 +79,7 @@ func NewRouterConnection(conn net.Conn, router *Router, privateKey *rsa.PrivateK
 	c.InitIncomingConnection(conn, &c, "router")
 	c.createdDT = time.Now()
 	//c.nextTransactionId = 1
-	c.receiveResponseFrom = make(map[uint64]bool)
+	c.receiveResponseFrom = make(map[uint64]time.Time)
 	return &c
 }
 
@@ -234,6 +236,17 @@ func (c *RouterConnection) processResolveAddress(transaction *xchg.Transaction) 
 	c.Send(xchg.NewTransaction(xchg.FrameResponse, 0, transaction.TransactionId, 0, data))
 }
 
+func (c *RouterConnection) callBackWorker() {
+	now := time.Now()
+	c.mtxRouterConnection.Lock()
+	for key, dt := range c.receiveResponseFrom {
+		if now.Sub(dt) > 10*time.Second {
+			delete(c.receiveResponseFrom, key)
+		}
+	}
+	c.mtxRouterConnection.Unlock()
+}
+
 func (c *RouterConnection) processCall(transaction *xchg.Transaction) {
 	connection := c.router.getConnectionById(transaction.SID)
 	if connection == nil {
@@ -241,20 +254,18 @@ func (c *RouterConnection) processCall(transaction *xchg.Transaction) {
 		return
 	}
 
-	//transaction.AddressSrc = c.confirmedRemoteAddress
-	//transaction.AddressDest = connection.confirmedRemoteAddress
 	transaction.SID = c.id // Source SID
 
 	atomic.AddUint64(&c.statBeginTransactionCounter, 1)
 
 	c.mtxRouterConnection.Lock()
-	//transaction.BeginDT = time.Now()
-	if _, ok := c.receiveResponseFrom[connection.id]; !ok {
-		c.receiveResponseFrom[connection.id] = true
+	c.receiveResponseFrom[connection.id] = time.Now()
+	if time.Now().Sub(c.callBackWorkerLastDT) > 60*time.Second {
+		c.callBackWorker()
+		c.callBackWorkerLastDT = time.Now()
 	}
 	c.mtxRouterConnection.Unlock()
 
-	//transaction.ResponseSender = c
 	connection.Send(transaction)
 }
 
@@ -290,27 +301,12 @@ func (c *RouterConnection) State() (state RouterConnectionState) {
 	state.Init4Received = c.init4Received
 	state.Init5Received = c.init5Received
 
-	//state.Transactions = make([]string, 0, len(c.transactions))
-	//state.TransactionsCount = len(c.transactions)
-
 	state.StatBeginTransactionCounter = atomic.LoadUint64(&c.statBeginTransactionCounter)
 	state.StatSetResponseCounter = atomic.LoadUint64(&c.statSetResponseCounter)
 	state.StatSetResponseErrNoTransactionCounter = atomic.LoadUint64(&c.statSetResponseErrNoTransactionCounter)
 	state.StatWorkerRemoveTransactionCounter = atomic.LoadUint64(&c.statWorkerRemoveTransactionCounter)
 
-	/*transactions := make([]*xchg.Transaction, 0, len(c.transactions))
-	for _, t := range c.transactions {
-		transactions = append(transactions, t)
-	}*/
-
 	c.mtxRouterConnection.Unlock()
-	/*sort.Slice(transactions, func(i, j int) bool {
-		return transactions[i].TransactionId < transactions[j].TransactionId
-	})
-
-	for _, t := range transactions {
-		state.Transactions = append(state.Transactions, t.String())
-	}*/
 
 	state.BaseConnection = c.Connection.State()
 	return

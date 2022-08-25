@@ -214,11 +214,12 @@ func (c *Router) getConnectionByAddress(address string) (foundConnection *Router
 func (c *Router) getConnectionById(connectionId uint64) (result *RouterConnection) {
 	atomic.AddUint64(&c.statGetConnectionByIdCounter, 1)
 	c.mtxRouter.Lock()
-	defer c.mtxRouter.Unlock()
 	if c.chWorking == nil {
+		c.mtxRouter.Unlock()
 		return
 	}
 	conn, ok := c.connectionsById[connectionId]
+	c.mtxRouter.Unlock()
 	if ok {
 		atomic.AddUint64(&c.statGetConnectionByIdFoundCounter, 1)
 		result = conn

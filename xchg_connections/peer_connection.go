@@ -17,7 +17,7 @@ type PeerConnection struct {
 	internalId string
 	node       string
 
-	mtxEdgeConnection sync.Mutex
+	mtxPeerConnection sync.Mutex
 	connection        *xchg.Connection
 
 	started  bool
@@ -101,14 +101,14 @@ func NewPeerConnection(xchgNode string, localAddress *rsa.PrivateKey, processor 
 
 func (c *PeerConnection) Dispose() {
 	c.processor = nil
-	c.mtxEdgeConnection.Lock()
+	c.mtxPeerConnection.Lock()
 	connection := c.connection
-	c.mtxEdgeConnection.Unlock()
+	c.mtxPeerConnection.Unlock()
 	if connection != nil {
 		c.connection.Dispose()
-		c.mtxEdgeConnection.Lock()
+		c.mtxPeerConnection.Lock()
 		c.connection = nil
-		c.mtxEdgeConnection.Unlock()
+		c.mtxPeerConnection.Unlock()
 	}
 }
 
@@ -150,7 +150,7 @@ func (c *PeerConnection) reset() {
 }
 
 func (c *PeerConnection) fastReset() {
-	c.mtxEdgeConnection.Lock()
+	c.mtxPeerConnection.Lock()
 
 	c.init1Sent = false
 	c.init2Received = false
@@ -169,7 +169,7 @@ func (c *PeerConnection) fastReset() {
 		}
 	}
 
-	c.mtxEdgeConnection.Unlock()
+	c.mtxPeerConnection.Unlock()
 }
 
 func (c *PeerConnection) Connected() {
@@ -212,8 +212,8 @@ func (c *PeerConnection) ProcessTransaction(transaction *xchg.Transaction) {
 }
 
 func (c *PeerConnection) processInit2(transaction *xchg.Transaction) {
-	c.mtxEdgeConnection.Lock()
-	defer c.mtxEdgeConnection.Unlock()
+	c.mtxPeerConnection.Lock()
+	defer c.mtxPeerConnection.Unlock()
 
 	var err error
 	c.remotePublicKey, err = crypt_tools.RSAPublicKeyFromDer(transaction.Data)
@@ -224,8 +224,8 @@ func (c *PeerConnection) processInit2(transaction *xchg.Transaction) {
 }
 
 func (c *PeerConnection) processInit3(transaction *xchg.Transaction) {
-	c.mtxEdgeConnection.Lock()
-	defer c.mtxEdgeConnection.Unlock()
+	c.mtxPeerConnection.Lock()
+	defer c.mtxPeerConnection.Unlock()
 
 	var err error
 	c.remoteSecretBytes, err = rsa.DecryptPKCS1v15(rand.Reader, c.privateKey, transaction.Data)
@@ -236,8 +236,8 @@ func (c *PeerConnection) processInit3(transaction *xchg.Transaction) {
 }
 
 func (c *PeerConnection) processInit6(transaction *xchg.Transaction) {
-	c.mtxEdgeConnection.Lock()
-	defer c.mtxEdgeConnection.Unlock()
+	c.mtxPeerConnection.Lock()
+	defer c.mtxPeerConnection.Unlock()
 
 	localSecretBytes, err := rsa.DecryptPKCS1v15(rand.Reader, c.privateKey, transaction.Data)
 	if err != nil {
@@ -263,11 +263,16 @@ func (c *PeerConnection) processError(transaction *xchg.Transaction) {
 
 func (c *PeerConnection) processCall(transaction *xchg.Transaction) {
 	var processor EdgeConnectionProcessor
-	c.mtxEdgeConnection.Lock()
+	c.mtxPeerConnection.Lock()
 	processor = c.processor
 	var incomingTransaction *xchg.Transaction
 
-	//fmt.Println("processCall recv ", transaction.Data, c.internalId)
+	for trCode, tr := range c.incomingTransactions {
+		now := time.Now()
+		if now.Sub(tr.BeginDT) > 10*time.Second {
+			delete(c.incomingTransactions, trCode)
+		}
+	}
 
 	var ok bool
 	incomingTransactionCode := fmt.Sprint(transaction.SID, "-", transaction.TransactionId)
@@ -275,6 +280,7 @@ func (c *PeerConnection) processCall(transaction *xchg.Transaction) {
 		incomingTransaction = xchg.NewTransaction(transaction.FrameType, transaction.SID, transaction.TransactionId, transaction.SessionId, make([]byte, 0))
 		incomingTransaction.Offset = 0
 		incomingTransaction.TotalSize = transaction.TotalSize
+		incomingTransaction.BeginDT = time.Now()
 		c.incomingTransactions[incomingTransactionCode] = incomingTransaction
 	}
 
@@ -285,11 +291,11 @@ func (c *PeerConnection) processCall(transaction *xchg.Transaction) {
 	incomingTransaction.ReceivedDataLen += len(transaction.Data)
 
 	if incomingTransaction.ReceivedDataLen < int(incomingTransaction.TotalSize) {
-		c.mtxEdgeConnection.Unlock()
+		c.mtxPeerConnection.Unlock()
 		return
 	}
 	delete(c.incomingTransactions, incomingTransactionCode)
-	c.mtxEdgeConnection.Unlock()
+	c.mtxPeerConnection.Unlock()
 
 	if processor != nil {
 		resp := processor.onEdgeReceivedCall(c, incomingTransaction.SessionId, incomingTransaction.Data)
@@ -322,8 +328,8 @@ func (c *PeerConnection) processResponse(transaction *xchg.Transaction) {
 }
 
 func (c *PeerConnection) setTransactionResponseError(transactionId uint64, err error) {
-	c.mtxEdgeConnection.Lock()
-	defer c.mtxEdgeConnection.Unlock()
+	c.mtxPeerConnection.Lock()
+	defer c.mtxPeerConnection.Unlock()
 
 	if t, ok := c.outgoingTransactions[transactionId]; ok {
 		t.Result = make([]byte, 0)
@@ -333,8 +339,8 @@ func (c *PeerConnection) setTransactionResponseError(transactionId uint64, err e
 }
 
 func (c *PeerConnection) setTransactionResponse(transaction *xchg.Transaction) {
-	c.mtxEdgeConnection.Lock()
-	defer c.mtxEdgeConnection.Unlock()
+	c.mtxPeerConnection.Lock()
+	defer c.mtxPeerConnection.Unlock()
 
 	if t, ok := c.outgoingTransactions[transaction.TransactionId]; ok {
 		if transaction.Err == nil {
@@ -368,7 +374,7 @@ func (c *PeerConnection) thBackground() {
 func (c *PeerConnection) checkConnection() (connectionIsReady bool) {
 	var err error
 
-	c.mtxEdgeConnection.Lock()
+	c.mtxPeerConnection.Lock()
 	connection := c.connection
 	init1Sent := c.init1Sent
 	init2Received := c.init2Received
@@ -378,7 +384,7 @@ func (c *PeerConnection) checkConnection() (connectionIsReady bool) {
 	init6Received := c.init6Received
 	remotePublicKey := c.remotePublicKey
 	remoteSecretBytes := c.remoteSecretBytes
-	c.mtxEdgeConnection.Unlock()
+	c.mtxPeerConnection.Unlock()
 	if connection == nil {
 		return
 	}
@@ -386,9 +392,9 @@ func (c *PeerConnection) checkConnection() (connectionIsReady bool) {
 	if !init1Sent {
 		err = connection.Send(xchg.NewTransaction(xchg.FrameInit1, 0, 0, 0, crypt_tools.RSAPublicKeyToDer(c.publicKey)))
 		if err == nil {
-			c.mtxEdgeConnection.Lock()
+			c.mtxPeerConnection.Lock()
 			c.init1Sent = true
-			c.mtxEdgeConnection.Unlock()
+			c.mtxPeerConnection.Unlock()
 		}
 		return
 	}
@@ -399,9 +405,9 @@ func (c *PeerConnection) checkConnection() (connectionIsReady bool) {
 		if err == nil {
 			err = connection.Send(xchg.NewTransaction(xchg.FrameInit4, 0, 0, 0, remoteSecretBytesEcrypted))
 			if err == nil {
-				c.mtxEdgeConnection.Lock()
+				c.mtxPeerConnection.Lock()
 				c.init4Sent = true
-				c.mtxEdgeConnection.Unlock()
+				c.mtxPeerConnection.Unlock()
 			}
 		}
 		return
@@ -412,9 +418,9 @@ func (c *PeerConnection) checkConnection() (connectionIsReady bool) {
 		if err == nil {
 			err = connection.Send(xchg.NewTransaction(xchg.FrameInit5, 0, 0, 0, localSecretBytesEcrypted))
 			if err == nil {
-				c.mtxEdgeConnection.Lock()
+				c.mtxPeerConnection.Lock()
 				c.init5Sent = true
-				c.mtxEdgeConnection.Unlock()
+				c.mtxPeerConnection.Unlock()
 			}
 		}
 		return
@@ -451,14 +457,14 @@ func (c *PeerConnection) Call(sid uint64, sessionId uint64, frame []byte) (resul
 func (c *PeerConnection) executeTransaction(frameType byte, targetSID uint64, sessionId uint64, data []byte, timeout time.Duration) (result []byte, err error) {
 	// Get transaction ID
 	var transactionId uint64
-	c.mtxEdgeConnection.Lock()
+	c.mtxPeerConnection.Lock()
 	transactionId = c.nextTransactionId
 	c.nextTransactionId++
 
 	// Create transaction
 	t := xchg.NewTransaction(frameType, targetSID, transactionId, sessionId, data)
 	c.outgoingTransactions[transactionId] = t
-	c.mtxEdgeConnection.Unlock()
+	c.mtxPeerConnection.Unlock()
 
 	// Send transaction
 	offset := 0
@@ -476,9 +482,9 @@ func (c *PeerConnection) executeTransaction(frameType byte, targetSID uint64, se
 
 		err = c.connection.Send(blockTransaction)
 		if err != nil {
-			c.mtxEdgeConnection.Lock()
+			c.mtxPeerConnection.Lock()
 			delete(c.outgoingTransactions, t.TransactionId)
-			c.mtxEdgeConnection.Unlock()
+			c.mtxPeerConnection.Unlock()
 			return
 		}
 		offset += currentBlockSize
@@ -492,9 +498,9 @@ func (c *PeerConnection) executeTransaction(frameType byte, targetSID uint64, se
 	for i := int64(0); i < waitingIterationCount; i++ {
 		if t.Complete {
 			// Transaction complete
-			c.mtxEdgeConnection.Lock()
+			c.mtxPeerConnection.Lock()
 			delete(c.outgoingTransactions, t.TransactionId)
-			c.mtxEdgeConnection.Unlock()
+			c.mtxPeerConnection.Unlock()
 
 			// Error recevied
 			if t.Err != nil {
@@ -512,16 +518,16 @@ func (c *PeerConnection) executeTransaction(frameType byte, targetSID uint64, se
 	}
 
 	// Clear transactions map
-	c.mtxEdgeConnection.Lock()
+	c.mtxPeerConnection.Lock()
 	delete(c.outgoingTransactions, t.TransactionId)
-	c.mtxEdgeConnection.Unlock()
+	c.mtxPeerConnection.Unlock()
 
 	return nil, errors.New(xchg.ERR_XCHG_PEER_CONN_TR_TIMEOUT)
 }
 
 func (c *PeerConnection) State() (state PeerConnectionState) {
-	c.mtxEdgeConnection.Lock()
-	defer c.mtxEdgeConnection.Unlock()
+	c.mtxPeerConnection.Lock()
+	defer c.mtxPeerConnection.Unlock()
 	if c.connection != nil {
 		state.BaseConnection = c.connection.State()
 	}
