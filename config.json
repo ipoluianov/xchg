@@ -1,0 +1,4 @@
+{
+ "http_server_port": 8485,
+ "bin_server_port": 8484
+}
