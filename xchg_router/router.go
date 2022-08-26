@@ -326,3 +326,7 @@ func (c *Router) Performance() (state RouterPerformance) {
 	state = c.performance
 	return
 }
+
+func (c *Router) AddHttpRequestsCounter() {
+	atomic.AddUint64(&c.performanceCounters.HttpRequestsCounter, 1)
+}
