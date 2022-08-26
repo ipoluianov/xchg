@@ -49,6 +49,23 @@ func NewNetworkFromFile(fileName string) (*Network, error) {
 	return network, nil
 }
 
+func NewNetworkFromFileOrCreate(fileName string) (network *Network) {
+	var bs []byte
+	var err error
+
+	bs, err = ioutil.ReadFile(fileName)
+	if err != nil {
+		network = NewNetworkDefault()
+		network.SaveToFile(fileName)
+	} else {
+		network, err = NewNetworkFromBytes(bs)
+		if err != nil {
+			network = NewNetworkDefault()
+		}
+	}
+	return
+}
+
 func NewNetworkDefault() *Network {
 	network := NewNetwork()
 	s1 := "54.37.73.160:8484"

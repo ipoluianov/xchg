@@ -4,11 +4,13 @@ import (
 	"crypto/rsa"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 
 	"github.com/ipoluianov/gomisc/crypt_tools"
 	"github.com/ipoluianov/gomisc/logger"
+	"github.com/ipoluianov/xchg/xchg"
 	"github.com/ipoluianov/xchg/xchg_localtest"
 	"github.com/ipoluianov/xchg/xchg_network"
 	"github.com/ipoluianov/xchg/xchg_router"
@@ -183,15 +185,62 @@ func Start() error {
 		return err
 	}
 
-	var privateKey *rsa.PrivateKey
-	privateKey, _ = crypt_tools.GenerateRSAKey()
+	network := xchg_network.NewNetworkFromFileOrCreate(logger.CurrentExePath() + "/" + "network.json")
 
-	router = xchg_router.NewRouter(privateKey, conf, xchg_network.NewNetwork())
+	var privateKey *rsa.PrivateKey
+	privateKey, err = LoadKeys()
+	if err != nil {
+		logger.Println("[i]", "App::Start", "LoadKeys() error:", err)
+		return err
+	}
+
+	router = xchg_router.NewRouter(privateKey, conf, network)
 	router.Start()
 
 	logger.Println("[i]", "App::Start", "end")
 
 	return nil
+}
+
+func LoadKeys() (privateKey *rsa.PrivateKey, err error) {
+
+	privateKeyFile := logger.CurrentExePath() + "/" + "/private_key.pem"
+	publicKeyFile := logger.CurrentExePath() + "/" + "/public_key.pem"
+	addressFile := logger.CurrentExePath() + "/" + "/address.txt"
+
+	_, err = os.Stat(privateKeyFile)
+	if os.IsNotExist(err) {
+		privateKey, err = crypt_tools.GenerateRSAKey()
+		if err != nil {
+			return
+		}
+		err = ioutil.WriteFile(privateKeyFile, []byte(crypt_tools.RSAPrivateKeyToPem(privateKey)), 0666)
+		if err != nil {
+			return
+		}
+		err = ioutil.WriteFile(publicKeyFile, []byte(crypt_tools.RSAPublicKeyToPem(&privateKey.PublicKey)), 0666)
+		if err != nil {
+			return
+		}
+		logger.Println("Key saved to file")
+	} else {
+		var bs []byte
+		bs, err = ioutil.ReadFile(privateKeyFile)
+		if err != nil {
+			return
+		}
+		privateKey, err = crypt_tools.RSAPrivateKeyFromPem(string(bs))
+		if err != nil {
+			return
+		}
+		logger.Println("Key loaded from file")
+	}
+
+	address := xchg.AddressForPublicKey(&privateKey.PublicKey)
+	err = ioutil.WriteFile(addressFile, []byte(address), 0666)
+	//c.serverPrivateKey32 = base32.StdEncoding.EncodeToString([]byte(crypt_tools.RSAPrivateKeyToDer(privateKey)))
+	logger.Println("ADDRESS:", address)
+	return
 }
 
 func Stop() {
