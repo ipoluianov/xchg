@@ -167,16 +167,3 @@ func (c *Network) GetNodesAddressesByAddress(address string) []string {
 
 	return addresses
 }
-
-func (c *Network) SetHostOnline(address string, online bool) {
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
-
-	for _, r := range c.Ranges {
-		for _, h := range r.Hosts {
-			if h.Address == address {
-				h.setOnline(online)
-			}
-		}
-	}
-}
