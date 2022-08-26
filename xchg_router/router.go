@@ -3,6 +3,7 @@ package xchg_router
 import (
 	"crypto/rsa"
 	"errors"
+	"math"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -63,17 +64,17 @@ type RouterPerformanceCounters struct {
 }
 
 type RouterPerformance struct {
-	HttpRequestsRate float64 `json:"http_requests_rate"`
-	HttpGetStateRate float64 `json:"http_get_state_rate"`
-	HttpGetPerfRate  float64 `json:"http_get_perf_rate"`
+	HttpRequestsRate uint64 `json:"http_requests_rate"`
+	HttpGetStateRate uint64 `json:"http_get_state_rate"`
+	HttpGetPerfRate  uint64 `json:"http_get_perf_rate"`
 
-	ServerAcceptRate     float64 `json:"server_accept_rate"`
-	ServerInTrafficRate  float64 `json:"server_in_traffic_rate"`
-	ServerOutTrafficRate float64 `json:"server_out_traffic_rate"`
+	ServerAcceptRate     uint64 `json:"server_accept_rate"`
+	ServerInTrafficRate  uint64 `json:"server_in_traffic_rate"`
+	ServerOutTrafficRate uint64 `json:"server_out_traffic_rate"`
 
-	Init1Rate float64 `json:"init1_rate"`
-	Init4Rate float64 `json:"init4_rate"`
-	Init5Rate float64 `json:"init5_rate"`
+	Init1Rate uint64 `json:"init1_rate"`
+	Init4Rate uint64 `json:"init4_rate"`
+	Init5Rate uint64 `json:"init5_rate"`
 }
 
 func NewRouter(localAddress *rsa.PrivateKey, config RouterConfig, network *xchg_network.Network) *Router {
@@ -260,15 +261,15 @@ func (c *Router) updatePerformance() {
 	counters.ConnectionsPerformanceCounters.Init4Counter = atomic.LoadUint64(&c.performanceCounters.ConnectionsPerformanceCounters.Init4Counter)
 	counters.ConnectionsPerformanceCounters.Init5Counter = atomic.LoadUint64(&c.performanceCounters.ConnectionsPerformanceCounters.Init5Counter)
 
-	c.performance.HttpRequestsRate = float64(counters.HttpRequestsCounter-c.performanceLastCounters.HttpRequestsCounter) / durationSec
-	c.performance.HttpGetStateRate = float64(counters.HttpGetStateCounter-c.performanceLastCounters.HttpGetStateCounter) / durationSec
-	c.performance.HttpGetPerfRate = float64(counters.HttpGetPerfCounter-c.performanceLastCounters.HttpGetPerfCounter) / durationSec
-	c.performance.ServerAcceptRate = float64(counters.ServerAcceptCounter-c.performanceLastCounters.ServerAcceptCounter) / durationSec
-	c.performance.ServerInTrafficRate = float64(counters.ConnectionsPerformanceCounters.InTrafficCounter-c.performanceLastCounters.ConnectionsPerformanceCounters.InTrafficCounter) / durationSec
-	c.performance.ServerOutTrafficRate = float64(counters.ConnectionsPerformanceCounters.OutTrafficCounter-c.performanceLastCounters.ConnectionsPerformanceCounters.OutTrafficCounter) / durationSec
-	c.performance.Init1Rate = float64(counters.ConnectionsPerformanceCounters.Init1Counter-c.performanceLastCounters.ConnectionsPerformanceCounters.Init1Counter) / durationSec
-	c.performance.Init4Rate = float64(counters.ConnectionsPerformanceCounters.Init4Counter-c.performanceLastCounters.ConnectionsPerformanceCounters.Init4Counter) / durationSec
-	c.performance.Init5Rate = float64(counters.ConnectionsPerformanceCounters.Init5Counter-c.performanceLastCounters.ConnectionsPerformanceCounters.Init5Counter) / durationSec
+	c.performance.HttpRequestsRate = uint64(math.Round(float64(counters.HttpRequestsCounter-c.performanceLastCounters.HttpRequestsCounter) / durationSec))
+	c.performance.HttpGetStateRate = uint64(math.Round(float64(counters.HttpGetStateCounter-c.performanceLastCounters.HttpGetStateCounter) / durationSec))
+	c.performance.HttpGetPerfRate = uint64(math.Round(float64(counters.HttpGetPerfCounter-c.performanceLastCounters.HttpGetPerfCounter) / durationSec))
+	c.performance.ServerAcceptRate = uint64(math.Round(float64(counters.ServerAcceptCounter-c.performanceLastCounters.ServerAcceptCounter) / durationSec))
+	c.performance.ServerInTrafficRate = uint64(math.Round(float64(counters.ConnectionsPerformanceCounters.InTrafficCounter-c.performanceLastCounters.ConnectionsPerformanceCounters.InTrafficCounter) / durationSec))
+	c.performance.ServerOutTrafficRate = uint64(math.Round(float64(counters.ConnectionsPerformanceCounters.OutTrafficCounter-c.performanceLastCounters.ConnectionsPerformanceCounters.OutTrafficCounter) / durationSec))
+	c.performance.Init1Rate = uint64(math.Round(float64(counters.ConnectionsPerformanceCounters.Init1Counter-c.performanceLastCounters.ConnectionsPerformanceCounters.Init1Counter) / durationSec))
+	c.performance.Init4Rate = uint64(math.Round(float64(counters.ConnectionsPerformanceCounters.Init4Counter-c.performanceLastCounters.ConnectionsPerformanceCounters.Init4Counter) / durationSec))
+	c.performance.Init5Rate = uint64(math.Round(float64(counters.ConnectionsPerformanceCounters.Init5Counter-c.performanceLastCounters.ConnectionsPerformanceCounters.Init5Counter) / durationSec))
 
 	c.performanceLastCounters = counters
 	c.performanceLastDT = now
