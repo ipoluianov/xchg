@@ -53,6 +53,8 @@ func (c *HttpServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		result = c.RouterStateJson()
 	case "/performance":
 		result = c.RouterPerformanceJson()
+	case "/network":
+		result = c.RouterNetworkJson()
 	}
 
 	w.WriteHeader(200)
@@ -72,6 +74,15 @@ func (c *HttpServer) RouterStateJson() []byte {
 func (c *HttpServer) RouterPerformanceJson() []byte {
 	state := c.router.Performance()
 	bs, err := json.MarshalIndent(state, "", " ")
+	if err != nil {
+		return []byte(err.Error())
+	}
+	return bs
+}
+
+func (c *HttpServer) RouterNetworkJson() []byte {
+	network := c.router.Network()
+	bs, err := json.MarshalIndent(network, "", " ")
 	if err != nil {
 		return []byte(err.Error())
 	}

@@ -330,3 +330,7 @@ func (c *Router) Performance() (state RouterPerformance) {
 func (c *Router) AddHttpRequestsCounter() {
 	atomic.AddUint64(&c.performanceCounters.HttpRequestsCounter, 1)
 }
+
+func (c *Router) Network() *xchg_network.Network {
+	return c.network
+}
