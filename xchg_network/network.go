@@ -5,8 +5,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"math/rand"
+	"net/http"
 	"sort"
 	"strings"
 	"sync"
@@ -15,6 +17,9 @@ import (
 type Network struct {
 	mtx sync.Mutex
 
+	fromInternet       bool
+	fromInternetLoaded bool
+
 	Ranges   []*rng  `json:"ranges"`
 	Gateways []*host `json:"gateways"`
 }
@@ -22,6 +27,15 @@ type Network struct {
 func NewNetwork() *Network {
 	var c Network
 	c.init()
+	return &c
+}
+
+func NewNetworkFromInternet() *Network {
+	var c Network
+	c.init()
+	c.fromInternet = true
+	c.fromInternetLoaded = false
+	go c.loadNetworkFromInternet()
 	return &c
 }
 
@@ -79,6 +93,41 @@ func NewNetworkDefault() *Network {
 	return network
 }
 
+func (c *Network) ReloadFromInternet() {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+	c.fromInternet = true
+	c.fromInternetLoaded = false
+}
+
+func (c *Network) loadNetworkFromInternet() {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+
+	if !c.fromInternet {
+		return
+	}
+
+	if c.fromInternetLoaded {
+		return
+	}
+
+	resp, err := http.Get("https://xchgx.net/network.json")
+	if err != nil {
+		return
+	}
+	var networkBS []byte
+	networkBS, err = io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if err != nil {
+		return
+	}
+	err = json.Unmarshal(networkBS, c)
+	if err == nil {
+		c.fromInternetLoaded = true
+	}
+}
+
 func (c *Network) SaveToFile(fileName string) error {
 	bs := c.toBytes()
 	err := ioutil.WriteFile(fileName, bs, 0666)
@@ -124,6 +173,8 @@ func (c *Network) toBytes() []byte {
 }
 
 func (c *Network) GetNodesAddressesByAddress(address string) []string {
+	c.loadNetworkFromInternet()
+
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 

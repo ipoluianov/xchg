@@ -50,6 +50,9 @@ func SelfTest() {
 
 	fmt.Println("Server address:", serverAddress)
 
+	// TODO: remove for local tests
+	network = xchg_network.NewNetworkFromInternet()
+
 	ss := xchg_examples.NewSimpleServer(serverPrivateKey32, network)
 	ss.Start()
 
