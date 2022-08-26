@@ -3,7 +3,9 @@ package xchg_localtest
 import (
 	"crypto/rsa"
 	"encoding/base32"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"time"
 
 	"github.com/ipoluianov/gomisc/crypt_tools"
@@ -29,8 +31,18 @@ func GenNetwork() {
 	network.SaveToFile("network.json")
 }
 
+func GenConfig() {
+	var config xchg_router.RouterConfig
+	config.Init()
+	config.BinServerPort = 8484
+	config.HttpServerPort = 8485
+	bs, _ := json.MarshalIndent(config, "", " ")
+	ioutil.WriteFile("config.json", bs, 0666)
+}
+
 func SelfTest() {
 	GenNetwork()
+	GenConfig()
 
 	fmt.Println("-------------- Press Enter to start ROUTERS --------------")
 	fmt.Scanln()
