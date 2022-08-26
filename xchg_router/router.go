@@ -4,7 +4,6 @@ import (
 	"crypto/rsa"
 	"errors"
 	"net"
-	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -35,22 +34,14 @@ type Router struct {
 	routerServer *RouterServer
 	network      *xchg_network.Network
 
-	statStateCounter                                 uint64
-	statAddConnectionCounter                         uint64
-	statGetConnectionByAddressCounter                uint64
-	statGetConnectionByAddressErrAddressSizeCounter  uint64
-	statGetConnectionByAddressFoundCounter           uint64
-	statGetConnectionByAddressNotFoundCounter        uint64
-	statGetConnectionByIdCounter                     uint64
-	statGetConnectionByIdFoundCounter                uint64
-	statGetConnectionByIdNotFoundCounter             uint64
-	statSetAddressForConnectionCounter               uint64
-	statSetAddressForConnectionErrAddressSizeCounter uint64
-	statWorkerCounter                                uint64
-	statWorkerRemoveConnectionCounter                uint64
-	statWorkerStopConnectionByInitTimeoutCounter     uint64
-
 	chWorking chan interface{}
+
+	mtxPerformance          sync.Mutex
+	performanceLastDT       time.Time
+	performanceCounters     RouterPerformanceCounters
+	performanceLastCounters RouterPerformanceCounters
+	performance             RouterPerformance
+	state                   RouterState
 }
 
 type RouterState struct {
@@ -58,24 +49,31 @@ type RouterState struct {
 	ConnectionsCount          int    `json:"connections_count"`
 	ConnectionsByAddressCount int    `json:"connections_by_address_count"`
 
-	Server RouterServerState `json:"server"`
-
-	StatStateCounter                                 uint64 `json:"stat_state_counter"`
-	StatAddConnectionCounter                         uint64 `json:"stat_add_connection_counter"`
-	StatGetConnectionByAddressCounter                uint64 `json:"stat_get_connection_by_address_counter"`
-	StatGetConnectionByAddressErrAddressSizeCounter  uint64 `json:"stat_get_connection_by_address_err_addr_size_counter"`
-	StatGetConnectionByAddressFoundCounter           uint64 `json:"stat_get_connection_by_address_found_counter"`
-	StatGetConnectionByAddressNotFoundCounter        uint64 `json:"stat_get_connection_by_address_not_found_counter"`
-	StatGetConnectionByIdCounter                     uint64 `json:"stat_get_connection_by_id_counter"`
-	StatGetConnectionByIdFoundCounter                uint64 `json:"stat_get_connection_by_id_found_counter"`
-	StatGetConnectionByIdNotFoundCounter             uint64 `json:"stat_get_connection_by_id_not_found_counter"`
-	StatSetAddressForConnectionCounter               uint64 `json:"stat_set_address_for_connection_counter"`
-	StatSetAddressForConnectionErrAddressSizeCounter uint64 `json:"stat_set_address_for_connection_err_addr_size_counter"`
-	StatWorkerCounter                                uint64 `json:"stat_worker_counter"`
-	StatWorkerRemoveConnectionCounter                uint64 `json:"stat_worker_remove_connection_counter"`
-	StatWorkerStopConnectionByInitTimeoutCounter     uint64 `json:"stat_worker_stop_connection_by_init_timeout_counter"`
-
 	Connections []RouterConnectionState `json:"connections"`
+}
+
+type RouterPerformanceCounters struct {
+	HttpRequestsCounter uint64 `json:"http_requests_counter"`
+	HttpGetStateCounter uint64 `json:"http_get_state_counter"`
+	HttpGetPerfCounter  uint64 `json:"http_get_perf_counter"`
+
+	ServerAcceptCounter uint64 `json:"server_accept_counter"`
+
+	ConnectionsPerformanceCounters xchg.ConnectionsPerformanceCounters
+}
+
+type RouterPerformance struct {
+	HttpRequestsRate float64 `json:"http_requests_rate"`
+	HttpGetStateRate float64 `json:"http_get_state_rate"`
+	HttpGetPerfRate  float64 `json:"http_get_perf_rate"`
+
+	ServerAcceptRate     float64 `json:"server_accept_rate"`
+	ServerInTrafficRate  float64 `json:"server_in_traffic_rate"`
+	ServerOutTrafficRate float64 `json:"server_out_traffic_rate"`
+
+	Init1Rate float64 `json:"init1_rate"`
+	Init4Rate float64 `json:"init4_rate"`
+	Init5Rate float64 `json:"init5_rate"`
 }
 
 func NewRouter(localAddress *rsa.PrivateKey, config RouterConfig, network *xchg_network.Network) *Router {
@@ -174,14 +172,14 @@ func (c *Router) LocalPublicKeyBS() []byte {
 }
 
 func (c *Router) AddConnection(conn net.Conn) {
-	atomic.AddUint64(&c.statAddConnectionCounter, 1)
+	atomic.AddUint64(&c.performanceCounters.ServerAcceptCounter, 1)
 	c.mtxRouter.Lock()
 	defer c.mtxRouter.Unlock()
 	if c.chWorking == nil {
 		return
 	}
 
-	connection := NewRouterConnection(conn, c, c.localPrivateKey)
+	connection := NewRouterConnection(conn, c, c.localPrivateKey, &c.performanceCounters.ConnectionsPerformanceCounters)
 	connId := c.nextConnectionId
 	c.nextConnectionId++
 	connection.id = connId
@@ -190,12 +188,9 @@ func (c *Router) AddConnection(conn net.Conn) {
 }
 
 func (c *Router) getConnectionByAddress(address string) (foundConnection *RouterConnection) {
-	atomic.AddUint64(&c.statGetConnectionByAddressCounter, 1)
 	if len(address) != xchg.AddressSize {
-		atomic.AddUint64(&c.statGetConnectionByAddressErrAddressSizeCounter, 1)
 		return
 	}
-
 	c.mtxRouter.Lock()
 	defer c.mtxRouter.Unlock()
 	if c.chWorking == nil {
@@ -204,15 +199,11 @@ func (c *Router) getConnectionByAddress(address string) (foundConnection *Router
 	conn, ok := c.connectionsByAddress[address]
 	if ok {
 		foundConnection = conn
-		atomic.AddUint64(&c.statGetConnectionByAddressFoundCounter, 1)
-	} else {
-		atomic.AddUint64(&c.statGetConnectionByAddressNotFoundCounter, 1)
 	}
 	return
 }
 
 func (c *Router) getConnectionById(connectionId uint64) (result *RouterConnection) {
-	atomic.AddUint64(&c.statGetConnectionByIdCounter, 1)
 	c.mtxRouter.Lock()
 	if c.chWorking == nil {
 		c.mtxRouter.Unlock()
@@ -221,10 +212,7 @@ func (c *Router) getConnectionById(connectionId uint64) (result *RouterConnectio
 	conn, ok := c.connectionsById[connectionId]
 	c.mtxRouter.Unlock()
 	if ok {
-		atomic.AddUint64(&c.statGetConnectionByIdFoundCounter, 1)
 		result = conn
-	} else {
-		atomic.AddUint64(&c.statGetConnectionByIdNotFoundCounter, 1)
 	}
 	return
 }
@@ -240,22 +228,55 @@ func (c *Router) getConnectionCount() int {
 }
 
 func (c *Router) setAddressForConnection(connection *RouterConnection, address string) {
-	atomic.AddUint64(&c.statSetAddressForConnectionCounter, 1)
 	c.mtxRouter.Lock()
 	defer c.mtxRouter.Unlock()
 	if c.chWorking == nil {
 		return
 	}
 	if len(address) != xchg.AddressSize {
-		atomic.AddUint64(&c.statSetAddressForConnectionErrAddressSizeCounter, 1)
 		return
 	}
 	c.connectionsByAddress[address] = connection
 }
 
+func (c *Router) updatePerformance() {
+	now := time.Now()
+	if now.Sub(c.performanceLastDT) < 1*time.Second {
+		return
+	}
+
+	c.mtxPerformance.Lock()
+	defer c.mtxPerformance.Unlock()
+	durationSec := now.Sub(c.performanceLastDT).Seconds()
+	var counters RouterPerformanceCounters
+
+	counters.HttpRequestsCounter = atomic.LoadUint64(&c.performanceCounters.HttpRequestsCounter)
+	counters.HttpGetStateCounter = atomic.LoadUint64(&c.performanceCounters.HttpGetStateCounter)
+	counters.HttpGetPerfCounter = atomic.LoadUint64(&c.performanceCounters.HttpGetPerfCounter)
+	counters.ServerAcceptCounter = atomic.LoadUint64(&c.performanceCounters.ServerAcceptCounter)
+	counters.ConnectionsPerformanceCounters.InTrafficCounter = atomic.LoadUint64(&c.performanceCounters.ConnectionsPerformanceCounters.InTrafficCounter)
+	counters.ConnectionsPerformanceCounters.OutTrafficCounter = atomic.LoadUint64(&c.performanceCounters.ConnectionsPerformanceCounters.OutTrafficCounter)
+	counters.ConnectionsPerformanceCounters.Init1Counter = atomic.LoadUint64(&c.performanceCounters.ConnectionsPerformanceCounters.Init1Counter)
+	counters.ConnectionsPerformanceCounters.Init4Counter = atomic.LoadUint64(&c.performanceCounters.ConnectionsPerformanceCounters.Init4Counter)
+	counters.ConnectionsPerformanceCounters.Init5Counter = atomic.LoadUint64(&c.performanceCounters.ConnectionsPerformanceCounters.Init5Counter)
+
+	c.performance.HttpRequestsRate = float64(counters.HttpRequestsCounter-c.performanceLastCounters.HttpRequestsCounter) / durationSec
+	c.performance.HttpGetStateRate = float64(counters.HttpGetStateCounter-c.performanceLastCounters.HttpGetStateCounter) / durationSec
+	c.performance.HttpGetPerfRate = float64(counters.HttpGetPerfCounter-c.performanceLastCounters.HttpGetPerfCounter) / durationSec
+	c.performance.ServerAcceptRate = float64(counters.ServerAcceptCounter-c.performanceLastCounters.ServerAcceptCounter) / durationSec
+	c.performance.ServerInTrafficRate = float64(counters.ConnectionsPerformanceCounters.InTrafficCounter-c.performanceLastCounters.ConnectionsPerformanceCounters.InTrafficCounter) / durationSec
+	c.performance.ServerOutTrafficRate = float64(counters.ConnectionsPerformanceCounters.OutTrafficCounter-c.performanceLastCounters.ConnectionsPerformanceCounters.OutTrafficCounter) / durationSec
+	c.performance.Init1Rate = float64(counters.ConnectionsPerformanceCounters.Init1Counter-c.performanceLastCounters.ConnectionsPerformanceCounters.Init1Counter) / durationSec
+	c.performance.Init4Rate = float64(counters.ConnectionsPerformanceCounters.Init4Counter-c.performanceLastCounters.ConnectionsPerformanceCounters.Init4Counter) / durationSec
+	c.performance.Init5Rate = float64(counters.ConnectionsPerformanceCounters.Init5Counter-c.performanceLastCounters.ConnectionsPerformanceCounters.Init5Counter) / durationSec
+
+	c.performanceLastCounters = counters
+	c.performanceLastDT = now
+}
+
 func (c *Router) thWorker() {
 	logger.Println("[i]", "Router::thWorker", "begin")
-	ticker := time.NewTicker(1000 * time.Millisecond)
+	ticker := time.NewTicker(3000 * time.Millisecond)
 	working := true
 	for working {
 		select {
@@ -265,13 +286,12 @@ func (c *Router) thWorker() {
 		}
 
 		if working {
-			atomic.AddUint64(&c.statWorkerCounter, 1)
+			c.updatePerformance()
+
 			c.mtxRouter.Lock()
 			now := time.Now()
 			for id, conn := range c.connectionsById {
 				if conn.IsClosed() {
-					atomic.AddUint64(&c.statWorkerRemoveConnectionCounter, 1)
-
 					connByAddr, connByAddrFound := c.connectionsByAddress[conn.ConfirmedRemoteAddress()]
 					if connByAddrFound {
 						if connByAddr.id == conn.id {
@@ -283,7 +303,6 @@ func (c *Router) thWorker() {
 				}
 
 				if now.Sub(conn.createdDT) > 3*time.Second && len(conn.ConfirmedRemoteAddress()) == 0 {
-					atomic.AddUint64(&c.statWorkerStopConnectionByInitTimeoutCounter, 1)
 					conn.Stop()
 				}
 			}
@@ -295,43 +314,14 @@ func (c *Router) thWorker() {
 }
 
 func (c *Router) State() (state RouterState) {
-	atomic.AddUint64(&c.statStateCounter, 1)
-	c.mtxRouter.Lock()
-	state.NextConnectionId = c.nextConnectionId
+	atomic.AddUint64(&c.performanceCounters.HttpGetStateCounter, 1)
+	return
+}
 
-	state.ConnectionsCount = len(c.connectionsById)
-	state.ConnectionsByAddressCount = len(c.connectionsByAddress)
-	state.Connections = make([]RouterConnectionState, 0, len(c.connectionsById))
-	connections := make([]*RouterConnection, 0, len(c.connectionsById))
-	for _, conn := range c.connectionsById {
-		connections = append(connections, conn)
-	}
-	routerServer := c.routerServer
-	c.mtxRouter.Unlock()
-
-	for _, conn := range connections {
-		state.Connections = append(state.Connections, conn.State())
-	}
-	sort.Slice(state.Connections, func(i, j int) bool {
-		return state.Connections[i].Id < state.Connections[j].Id
-	})
-
-	state.Server = routerServer.State()
-
-	state.StatStateCounter = atomic.LoadUint64(&c.statStateCounter)
-	state.StatAddConnectionCounter = atomic.LoadUint64(&c.statAddConnectionCounter)
-	state.StatGetConnectionByAddressCounter = atomic.LoadUint64(&c.statGetConnectionByAddressCounter)
-	state.StatGetConnectionByAddressErrAddressSizeCounter = atomic.LoadUint64(&c.statGetConnectionByAddressErrAddressSizeCounter)
-	state.StatGetConnectionByAddressFoundCounter = atomic.LoadUint64(&c.statGetConnectionByAddressFoundCounter)
-	state.StatGetConnectionByAddressNotFoundCounter = atomic.LoadUint64(&c.statGetConnectionByAddressNotFoundCounter)
-	state.StatGetConnectionByIdCounter = atomic.LoadUint64(&c.statGetConnectionByIdCounter)
-	state.StatGetConnectionByIdFoundCounter = atomic.LoadUint64(&c.statGetConnectionByIdFoundCounter)
-	state.StatGetConnectionByIdNotFoundCounter = atomic.LoadUint64(&c.statGetConnectionByIdNotFoundCounter)
-	state.StatSetAddressForConnectionCounter = atomic.LoadUint64(&c.statSetAddressForConnectionCounter)
-	state.StatSetAddressForConnectionErrAddressSizeCounter = atomic.LoadUint64(&c.statSetAddressForConnectionErrAddressSizeCounter)
-	state.StatWorkerCounter = atomic.LoadUint64(&c.statWorkerCounter)
-	state.StatWorkerRemoveConnectionCounter = atomic.LoadUint64(&c.statWorkerRemoveConnectionCounter)
-	state.StatWorkerStopConnectionByInitTimeoutCounter = atomic.LoadUint64(&c.statWorkerStopConnectionByInitTimeoutCounter)
-
+func (c *Router) Performance() (state RouterPerformance) {
+	atomic.AddUint64(&c.performanceCounters.HttpGetPerfCounter, 1)
+	c.mtxPerformance.Lock()
+	defer c.mtxPerformance.Unlock()
+	state = c.performance
 	return
 }

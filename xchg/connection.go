@@ -31,6 +31,8 @@ type Connection struct {
 	receivedFrames uint64
 	sentFrames     uint64
 
+	totalPerformanceCounters *ConnectionsPerformanceCounters
+
 	configMaxFrameSize int
 
 	incomingData       []byte
@@ -59,14 +61,28 @@ type TransactionSender interface {
 	Send(transaction *Transaction) (err error)
 }
 
+type ConnectionsPerformanceCounters struct {
+	InTrafficCounter  uint64 `json:"in_traffic_counter"`
+	OutTrafficCounter uint64 `json:"out_traffic_counter"`
+	Init1Counter      uint64 `json:"init1_counter"`
+	Init4Counter      uint64 `json:"init4_counter"`
+	Init5Counter      uint64 `json:"init5_counter"`
+}
+
 func NewConnection() *Connection {
 	var c Connection
 	return &c
 }
 
-func (c *Connection) InitIncomingConnection(conn net.Conn, processor ITransactionProcessor, internalId string) {
+func (c *Connection) InitIncomingConnection(conn net.Conn, processor ITransactionProcessor, internalId string, totalPerformanceCounters *ConnectionsPerformanceCounters) {
 	c.mtxBaseConnection.Lock()
 	defer c.mtxBaseConnection.Unlock()
+	if totalPerformanceCounters == nil {
+		c.totalPerformanceCounters = &ConnectionsPerformanceCounters{}
+	} else {
+		c.totalPerformanceCounters = totalPerformanceCounters
+	}
+
 	c.internalId = internalId
 	if c.started {
 		logger.Println("[ERROR]", "Connection::initIncomingConnection", "already started")
@@ -81,6 +97,7 @@ func (c *Connection) InitIncomingConnection(conn net.Conn, processor ITransactio
 func (c *Connection) InitOutgoingConnection(host string, processor ITransactionProcessor, internalId string) {
 	c.mtxBaseConnection.Lock()
 	defer c.mtxBaseConnection.Unlock()
+	c.totalPerformanceCounters = &ConnectionsPerformanceCounters{}
 	c.internalId = internalId
 	if c.started {
 		logger.Println("[ERROR]", "Connection::InitOutgoingConnection", "already started")
@@ -251,6 +268,7 @@ func (c *Connection) thReceive() {
 		}
 
 		atomic.AddUint64(&c.receivedBytes, uint64(n))
+		atomic.AddUint64(&c.totalPerformanceCounters.InTrafficCounter, uint64(n))
 
 		c.incomingDataOffset += n
 		processedLen := 0
@@ -375,6 +393,7 @@ func (c *Connection) Send(transaction *Transaction) (err error) {
 	}
 	c.mtxBaseConnectionSend.Unlock()
 	atomic.AddUint64(&c.sentBytes, uint64(sentBytes))
+	atomic.AddUint64(&c.totalPerformanceCounters.InTrafficCounter, uint64(sentBytes))
 	atomic.AddUint64(&c.sentFrames, 1)
 	return
 }

@@ -40,6 +40,8 @@ type RouterConnection struct {
 	init4Received bool
 	init5Received bool
 
+	totalPerformanceCounters *xchg.ConnectionsPerformanceCounters
+
 	statSetResponseCounter                 uint64
 	statSetResponseErrNoTransactionCounter uint64
 	statWorkerRemoveTransactionCounter     uint64
@@ -69,14 +71,15 @@ type RouterConnectionState struct {
 	Transactions      []string `json:"transactions"`
 }
 
-func NewRouterConnection(conn net.Conn, router *Router, privateKey *rsa.PrivateKey) *RouterConnection {
+func NewRouterConnection(conn net.Conn, router *Router, privateKey *rsa.PrivateKey, totalPerformanceCounters *xchg.ConnectionsPerformanceCounters) *RouterConnection {
 	var c RouterConnection
+	c.totalPerformanceCounters = totalPerformanceCounters
 	c.configMaxAddressSize = 1024
 	c.router = router
 	c.privateKey = privateKey
 	c.localSecretBytes = make([]byte, 32)
 	rand.Read(c.localSecretBytes)
-	c.InitIncomingConnection(conn, &c, "router")
+	c.InitIncomingConnection(conn, &c, "router", c.totalPerformanceCounters)
 	c.createdDT = time.Now()
 	//c.nextTransactionId = 1
 	c.receiveResponseFrom = make(map[uint64]time.Time)
@@ -133,6 +136,7 @@ func (c *RouterConnection) ConfirmedRemoteAddress() string {
 
 func (c *RouterConnection) processInit1(transaction *xchg.Transaction) {
 	var err error
+	atomic.AddUint64(&c.totalPerformanceCounters.Init1Counter, 1)
 
 	if len(transaction.Data) > c.configMaxAddressSize {
 		c.SendError(transaction, errors.New(xchg.ERR_XCHG_ROUTER_CONN_WRONG_PUBLIC_KEY_SIZE))
@@ -175,6 +179,7 @@ func (c *RouterConnection) processInit4(transaction *xchg.Transaction) {
 	privateKey := c.privateKey
 	localSecretBytes := c.localSecretBytes
 	remotePublicKey := c.remotePublicKey
+	atomic.AddUint64(&c.totalPerformanceCounters.Init4Counter, 1)
 	c.mtxRouterConnection.Unlock()
 
 	receivedSecretBytes, err := rsa.DecryptPKCS1v15(rand.Reader, privateKey, transaction.Data)
@@ -203,6 +208,7 @@ func (c *RouterConnection) processInit5(transaction *xchg.Transaction) {
 	c.mtxRouterConnection.Lock()
 	privateKey := c.privateKey
 	remotePublicKey := c.remotePublicKey
+	atomic.AddUint64(&c.totalPerformanceCounters.Init5Counter, 1)
 	c.mtxRouterConnection.Unlock()
 
 	var err error

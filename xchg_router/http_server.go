@@ -49,6 +49,8 @@ func (c *HttpServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		result = []byte("index")
 	case "/state":
 		result = c.RouterStateJson()
+	case "/performance":
+		result = c.RouterPerformanceJson()
 	}
 
 	w.WriteHeader(200)
@@ -58,6 +60,15 @@ func (c *HttpServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (c *HttpServer) RouterStateJson() []byte {
 	state := c.router.State()
+	bs, err := json.MarshalIndent(state, "", " ")
+	if err != nil {
+		return []byte(err.Error())
+	}
+	return bs
+}
+
+func (c *HttpServer) RouterPerformanceJson() []byte {
+	state := c.router.Performance()
 	bs, err := json.MarshalIndent(state, "", " ")
 	if err != nil {
 		return []byte(err.Error())
