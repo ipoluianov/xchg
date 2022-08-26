@@ -44,6 +44,8 @@ func (c *HttpServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	//ctx := context.Background()
 	var result []byte
 
+	c.router.AddHttpRequestsCounter()
+
 	switch r.URL.Path {
 	case "/":
 		result = []byte("index")
