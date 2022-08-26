@@ -81,7 +81,7 @@ func NewNetworkDefault() *Network {
 
 func (c *Network) SaveToFile(fileName string) error {
 	bs := c.toBytes()
-	err := ioutil.WriteFile(fileName, bs, 0660)
+	err := ioutil.WriteFile(fileName, bs, 0666)
 	return err
 }
 

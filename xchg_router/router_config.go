@@ -32,7 +32,7 @@ func LoadConfigFromFile(filePath string) (conf RouterConfig, err error) {
 
 		// write config to file for user convenience if the file is not exist
 		bs, err = json.MarshalIndent(conf, "", " ")
-		_ = ioutil.WriteFile(filePath, bs, 0660) // it is just helper. ignore errors
+		_ = ioutil.WriteFile(filePath, bs, 0666) // it is just helper. ignore errors
 
 	} else {
 		if fi.IsDir() {
