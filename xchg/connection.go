@@ -393,7 +393,7 @@ func (c *Connection) Send(transaction *Transaction) (err error) {
 	}
 	c.mtxBaseConnectionSend.Unlock()
 	atomic.AddUint64(&c.sentBytes, uint64(sentBytes))
-	atomic.AddUint64(&c.totalPerformanceCounters.InTrafficCounter, uint64(sentBytes))
+	atomic.AddUint64(&c.totalPerformanceCounters.OutTrafficCounter, uint64(sentBytes))
 	atomic.AddUint64(&c.sentFrames, 1)
 	return
 }
