@@ -242,7 +242,7 @@ func (c *Router) setAddressForConnection(connection *RouterConnection, address s
 
 func (c *Router) updatePerformance() {
 	now := time.Now()
-	if now.Sub(c.performanceLastDT) < 1*time.Second {
+	if now.Sub(c.performanceLastDT) < 900*time.Millisecond {
 		return
 	}
 
@@ -277,7 +277,7 @@ func (c *Router) updatePerformance() {
 
 func (c *Router) thWorker() {
 	logger.Println("[i]", "Router::thWorker", "begin")
-	ticker := time.NewTicker(3000 * time.Millisecond)
+	ticker := time.NewTicker(1000 * time.Millisecond)
 	working := true
 	for working {
 		select {
