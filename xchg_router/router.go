@@ -2,9 +2,12 @@ package xchg_router
 
 import (
 	"crypto/rsa"
+	"encoding/base32"
+	"encoding/hex"
 	"errors"
 	"math"
 	"net"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -196,6 +199,20 @@ func (c *Router) getConnectionByAddress(address string) (foundConnection *Router
 	if len(address) != xchg.AddressSize {
 		return
 	}
+
+	validAddress := false
+	addressBS, _ := base32.StdEncoding.DecodeString(strings.ToUpper(address))
+	addressHEX := strings.ToLower(hex.EncodeToString(addressBS))
+	for _, prefix := range c.localPerfixes {
+		if strings.HasPrefix(addressHEX, prefix) {
+			validAddress = true
+			break
+		}
+	}
+	if !validAddress {
+		return
+	}
+
 	c.mtxRouter.Lock()
 	defer c.mtxRouter.Unlock()
 	if c.chWorking == nil {
