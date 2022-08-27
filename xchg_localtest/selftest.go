@@ -15,6 +15,20 @@ import (
 	"github.com/ipoluianov/xchg/xchg_router"
 )
 
+func GetNetworkDescription(network *xchg_network.Network) {
+	result := ""
+	for _, r := range network.Ranges {
+		rangeBlock := "<div>\r\n"
+		rangeBlock += "<h1>" + r.Prefix + "...</h1>\r\n"
+		for _, h := range r.Hosts {
+			rangeBlock += "<li>" + h.Address + " / " + h.Name + "</li>\r\n"
+		}
+		rangeBlock += "</div>\r\n"
+		result += rangeBlock
+	}
+	ioutil.WriteFile("network.html", []byte(result), 0666)
+}
+
 func GenNetwork() {
 	network := xchg_network.NewNetwork()
 	s1 := "54.37.73.160:8484"
@@ -29,6 +43,8 @@ func GenNetwork() {
 	}
 
 	network.SaveToFile("network.json")
+	GetNetworkDescription(network)
+
 }
 
 func GenConfig() {

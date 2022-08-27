@@ -1,4 +1,7 @@
 {
+ "name": "MainNet",
+ "eth_addr": "0x60087f17b9dAF691DEd6c40Cb1fA6CE4407fa58C",
+ "sol_addr": "todo",
  "ranges": [
   {
    "prefix": "0",

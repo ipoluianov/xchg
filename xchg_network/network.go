@@ -8,6 +8,7 @@ import (
 	"io"
 	"io/ioutil"
 	"math/rand"
+	"net"
 	"net/http"
 	"sort"
 	"strings"
@@ -20,8 +21,11 @@ type Network struct {
 	fromInternet       bool
 	fromInternetLoaded bool
 
-	Ranges   []*rng  `json:"ranges"`
-	Gateways []*host `json:"gateways"`
+	Name       string  `json:"name"`
+	EthAddress string  `json:"eth_addr"`
+	SolAddress string  `json:"sol_addr"`
+	Ranges     []*rng  `json:"ranges"`
+	Gateways   []*host `json:"gateways"`
 }
 
 func NewNetwork() *Network {
@@ -139,6 +143,9 @@ func (c *Network) SaveToFile(fileName string) error {
 func (c *Network) init() {
 	c.Ranges = make([]*rng, 0)
 	c.Gateways = make([]*host, 0)
+	c.Name = "MainNet"
+	c.EthAddress = "0x60087f17b9dAF691DEd6c40Cb1fA6CE4407fa58C"
+	c.SolAddress = "todo"
 }
 
 func (c *Network) AddHostToRange(prefix string, address string) {
@@ -219,4 +226,43 @@ func (c *Network) GetNodesAddressesByAddress(address string) []string {
 	})
 
 	return addresses
+}
+
+func (c *Network) GetLocalPrefixes() []string {
+	prefixes := make([]string, 0)
+	localIPs := c.GetLocalIPs()
+	for _, r := range c.Ranges {
+		for _, h := range r.Hosts {
+			for _, ip := range localIPs {
+				if strings.Contains(h.Address, ip) {
+					prefixes = append(prefixes, r.Prefix)
+				}
+			}
+		}
+	}
+	return prefixes
+}
+
+func (c *Network) GetLocalIPs() (result []string) {
+	result = make([]string, 0)
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return
+	}
+	for _, i := range ifaces {
+		addrs, err := i.Addrs()
+		if err == nil {
+			for _, addr := range addrs {
+				var ip net.IP
+				switch v := addr.(type) {
+				case *net.IPNet:
+					ip = v.IP
+				case *net.IPAddr:
+					ip = v.IP
+				}
+				result = append(result, ip.String())
+			}
+		}
+	}
+	return
 }

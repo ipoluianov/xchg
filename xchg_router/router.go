@@ -31,9 +31,10 @@ type Router struct {
 	localPrivateKeyBS []byte
 	localAddress      string
 
-	httpServer   *HttpServer
-	routerServer *RouterServer
-	network      *xchg_network.Network
+	httpServer    *HttpServer
+	routerServer  *RouterServer
+	network       *xchg_network.Network
+	localPerfixes []string
 
 	chWorking chan interface{}
 
@@ -49,6 +50,7 @@ type RouterState struct {
 	NextConnectionId          uint64 `json:"next_connection_id"`
 	ConnectionsCount          int    `json:"connections_count"`
 	ConnectionsByAddressCount int    `json:"connections_by_address_count"`
+	LocalPerfixes             []string
 
 	Connections []RouterConnectionState `json:"connections"`
 }
@@ -105,6 +107,8 @@ func (c *Router) Start() (err error) {
 	logger.Println("[i]", "Router::Start", "begin")
 	c.mtxRouter.Lock()
 	defer c.mtxRouter.Unlock()
+
+	c.localPerfixes = c.network.GetLocalPrefixes()
 
 	if c.chWorking != nil {
 		err = errors.New(xchg.ERR_XCHG_ROUTER_ALREADY_STARTED)
@@ -316,6 +320,7 @@ func (c *Router) thWorker() {
 
 func (c *Router) State() (state RouterState) {
 	atomic.AddUint64(&c.performanceCounters.HttpGetStateCounter, 1)
+	state.LocalPerfixes = c.localPerfixes
 	return
 }
 
