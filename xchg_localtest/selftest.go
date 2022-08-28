@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"strings"
 	"time"
 
 	"github.com/ipoluianov/gomisc/crypt_tools"
@@ -18,10 +19,19 @@ import (
 func GetNetworkDescription(network *xchg_network.Network) {
 	result := ""
 	for _, r := range network.Ranges {
-		rangeBlock := "<div>\r\n"
+		rangeBlock := `<div style="font-family: Consolas, 'Courier New', Courier, monospace;font-size: 10pt;">` + "\r\n"
 		rangeBlock += "<h1>" + r.Prefix + "...</h1>\r\n"
 		for _, h := range r.Hosts {
-			rangeBlock += "<li>" + h.Address + " / " + h.Name + "</li>\r\n"
+			httpAddr := strings.ReplaceAll(h.Address, "8484", "8485")
+
+			hostBlock := `<table style="margin-bottom: 10px; border-bottom: 2px solid #4169e1;" >` + "\r\n"
+			hostBlock += "<tr><td>Address</td><td>" + h.Address + "</td><tr>\r\n"
+			hostBlock += "<tr><td>Name</td><td>" + h.Name + "</td><tr>\r\n"
+			hostBlock += "<tr><td>ETH Address</td><td>" + h.EthAddress + "</td><tr>\r\n"
+			hostBlock += `<tr><td>State</td><td><a href="http://` + httpAddr + `/state">State</td><tr>` + "\r\n"
+			hostBlock += `<tr><td>Performance</td><td><a href="http://` + httpAddr + `/performance">Performance</td><tr>` + "\r\n"
+			hostBlock += "</table>\r\n"
+			rangeBlock += hostBlock
 		}
 		rangeBlock += "</div>\r\n"
 		result += rangeBlock
