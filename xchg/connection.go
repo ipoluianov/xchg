@@ -3,6 +3,7 @@ package xchg
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -240,11 +241,14 @@ func (c *Connection) thReceive() {
 	for !c.stopping {
 		if c.conn == nil {
 			var conn net.Conn
+			fmt.Println("connecting ", c.host, c.internalId)
 			conn, err = net.Dial("tcp", c.host)
 			if err != nil {
 				time.Sleep(100 * time.Millisecond)
+				fmt.Println("connecting error ", c.host)
 				continue
 			}
+			fmt.Println("connecting ok ", c.host)
 			c.incomingDataOffset = 0
 			c.adjustInputBufferDown(c.incomingDataOffset)
 			c.callProcessorConnected()
@@ -254,11 +258,14 @@ func (c *Connection) thReceive() {
 			c.mtxBaseConnection.Unlock()
 		}
 
+		fmt.Println("reading ", c.host)
 		n, err = c.conn.Read(c.incomingData[c.incomingDataOffset:])
 		if c.stopping {
+			logger.Println("[-]", "Connection::thReceive", "stopping", c.internalId)
 			break
 		}
-		if n < 0 || err != nil {
+		if n < 1 || err != nil {
+			logger.Println("[-]", "Connection::thReceive", "n < 1 || err: ", err, c.internalId)
 			if c.IsIncoming() {
 				break
 			} else {
@@ -266,6 +273,7 @@ func (c *Connection) thReceive() {
 				continue
 			}
 		}
+		logger.Println("[-]", "Connection::thReceive", "received bytes:", n, c.internalId)
 
 		atomic.AddUint64(&c.receivedBytes, uint64(n))
 		atomic.AddUint64(&c.totalPerformanceCounters.InTrafficCounter, uint64(n))
@@ -303,6 +311,7 @@ func (c *Connection) thReceive() {
 			if err == nil {
 				c.mtxBaseConnection.Lock()
 				if c.processor != nil {
+					logger.Println("[-]", "Connection::thReceive", "received frame:", transaction.FrameType, c.internalId)
 					go c.processor.ProcessTransaction(transaction)
 				}
 				c.mtxBaseConnection.Unlock()
@@ -358,6 +367,7 @@ func (c *Connection) adjustInputBufferDown(needSize int) {
 }
 
 func (c *Connection) SendError(transaction *Transaction, err error) {
+	logger.Println("[-]", "Connection::SendError", "error:", err, c.internalId)
 	c.Send(NewTransaction(FrameError, transaction.SID, transaction.TransactionId, 0, []byte(err.Error())))
 }
 
@@ -380,9 +390,11 @@ func (c *Connection) Send(transaction *Transaction) (err error) {
 	for sentBytes < len(frame) {
 		n, err = conn.Write(frame[sentBytes:])
 		if err != nil {
+			logger.Println("[-]", "Connection::Send", "error:", err)
 			break
 		}
 		if n < 1 {
+			logger.Println("[-]", "Connection::Send", "n < 1")
 			break
 		}
 		sentBytes += n

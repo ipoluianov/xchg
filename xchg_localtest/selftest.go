@@ -67,6 +67,9 @@ func GenConfig() {
 }
 
 func SelfTest() {
+	RunSimpleServer()
+	return
+
 	GenNetwork()
 	GenConfig()
 
@@ -150,13 +153,15 @@ func Client(address string, network *xchg_network.Network) {
 
 func RunSimpleServer() {
 	network := xchg_network.NewNetwork()
-	s1 := "54.37.73.160:8484"
-	s2 := "54.37.73.229:8484"
+	//s1 := "54.37.73.160:8484"
+	//s2 := "54.37.73.229:8484"
+	s3 := "134.0.115.16:8484"
 
 	for r := 0; r < 16; r++ {
 		rangePrefix := fmt.Sprintf("%X", r)
-		network.AddHostToRange(rangePrefix, s1)
-		network.AddHostToRange(rangePrefix, s2)
+		//network.AddHostToRange(rangePrefix, s1)
+		//network.AddHostToRange(rangePrefix, s2)
+		network.AddHostToRange(rangePrefix, s3)
 	}
 
 	serverPrivateKey, _ := crypt_tools.GenerateRSAKey()
