@@ -273,7 +273,7 @@ func (c *Connection) thReceive() {
 				continue
 			}
 		}
-		logger.Println("[-]", "Connection::thReceive", "received bytes:", n, c.internalId)
+		//logger.Println("[-]", "Connection::thReceive", "received bytes:", n, c.internalId)
 
 		atomic.AddUint64(&c.receivedBytes, uint64(n))
 		atomic.AddUint64(&c.totalPerformanceCounters.InTrafficCounter, uint64(n))
