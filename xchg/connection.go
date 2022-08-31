@@ -258,7 +258,7 @@ func (c *Connection) thReceive() {
 			c.mtxBaseConnection.Unlock()
 		}
 
-		fmt.Println("reading ", c.host)
+		//fmt.Println("reading ", c.host)
 		n, err = c.conn.Read(c.incomingData[c.incomingDataOffset:])
 		if c.stopping {
 			logger.Println("[-]", "Connection::thReceive", "stopping", c.internalId)
@@ -311,7 +311,7 @@ func (c *Connection) thReceive() {
 			if err == nil {
 				c.mtxBaseConnection.Lock()
 				if c.processor != nil {
-					logger.Println("[-]", "Connection::thReceive", "received frame:", transaction.FrameType, c.internalId)
+					//logger.Println("[-]", "Connection::thReceive", "received frame:", transaction.FrameType, c.internalId)
 					go c.processor.ProcessTransaction(transaction)
 				}
 				c.mtxBaseConnection.Unlock()
