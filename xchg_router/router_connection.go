@@ -250,6 +250,7 @@ func (c *RouterConnection) processSetOPT(transaction *xchg.Transaction) {
 	c.mtxRouterConnection.Lock()
 	c.currentOTP = transaction.Data
 	c.mtxRouterConnection.Unlock()
+	c.Send(xchg.NewTransaction(xchg.FrameResponse, 0, transaction.TransactionId, 0, nil))
 }
 
 func (c *RouterConnection) processCall(transaction *xchg.Transaction) {
