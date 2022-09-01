@@ -389,6 +389,8 @@ func (c *PeerConnection) checkConnection() (connectionIsReady bool) {
 		return
 	}
 
+	connection.MakeUDPHole()
+
 	if !init1Sent {
 		err = connection.Send(xchg.NewTransaction(xchg.FrameInit1, 0, 0, 0, crypt_tools.RSAPublicKeyToDer(c.publicKey)))
 		if err == nil {

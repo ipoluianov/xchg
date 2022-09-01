@@ -12,11 +12,12 @@ import (
 )
 
 type RouterServer struct {
-	mtx       sync.Mutex
-	listener  net.Listener
-	router    *Router
-	port      int
-	chWorking chan interface{}
+	mtx         sync.Mutex
+	listener    net.Listener
+	listenerUDP *net.UDPConn
+	router      *Router
+	port        int
+	chWorking   chan interface{}
 }
 
 func NewRouterServer(port int, router *Router) *RouterServer {
@@ -40,6 +41,7 @@ func (c *RouterServer) Start() (err error) {
 	c.chWorking = make(chan interface{})
 
 	go c.thListen()
+	go c.thListenUDP()
 
 	logger.Println("[i]", "RouterServer::Start", "end")
 	return
@@ -106,5 +108,33 @@ func (c *RouterServer) thListen() {
 		}
 	}
 	logger.Println("[i]", "RouterServer::thListen", "end")
+	c.chWorking = nil
+}
+
+func (c *RouterServer) thListenUDP() {
+	buffer := make([]byte, 4096)
+	logger.Println("[i]", "RouterServer::thListenUDP", "begin")
+	var err error
+	address := net.UDPAddr{
+		Port: 1234,
+		IP:   net.ParseIP("255.255.255.255"),
+	}
+	logger.Println("[i]", "RouterServer::thListenUDP", "listen point:", address)
+	c.listenerUDP, err = net.ListenUDP("udp", &address)
+	if err != nil {
+		logger.Error("[ERROR]", "RouterServer::thListenUDP", "net.Listen error:", err)
+	} else {
+		working := true
+		for working {
+			var n int
+			var remoteAddr *net.UDPAddr
+			n, remoteAddr, err = c.listenerUDP.ReadFromUDP(buffer)
+			if err != nil {
+				break
+			}
+			c.listenerUDP.WriteTo([]byte("HELLO FROM ROUTER:"+fmt.Sprint(n)), remoteAddr)
+		}
+	}
+	logger.Println("[i]", "RouterServer::thListenUDP", "end")
 	c.chWorking = nil
 }

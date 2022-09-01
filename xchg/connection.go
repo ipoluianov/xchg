@@ -15,6 +15,7 @@ import (
 type Connection struct {
 	internalId string
 	conn       net.Conn
+	connUDP    net.Conn
 
 	mtxBaseConnection     sync.Mutex
 	mtxBaseConnectionSend sync.Mutex
@@ -124,6 +125,10 @@ func (c *Connection) Dispose() {
 		c.conn.Close()
 		c.conn = nil
 	}
+	if c.connUDP != nil {
+		c.connUDP.Close()
+		c.connUDP = nil
+	}
 	c.mtxBaseConnection.Unlock()
 }
 
@@ -164,6 +169,11 @@ func (c *Connection) Stop() {
 	c.stopping = true
 	if c.conn != nil {
 		c.conn.Close()
+		c.conn = nil
+	}
+	if c.connUDP != nil {
+		c.connUDP.Close()
+		c.connUDP = nil
 	}
 	c.mtxBaseConnection.Unlock()
 
@@ -199,6 +209,10 @@ func (c *Connection) disconnect() {
 	if c.conn != nil {
 		c.conn.Close()
 		c.conn = nil
+	}
+	if c.connUDP != nil {
+		c.connUDP.Close()
+		c.connUDP = nil
 	}
 	processor := c.processor
 	c.mtxBaseConnection.Unlock()
@@ -257,6 +271,7 @@ func (c *Connection) thReceive() {
 
 			c.mtxBaseConnection.Lock()
 			c.conn = conn
+			c.connUDP, err = net.Dial("udp", c.host)
 			c.mtxBaseConnection.Unlock()
 		}
 
@@ -409,7 +424,17 @@ func (c *Connection) Send(transaction *Transaction) (err error) {
 	atomic.AddUint64(&c.sentBytes, uint64(sentBytes))
 	atomic.AddUint64(&c.totalPerformanceCounters.OutTrafficCounter, uint64(sentBytes))
 	atomic.AddUint64(&c.sentFrames, 1)
+
 	return
+}
+
+func (c *Connection) MakeUDPHole() {
+	c.mtxBaseConnection.Lock()
+	connUDP := c.connUDP
+	c.mtxBaseConnection.Unlock()
+	if connUDP != nil {
+		c.connUDP.Write([]byte("HELLO"))
+	}
 }
 
 func (c *Connection) State() (state ConnectionState) {
