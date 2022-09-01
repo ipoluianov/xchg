@@ -464,7 +464,7 @@ func (c *PeerConnection) MakeUDPHole() {
 	}
 
 	now := time.Now()
-	if now.Sub(makeUDPHoleLastTime) < 1*time.Second {
+	if now.Sub(makeUDPHoleLastTime) < 5*time.Second {
 		return
 	}
 	c.mtxPeerConnection.Lock()

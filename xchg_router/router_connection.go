@@ -322,6 +322,8 @@ func (c *RouterConnection) SetUDPHole(otp []byte, ip net.IP, port int) {
 		}
 	}
 
+	c.currentOTP = nil
+
 	c.udpHoleIP = ip
 	c.udpHolePort = port
 }

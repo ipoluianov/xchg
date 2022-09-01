@@ -436,12 +436,14 @@ func (c *Connection) MakeUDPHole(address string, otp []byte) {
 	connUDP := c.connUDP
 	c.mtxBaseConnection.Unlock()
 
+	fmt.Println("Addr: ", address)
+
 	if connUDP != nil {
 		addrBS := []byte(address)
 		UDPframe := make([]byte, 32+len(addrBS))
 		copy(UDPframe, otp)
 		copy(UDPframe[32:], addrBS)
-		c.connUDP.Write(otp)
+		c.connUDP.Write(UDPframe)
 	}
 }
 
