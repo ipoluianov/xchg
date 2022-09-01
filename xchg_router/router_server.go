@@ -116,7 +116,7 @@ func (c *RouterServer) thListenUDP() {
 	logger.Println("[i]", "RouterServer::thListenUDP", "begin")
 	var err error
 	address := net.UDPAddr{
-		Port: 1234,
+		Port: 8484,
 		IP:   net.ParseIP("255.255.255.255"),
 	}
 	logger.Println("[i]", "RouterServer::thListenUDP", "listen point:", address)
