@@ -107,7 +107,13 @@ func SelfTest() {
 	fmt.Println("Server address:", serverAddress)
 
 	// TODO: remove for local tests
-	network = xchg_network.NewNetworkFromInternet()
+	network = xchg_network.NewNetwork()
+	for r := 0; r < 16; r++ {
+		rangePrefix := fmt.Sprintf("%X", r)
+		network.AddHostToRange(rangePrefix, "54.37.73.160:8484")
+	}
+
+	//network = xchg_network.NewNetworkFromInternet()
 
 	ss := xchg_examples.NewSimpleServer(serverPrivateKey32, network)
 	ss.Start()

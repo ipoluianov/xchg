@@ -128,7 +128,9 @@ func (c *RouterServer) thListenUDP() {
 		for working {
 			var n int
 			var remoteAddr *net.UDPAddr
+			logger.Println("[-]", "RouterServer::thListenUDP", "reading ...")
 			n, remoteAddr, err = c.listenerUDP.ReadFromUDP(buffer)
+			logger.Println("[-]", "RouterServer::thListenUDP", "reading result", n, remoteAddr, err)
 			if err != nil {
 				break
 			}
