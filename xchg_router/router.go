@@ -373,6 +373,7 @@ func (c *Router) Network() *xchg_network.Network {
 }
 
 func (c *Router) UDPReceived(frame []byte, ip net.IP, port int) {
+	logger.Println("[-]", "Router::UDPReceived", frame, ip, port)
 	if len(frame) < 32 {
 		return
 	}
@@ -380,5 +381,9 @@ func (c *Router) UDPReceived(frame []byte, ip net.IP, port int) {
 	addessBS := frame[32:]
 
 	connection := c.getConnectionByAddress(string(addessBS))
+	if connection == nil {
+		logger.Println("[-]", "Router::UDPReceived", "no connection", string(addessBS))
+		return
+	}
 	connection.SetUDPHole(otp, ip, port)
 }
