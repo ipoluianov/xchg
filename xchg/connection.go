@@ -75,7 +75,7 @@ func NewConnection() *Connection {
 	return &c
 }
 
-func (c *Connection) InitIncomingConnection(conn net.Conn, processor ITransactionProcessor, internalId string, totalPerformanceCounters *ConnectionsPerformanceCounters) {
+func (c *Connection) InitIncomingConnection(conn net.Conn, processor ITransactionProcessor, internalId string, totalPerformanceCounters *ConnectionsPerformanceCounters, inputBufferSize int) {
 	c.mtxBaseConnection.Lock()
 	defer c.mtxBaseConnection.Unlock()
 	if totalPerformanceCounters == nil {
@@ -89,13 +89,14 @@ func (c *Connection) InitIncomingConnection(conn net.Conn, processor ITransactio
 		logger.Println("[ERROR]", "Connection::initIncomingConnection", "already started")
 		return
 	}
-	c.configMaxFrameSize = 128 * 1024
+	c.configMaxFrameSize = 1024
+	c.incomingData = make([]byte, inputBufferSize)
 
 	c.processor = processor
 	c.conn = conn
 }
 
-func (c *Connection) InitOutgoingConnection(host string, processor ITransactionProcessor, internalId string) {
+func (c *Connection) InitOutgoingConnection(host string, processor ITransactionProcessor, internalId string, inputBufferSize int) {
 	c.mtxBaseConnection.Lock()
 	defer c.mtxBaseConnection.Unlock()
 	c.totalPerformanceCounters = &ConnectionsPerformanceCounters{}
@@ -104,7 +105,8 @@ func (c *Connection) InitOutgoingConnection(host string, processor ITransactionP
 		logger.Println("[ERROR]", "Connection::InitOutgoingConnection", "already started")
 		return
 	}
-	c.configMaxFrameSize = 128 * 1024
+	c.configMaxFrameSize = 1024
+	c.incomingData = make([]byte, inputBufferSize)
 
 	c.processor = processor
 	c.host = host
@@ -236,7 +238,7 @@ func (c *Connection) thReceive() {
 	var n int
 	var err error
 	c.incomingDataOffset = 0
-	c.adjustInputBufferDown(c.incomingDataOffset)
+	//c.adjustInputBufferDown(c.incomingDataOffset)
 
 	for !c.stopping {
 		if c.conn == nil {
@@ -250,7 +252,7 @@ func (c *Connection) thReceive() {
 			}
 			fmt.Println("connecting ok ", c.host)
 			c.incomingDataOffset = 0
-			c.adjustInputBufferDown(c.incomingDataOffset)
+			//c.adjustInputBufferDown(c.incomingDataOffset)
 			c.callProcessorConnected()
 
 			c.mtxBaseConnection.Lock()
@@ -356,7 +358,7 @@ func (c *Connection) adjustInputBufferUp(needSize int) {
 	c.incomingData = newBuffer
 }
 
-func (c *Connection) adjustInputBufferDown(needSize int) {
+/*func (c *Connection) adjustInputBufferDown(needSize int) {
 	pSize := needSize + (4096 - (needSize % 4096))
 	if pSize == len(c.incomingData) {
 		return
@@ -364,7 +366,7 @@ func (c *Connection) adjustInputBufferDown(needSize int) {
 	newBuffer := make([]byte, pSize)
 	copy(newBuffer, c.incomingData)
 	c.incomingData = newBuffer
-}
+}*/
 
 func (c *Connection) SendError(transaction *Transaction, err error) {
 	logger.Println("[-]", "Connection::SendError", "error:", err, c.internalId)

@@ -84,7 +84,7 @@ func NewPeerConnection(xchgNode string, localAddress *rsa.PrivateKey, processor 
 
 	c.node = xchgNode
 	c.connection = xchg.NewConnection()
-	c.connection.InitOutgoingConnection(c.node, &c, "peer/"+c.internalId)
+	c.connection.InitOutgoingConnection(c.node, &c, "peer/"+c.internalId, 100*1024)
 	c.nextTransactionId = 1
 	c.outgoingTransactions = make(map[uint64]*xchg.Transaction)
 	c.incomingTransactions = make(map[string]*xchg.Transaction)

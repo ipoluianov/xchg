@@ -79,7 +79,7 @@ func NewRouterConnection(conn net.Conn, router *Router, privateKey *rsa.PrivateK
 	c.privateKey = privateKey
 	c.localSecretBytes = make([]byte, 32)
 	rand.Read(c.localSecretBytes)
-	c.InitIncomingConnection(conn, &c, "router", c.totalPerformanceCounters)
+	c.InitIncomingConnection(conn, &c, "router", c.totalPerformanceCounters, 4*1024)
 	c.createdDT = time.Now()
 	//c.nextTransactionId = 1
 	c.receiveResponseFrom = make(map[uint64]time.Time)
