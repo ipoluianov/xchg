@@ -134,7 +134,7 @@ func (c *RouterServer) thListenUDP() {
 			if err != nil {
 				break
 			}
-			c.router.UDPReceived(buffer[:n])
+			c.router.UDPReceived(buffer[:n], remoteAddr.IP, remoteAddr.Port)
 			c.listenerUDP.WriteTo([]byte("HELLO FROM ROUTER:"+fmt.Sprint(n)), remoteAddr)
 		}
 	}
