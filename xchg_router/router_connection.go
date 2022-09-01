@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -62,6 +63,7 @@ type RouterConnectionState struct {
 	Init1Received          bool   `json:"init1_received"`
 	Init4Received          bool   `json:"init4_received"`
 	Init5Received          bool   `json:"init5_received"`
+	UDPHoleAddr            string `json:"udp_hole_address"`
 
 	BaseConnection xchg.ConnectionState `json:"base"`
 
@@ -69,10 +71,6 @@ type RouterConnectionState struct {
 	StatSetResponseCounter                 uint64 `json:"stat_set_response_counter"`
 	StatSetResponseErrNoTransactionCounter uint64 `json:"stat_set_response_err_no_transaction_counter"`
 	StatWorkerRemoveTransactionCounter     uint64 `json:"stat_worker_remove_transaction_counter"`
-
-	NextTransactionId uint64   `json:"next_transaction_id"`
-	TransactionsCount int      `json:"transactions_count"`
-	Transactions      []string `json:"transactions"`
 }
 
 func NewRouterConnection(conn net.Conn, router *Router, privateKey *rsa.PrivateKey, totalPerformanceCounters *xchg.ConnectionsPerformanceCounters) *RouterConnection {
@@ -334,6 +332,8 @@ func (c *RouterConnection) State() (state RouterConnectionState) {
 	state.Init1Received = c.init1Received
 	state.Init4Received = c.init4Received
 	state.Init5Received = c.init5Received
+
+	state.UDPHoleAddr = fmt.Sprint(c.udpHoleIP.String()) + ":" + fmt.Sprint(c.udpHolePort)
 
 	state.StatBeginTransactionCounter = atomic.LoadUint64(&c.statBeginTransactionCounter)
 	state.StatSetResponseCounter = atomic.LoadUint64(&c.statSetResponseCounter)
