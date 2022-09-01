@@ -42,7 +42,7 @@ const (
 	FrameInit6 = byte(0x06) // 2 -> 1: [enc(secret1, addr1)] // it is me, xchg
 
 	FrameResolveAddress = byte(0x10) // 1 -> 2: [addr3]
-	//FrameResolvedAddress = byte(0x11) // 2 -> 1: [sid3]
+	FrameSetOTP         = byte(0x11) // 1 -> 2: [OneTimePassword]
 
 	FrameCall     = byte(0x20) // 1 -> 2: [sid3][call_frame] --- 2 -> 3: [call_frame]
 	FrameResponse = byte(0x21) // 3 -> 2: [response_frame] --- 2 -> 1: [response_frame]

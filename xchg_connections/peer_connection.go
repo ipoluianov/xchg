@@ -40,6 +40,8 @@ type PeerConnection struct {
 	outgoingTransactions map[uint64]*xchg.Transaction
 	nextTransactionId    uint64
 
+	makeUDPHoleLastTime time.Time
+
 	// Initialization
 	init1Sent     bool
 	init2Received bool
@@ -93,6 +95,7 @@ func NewPeerConnection(xchgNode string, localAddress *rsa.PrivateKey, processor 
 	if localAddress != nil {
 		c.privateKey = localAddress
 		c.publicKey = &c.privateKey.PublicKey
+		c.localAddress = xchg.AddressForPublicKey(&c.privateKey.PublicKey)
 	}
 
 	c.fastReset()
@@ -389,7 +392,7 @@ func (c *PeerConnection) checkConnection() (connectionIsReady bool) {
 		return
 	}
 
-	connection.MakeUDPHole()
+	c.MakeUDPHole()
 
 	if !init1Sent {
 		err = connection.Send(xchg.NewTransaction(xchg.FrameInit1, 0, 0, 0, crypt_tools.RSAPublicKeyToDer(c.publicKey)))
@@ -448,6 +451,33 @@ func (c *PeerConnection) ResolveAddress(address string) (sid uint64, publicKey *
 	if err != nil {
 		return 0, nil, err
 	}
+	return
+}
+
+func (c *PeerConnection) MakeUDPHole() {
+	c.mtxPeerConnection.Lock()
+	makeUDPHoleLastTime := c.makeUDPHoleLastTime
+	connection := c.connection
+	c.mtxPeerConnection.Unlock()
+	if connection == nil {
+		return
+	}
+
+	now := time.Now()
+	if now.Sub(makeUDPHoleLastTime) < 1*time.Second {
+		return
+	}
+	c.mtxPeerConnection.Lock()
+	c.makeUDPHoleLastTime = now
+	c.mtxPeerConnection.Unlock()
+
+	otp := make([]byte, 32)
+	rand.Read(otp)
+	_, err := c.executeTransaction(xchg.FrameSetOTP, 0, 0, otp, 1000*time.Millisecond)
+	if err != nil {
+		return
+	}
+	connection.MakeUDPHole(c.localAddress, otp)
 	return
 }
 

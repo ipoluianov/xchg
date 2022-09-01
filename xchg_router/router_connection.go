@@ -36,6 +36,10 @@ type RouterConnection struct {
 
 	configMaxAddressSize int
 
+	currentOTP  []byte
+	udpHoleIP   net.IP
+	udpHolePort int
+
 	init1Received bool
 	init4Received bool
 	init5Received bool
@@ -110,6 +114,8 @@ func (c *RouterConnection) ProcessTransaction(transaction *xchg.Transaction) {
 			c.processInit5(transaction)
 		case xchg.FrameResolveAddress:
 			c.processResolveAddress(transaction)
+		case xchg.FrameSetOTP:
+			c.processSetOPT(transaction)
 		case xchg.FrameCall:
 			c.processCall(transaction)
 		case xchg.FrameResponse:
@@ -242,6 +248,12 @@ func (c *RouterConnection) processResolveAddress(transaction *xchg.Transaction) 
 	c.Send(xchg.NewTransaction(xchg.FrameResponse, 0, transaction.TransactionId, 0, data))
 }
 
+func (c *RouterConnection) processSetOPT(transaction *xchg.Transaction) {
+	c.mtxRouterConnection.Lock()
+	c.currentOTP = transaction.Data
+	c.mtxRouterConnection.Unlock()
+}
+
 func (c *RouterConnection) processCall(transaction *xchg.Transaction) {
 	connection := c.router.getConnectionById(transaction.SID)
 	if connection == nil {
@@ -292,6 +304,27 @@ func (c *RouterConnection) SetResponse(transaction *xchg.Transaction) {
 	trResponse.Offset = transaction.Offset
 	trResponse.TotalSize = transaction.TotalSize
 	c.Send(trResponse)
+}
+
+func (c *RouterConnection) SetUDPHole(otp []byte, ip net.IP, port int) {
+	c.mtxRouterConnection.Lock()
+	defer c.mtxRouterConnection.Unlock()
+
+	currentOTP := c.currentOTP
+	if len(currentOTP) < 1 {
+		return
+	}
+	if len(currentOTP) != len(otp) {
+		return
+	}
+	for i := 0; i < len(otp); i++ {
+		if currentOTP[i] != otp[i] {
+			return
+		}
+	}
+
+	c.udpHoleIP = ip
+	c.udpHolePort = port
 }
 
 func (c *RouterConnection) State() (state RouterConnectionState) {

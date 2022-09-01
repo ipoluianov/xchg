@@ -140,7 +140,7 @@ func Client(address string, network *xchg_network.Network) {
 	var err error
 	s := xchg_examples.NewSimpleClient(address, network)
 	for i := 0; i < 1000; i++ {
-		time.Sleep(5000 * time.Millisecond)
+		time.Sleep(1000 * time.Millisecond)
 		var bs string
 		fmt.Println("=============== CALLING ==============")
 		bs, err = s.Version()

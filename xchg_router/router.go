@@ -7,6 +7,7 @@ import (
 	"errors"
 	"math"
 	"net"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -337,7 +338,21 @@ func (c *Router) thWorker() {
 
 func (c *Router) State() (state RouterState) {
 	atomic.AddUint64(&c.performanceCounters.HttpGetStateCounter, 1)
+
+	c.mtxRouter.Lock()
 	state.LocalPerfixes = c.localPerfixes
+	state.Connections = make([]RouterConnectionState, len(c.connectionsById))
+	i := 0
+	for _, conn := range c.connectionsById {
+		state.Connections[i] = conn.State()
+		i++
+	}
+	c.mtxRouter.Unlock()
+
+	sort.Slice(state.Connections, func(i, j int) bool {
+		return state.Connections[i].Id < state.Connections[j].Id
+	})
+
 	return
 }
 
@@ -355,4 +370,15 @@ func (c *Router) AddHttpRequestsCounter() {
 
 func (c *Router) Network() *xchg_network.Network {
 	return c.network
+}
+
+func (c *Router) UDPReceived(frame []byte, ip net.IP, port int) {
+	if len(frame) < 32 {
+		return
+	}
+	otp := frame[:32]
+	addessBS := frame[32:]
+
+	connection := c.getConnectionByAddress(string(addessBS))
+	connection.SetUDPHole(otp, ip, port)
 }

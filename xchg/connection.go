@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -15,7 +16,7 @@ import (
 type Connection struct {
 	internalId string
 	conn       net.Conn
-	connUDP    net.Conn
+	connUDP    *net.UDPConn
 
 	mtxBaseConnection     sync.Mutex
 	mtxBaseConnectionSend sync.Mutex
@@ -157,6 +158,7 @@ func (c *Connection) Start() {
 	}
 	c.stopping = false
 	go c.thReceive()
+	go c.thReceiveUDP()
 }
 
 func (c *Connection) Stop() {
@@ -271,7 +273,16 @@ func (c *Connection) thReceive() {
 
 			c.mtxBaseConnection.Lock()
 			c.conn = conn
-			c.connUDP, err = net.Dial("udp", c.host)
+			addressParts := strings.Split(c.host, ":")
+			udpRemoteAddress := net.UDPAddr{
+				Port: 8484,
+				IP:   net.ParseIP(addressParts[0]),
+			}
+			udpLocalAddress := net.UDPAddr{
+				Port: 0,
+				IP:   net.ParseIP("0.0.0.0"),
+			}
+			c.connUDP, err = net.DialUDP("udp", &udpLocalAddress, &udpRemoteAddress)
 			c.mtxBaseConnection.Unlock()
 		}
 
@@ -360,28 +371,20 @@ func (c *Connection) thReceive() {
 	c.mtxBaseConnection.Unlock()
 }
 
-/*func (c *Connection) adjustInputBufferUp(needSize int) {
-	if len(c.incomingData) >= needSize {
-		return
+func (c *Connection) thReceiveUDP() {
+	for c.started {
+		c.mtxBaseConnection.Lock()
+		conn := c.connUDP
+		c.mtxBaseConnection.Unlock()
+		if conn == nil {
+			time.Sleep(100 * time.Millisecond)
+			continue
+		}
+		buffer := make([]byte, 4096)
+		n, remoteAddr, err := conn.ReadFromUDP(buffer)
+		logger.Println("[-]", "Connection::thReceiveUDP", n, remoteAddr, err, string(buffer[:n]))
 	}
-	pSize := needSize + (4096 - (needSize % 4096))
-	if pSize == len(c.incomingData) {
-		return
-	}
-	newBuffer := make([]byte, pSize)
-	copy(newBuffer, c.incomingData)
-	c.incomingData = newBuffer
-}*/
-
-/*func (c *Connection) adjustInputBufferDown(needSize int) {
-	pSize := needSize + (4096 - (needSize % 4096))
-	if pSize == len(c.incomingData) {
-		return
-	}
-	newBuffer := make([]byte, pSize)
-	copy(newBuffer, c.incomingData)
-	c.incomingData = newBuffer
-}*/
+}
 
 func (c *Connection) SendError(transaction *Transaction, err error) {
 	logger.Println("[-]", "Connection::SendError", "error:", err, c.internalId)
@@ -428,12 +431,17 @@ func (c *Connection) Send(transaction *Transaction) (err error) {
 	return
 }
 
-func (c *Connection) MakeUDPHole() {
+func (c *Connection) MakeUDPHole(address string, otp []byte) {
 	c.mtxBaseConnection.Lock()
 	connUDP := c.connUDP
 	c.mtxBaseConnection.Unlock()
+
 	if connUDP != nil {
-		c.connUDP.Write([]byte("HELLO"))
+		addrBS := []byte(address)
+		UDPframe := make([]byte, 32+len(addrBS))
+		copy(UDPframe, otp)
+		copy(UDPframe[32:], addrBS)
+		c.connUDP.Write(otp)
 	}
 }
 
