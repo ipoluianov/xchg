@@ -300,7 +300,7 @@ func (c *Connection) thReceive() {
 				break
 			}
 
-			c.adjustInputBufferUp(frameLen)
+			//c.adjustInputBufferUp(frameLen)
 
 			if restBytes < frameLen {
 				break
@@ -345,7 +345,7 @@ func (c *Connection) thReceive() {
 	c.mtxBaseConnection.Unlock()
 }
 
-func (c *Connection) adjustInputBufferUp(needSize int) {
+/*func (c *Connection) adjustInputBufferUp(needSize int) {
 	if len(c.incomingData) >= needSize {
 		return
 	}
@@ -356,7 +356,7 @@ func (c *Connection) adjustInputBufferUp(needSize int) {
 	newBuffer := make([]byte, pSize)
 	copy(newBuffer, c.incomingData)
 	c.incomingData = newBuffer
-}
+}*/
 
 /*func (c *Connection) adjustInputBufferDown(needSize int) {
 	pSize := needSize + (4096 - (needSize % 4096))
