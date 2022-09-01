@@ -302,7 +302,7 @@ func (c *PeerConnection) processCall(transaction *xchg.Transaction) {
 		trResponse := xchg.NewTransaction(xchg.FrameResponse, incomingTransaction.SID, incomingTransaction.TransactionId, incomingTransaction.SessionId, resp)
 
 		offset := 0
-		blockSize := 10
+		blockSize := 1024
 		for offset < len(trResponse.Data) {
 			currentBlockSize := blockSize
 			restDataLen := len(trResponse.Data) - offset
