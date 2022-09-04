@@ -319,6 +319,7 @@ func (c *PeerConnection) processCall(transaction *xchg.Transaction) {
 			blockTransaction := xchg.NewTransaction(trResponse.FrameType, trResponse.SID, trResponse.TransactionId, trResponse.SessionId, trResponse.Data[offset:offset+currentBlockSize])
 			blockTransaction.Offset = uint32(offset)
 			blockTransaction.TotalSize = uint32(len(trResponse.Data))
+			blockTransaction.UDPSourceAddress = transaction.UDPSourceAddress
 			fmt.Println("Send call response")
 
 			err := c.connection.Send(blockTransaction)

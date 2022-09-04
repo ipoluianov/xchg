@@ -161,7 +161,7 @@ func SimpleClient() {
 	serverPrivateKey, _ := crypt_tools.GenerateRSAKey()
 	//serverPrivateKey32 := base32.StdEncoding.EncodeToString(crypt_tools.RSAPrivateKeyToDer(serverPrivateKey))
 	serverAddress := xchg.AddressForPublicKey(&serverPrivateKey.PublicKey)
-	cl := xchg_examples.NewSimpleClient("a3rskoj3gn7zcwkimoub3spisj2leo5gqz7kby6r3e2jgmnb", network)
+	cl := xchg_examples.NewSimpleClient("m6vgo5wvkb2xwzsyo3gj3kjhoqujazsnzny7it4zs3tmv7af", network)
 
 	for i := 0; i < 1; i++ {
 		var bs string
