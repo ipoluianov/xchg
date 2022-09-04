@@ -11,18 +11,6 @@
      "name": "MainNet",
      "eth_addr": "0x60087f17b9dAF691DEd6c40Cb1fA6CE4407fa58C",
      "sol_addr": "todo"
-    },
-    {
-     "address": "54.37.73.229:8484",
-     "name": "MainNet",
-     "eth_addr": "0x60087f17b9dAF691DEd6c40Cb1fA6CE4407fa58C",
-     "sol_addr": "todo"
-    },
-    {
-     "address": "134.0.115.16:8484",
-     "name": "MainNet",
-     "eth_addr": "0x60087f17b9dAF691DEd6c40Cb1fA6CE4407fa58C",
-     "sol_addr": "todo"
     }
    ]
   },
@@ -31,18 +19,6 @@
    "hosts": [
     {
      "address": "54.37.73.160:8484",
-     "name": "MainNet",
-     "eth_addr": "0x60087f17b9dAF691DEd6c40Cb1fA6CE4407fa58C",
-     "sol_addr": "todo"
-    },
-    {
-     "address": "54.37.73.229:8484",
-     "name": "MainNet",
-     "eth_addr": "0x60087f17b9dAF691DEd6c40Cb1fA6CE4407fa58C",
-     "sol_addr": "todo"
-    },
-    {
-     "address": "134.0.115.16:8484",
      "name": "MainNet",
      "eth_addr": "0x60087f17b9dAF691DEd6c40Cb1fA6CE4407fa58C",
      "sol_addr": "todo"
@@ -57,18 +33,6 @@
      "name": "MainNet",
      "eth_addr": "0x60087f17b9dAF691DEd6c40Cb1fA6CE4407fa58C",
      "sol_addr": "todo"
-    },
-    {
-     "address": "54.37.73.229:8484",
-     "name": "MainNet",
-     "eth_addr": "0x60087f17b9dAF691DEd6c40Cb1fA6CE4407fa58C",
-     "sol_addr": "todo"
-    },
-    {
-     "address": "134.0.115.16:8484",
-     "name": "MainNet",
-     "eth_addr": "0x60087f17b9dAF691DEd6c40Cb1fA6CE4407fa58C",
-     "sol_addr": "todo"
     }
    ]
   },
@@ -77,18 +41,6 @@
    "hosts": [
     {
      "address": "54.37.73.160:8484",
-     "name": "MainNet",
-     "eth_addr": "0x60087f17b9dAF691DEd6c40Cb1fA6CE4407fa58C",
-     "sol_addr": "todo"
-    },
-    {
-     "address": "54.37.73.229:8484",
-     "name": "MainNet",
-     "eth_addr": "0x60087f17b9dAF691DEd6c40Cb1fA6CE4407fa58C",
-     "sol_addr": "todo"
-    },
-    {
-     "address": "134.0.115.16:8484",
      "name": "MainNet",
      "eth_addr": "0x60087f17b9dAF691DEd6c40Cb1fA6CE4407fa58C",
      "sol_addr": "todo"
@@ -103,18 +55,6 @@
      "name": "MainNet",
      "eth_addr": "0x60087f17b9dAF691DEd6c40Cb1fA6CE4407fa58C",
      "sol_addr": "todo"
-    },
-    {
-     "address": "54.37.73.229:8484",
-     "name": "MainNet",
-     "eth_addr": "0x60087f17b9dAF691DEd6c40Cb1fA6CE4407fa58C",
-     "sol_addr": "todo"
-    },
-    {
-     "address": "134.0.115.16:8484",
-     "name": "MainNet",
-     "eth_addr": "0x60087f17b9dAF691DEd6c40Cb1fA6CE4407fa58C",
-     "sol_addr": "todo"
     }
    ]
   },
@@ -123,18 +63,6 @@
    "hosts": [
     {
      "address": "54.37.73.160:8484",
-     "name": "MainNet",
-     "eth_addr": "0x60087f17b9dAF691DEd6c40Cb1fA6CE4407fa58C",
-     "sol_addr": "todo"
-    },
-    {
-     "address": "54.37.73.229:8484",
-     "name": "MainNet",
-     "eth_addr": "0x60087f17b9dAF691DEd6c40Cb1fA6CE4407fa58C",
-     "sol_addr": "todo"
-    },
-    {
-     "address": "134.0.115.16:8484",
      "name": "MainNet",
      "eth_addr": "0x60087f17b9dAF691DEd6c40Cb1fA6CE4407fa58C",
      "sol_addr": "todo"
@@ -149,18 +77,6 @@
      "name": "MainNet",
      "eth_addr": "0x60087f17b9dAF691DEd6c40Cb1fA6CE4407fa58C",
      "sol_addr": "todo"
-    },
-    {
-     "address": "54.37.73.229:8484",
-     "name": "MainNet",
-     "eth_addr": "0x60087f17b9dAF691DEd6c40Cb1fA6CE4407fa58C",
-     "sol_addr": "todo"
-    },
-    {
-     "address": "134.0.115.16:8484",
-     "name": "MainNet",
-     "eth_addr": "0x60087f17b9dAF691DEd6c40Cb1fA6CE4407fa58C",
-     "sol_addr": "todo"
     }
    ]
   },
@@ -169,18 +85,6 @@
    "hosts": [
     {
      "address": "54.37.73.160:8484",
-     "name": "MainNet",
-     "eth_addr": "0x60087f17b9dAF691DEd6c40Cb1fA6CE4407fa58C",
-     "sol_addr": "todo"
-    },
-    {
-     "address": "54.37.73.229:8484",
-     "name": "MainNet",
-     "eth_addr": "0x60087f17b9dAF691DEd6c40Cb1fA6CE4407fa58C",
-     "sol_addr": "todo"
-    },
-    {
-     "address": "134.0.115.16:8484",
      "name": "MainNet",
      "eth_addr": "0x60087f17b9dAF691DEd6c40Cb1fA6CE4407fa58C",
      "sol_addr": "todo"
@@ -195,18 +99,6 @@
      "name": "MainNet",
      "eth_addr": "0x60087f17b9dAF691DEd6c40Cb1fA6CE4407fa58C",
      "sol_addr": "todo"
-    },
-    {
-     "address": "54.37.73.229:8484",
-     "name": "MainNet",
-     "eth_addr": "0x60087f17b9dAF691DEd6c40Cb1fA6CE4407fa58C",
-     "sol_addr": "todo"
-    },
-    {
-     "address": "134.0.115.16:8484",
-     "name": "MainNet",
-     "eth_addr": "0x60087f17b9dAF691DEd6c40Cb1fA6CE4407fa58C",
-     "sol_addr": "todo"
     }
    ]
   },
@@ -215,18 +107,6 @@
    "hosts": [
     {
      "address": "54.37.73.160:8484",
-     "name": "MainNet",
-     "eth_addr": "0x60087f17b9dAF691DEd6c40Cb1fA6CE4407fa58C",
-     "sol_addr": "todo"
-    },
-    {
-     "address": "54.37.73.229:8484",
-     "name": "MainNet",
-     "eth_addr": "0x60087f17b9dAF691DEd6c40Cb1fA6CE4407fa58C",
-     "sol_addr": "todo"
-    },
-    {
-     "address": "134.0.115.16:8484",
      "name": "MainNet",
      "eth_addr": "0x60087f17b9dAF691DEd6c40Cb1fA6CE4407fa58C",
      "sol_addr": "todo"
@@ -241,18 +121,6 @@
      "name": "MainNet",
      "eth_addr": "0x60087f17b9dAF691DEd6c40Cb1fA6CE4407fa58C",
      "sol_addr": "todo"
-    },
-    {
-     "address": "54.37.73.229:8484",
-     "name": "MainNet",
-     "eth_addr": "0x60087f17b9dAF691DEd6c40Cb1fA6CE4407fa58C",
-     "sol_addr": "todo"
-    },
-    {
-     "address": "134.0.115.16:8484",
-     "name": "MainNet",
-     "eth_addr": "0x60087f17b9dAF691DEd6c40Cb1fA6CE4407fa58C",
-     "sol_addr": "todo"
     }
    ]
   },
@@ -261,18 +129,6 @@
    "hosts": [
     {
      "address": "54.37.73.160:8484",
-     "name": "MainNet",
-     "eth_addr": "0x60087f17b9dAF691DEd6c40Cb1fA6CE4407fa58C",
-     "sol_addr": "todo"
-    },
-    {
-     "address": "54.37.73.229:8484",
-     "name": "MainNet",
-     "eth_addr": "0x60087f17b9dAF691DEd6c40Cb1fA6CE4407fa58C",
-     "sol_addr": "todo"
-    },
-    {
-     "address": "134.0.115.16:8484",
      "name": "MainNet",
      "eth_addr": "0x60087f17b9dAF691DEd6c40Cb1fA6CE4407fa58C",
      "sol_addr": "todo"
@@ -287,18 +143,6 @@
      "name": "MainNet",
      "eth_addr": "0x60087f17b9dAF691DEd6c40Cb1fA6CE4407fa58C",
      "sol_addr": "todo"
-    },
-    {
-     "address": "54.37.73.229:8484",
-     "name": "MainNet",
-     "eth_addr": "0x60087f17b9dAF691DEd6c40Cb1fA6CE4407fa58C",
-     "sol_addr": "todo"
-    },
-    {
-     "address": "134.0.115.16:8484",
-     "name": "MainNet",
-     "eth_addr": "0x60087f17b9dAF691DEd6c40Cb1fA6CE4407fa58C",
-     "sol_addr": "todo"
     }
    ]
   },
@@ -307,18 +151,6 @@
    "hosts": [
     {
      "address": "54.37.73.160:8484",
-     "name": "MainNet",
-     "eth_addr": "0x60087f17b9dAF691DEd6c40Cb1fA6CE4407fa58C",
-     "sol_addr": "todo"
-    },
-    {
-     "address": "54.37.73.229:8484",
-     "name": "MainNet",
-     "eth_addr": "0x60087f17b9dAF691DEd6c40Cb1fA6CE4407fa58C",
-     "sol_addr": "todo"
-    },
-    {
-     "address": "134.0.115.16:8484",
      "name": "MainNet",
      "eth_addr": "0x60087f17b9dAF691DEd6c40Cb1fA6CE4407fa58C",
      "sol_addr": "todo"
@@ -333,18 +165,6 @@
      "name": "MainNet",
      "eth_addr": "0x60087f17b9dAF691DEd6c40Cb1fA6CE4407fa58C",
      "sol_addr": "todo"
-    },
-    {
-     "address": "54.37.73.229:8484",
-     "name": "MainNet",
-     "eth_addr": "0x60087f17b9dAF691DEd6c40Cb1fA6CE4407fa58C",
-     "sol_addr": "todo"
-    },
-    {
-     "address": "134.0.115.16:8484",
-     "name": "MainNet",
-     "eth_addr": "0x60087f17b9dAF691DEd6c40Cb1fA6CE4407fa58C",
-     "sol_addr": "todo"
     }
    ]
   },
@@ -353,18 +173,6 @@
    "hosts": [
     {
      "address": "54.37.73.160:8484",
-     "name": "MainNet",
-     "eth_addr": "0x60087f17b9dAF691DEd6c40Cb1fA6CE4407fa58C",
-     "sol_addr": "todo"
-    },
-    {
-     "address": "54.37.73.229:8484",
-     "name": "MainNet",
-     "eth_addr": "0x60087f17b9dAF691DEd6c40Cb1fA6CE4407fa58C",
-     "sol_addr": "todo"
-    },
-    {
-     "address": "134.0.115.16:8484",
      "name": "MainNet",
      "eth_addr": "0x60087f17b9dAF691DEd6c40Cb1fA6CE4407fa58C",
      "sol_addr": "todo"
