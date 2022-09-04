@@ -382,7 +382,18 @@ func (c *Connection) thReceiveUDP() {
 		}
 		buffer := make([]byte, 4096)
 		n, remoteAddr, err := conn.ReadFromUDP(buffer)
-		logger.Println("[-]", "Connection::thReceiveUDP", n, remoteAddr, err, string(buffer[:n]))
+		logger.Println("[-]", "Connection::thReceiveUDP", n, remoteAddr, err, buffer[:n])
+		var transaction *Transaction
+		transaction, err = Parse(buffer[:n])
+		if err == nil {
+			c.mtxBaseConnection.Lock()
+			if c.processor != nil {
+				logger.Println("[-]", "Connection::thReceiveUDP", "received frame (UDP):", transaction.FrameType, c.internalId)
+				transaction.udpSourceAddress = remoteAddr
+				go c.processor.ProcessTransaction(transaction)
+			}
+			c.mtxBaseConnection.Unlock()
+		}
 	}
 }
 
@@ -393,8 +404,10 @@ func (c *Connection) SendError(transaction *Transaction, err error) {
 
 func (c *Connection) Send(transaction *Transaction) (err error) {
 	var conn net.Conn
+	var udpConn *net.UDPConn
 	c.mtxBaseConnection.Lock()
 	conn = c.conn
+	udpConn = c.connUDP
 	c.mtxBaseConnection.Unlock()
 
 	if conn == nil {
@@ -403,27 +416,34 @@ func (c *Connection) Send(transaction *Transaction) (err error) {
 	}
 
 	frame := transaction.marshal()
-
-	var n int
-	c.mtxBaseConnectionSend.Lock()
 	sentBytes := 0
-	for sentBytes < len(frame) {
-		n, err = conn.Write(frame[sentBytes:])
-		if err != nil {
-			logger.Println("[-]", "Connection::Send", "error:", err)
-			break
+
+	if transaction.udpSourceAddress == nil {
+		var n int
+		c.mtxBaseConnectionSend.Lock()
+		for sentBytes < len(frame) {
+			n, err = conn.Write(frame[sentBytes:])
+			if err != nil {
+				logger.Println("[-]", "Connection::Send", "error:", err)
+				break
+			}
+			if n < 1 {
+				logger.Println("[-]", "Connection::Send", "n < 1")
+				break
+			}
+			sentBytes += n
 		}
-		if n < 1 {
-			logger.Println("[-]", "Connection::Send", "n < 1")
-			break
+		c.mtxBaseConnectionSend.Unlock()
+	} else {
+		if udpConn != nil {
+			sentBytes, err = udpConn.WriteToUDP(frame, transaction.udpSourceAddress)
+			fmt.Println("[-]", "Connection::Send", "via UDP to", transaction.udpSourceAddress.String())
 		}
-		sentBytes += n
 	}
 
 	if sentBytes != len(frame) {
 		err = errors.New(ERR_XCHG_CONN_SENDING_ERROR)
 	}
-	c.mtxBaseConnectionSend.Unlock()
 	atomic.AddUint64(&c.sentBytes, uint64(sentBytes))
 	atomic.AddUint64(&c.totalPerformanceCounters.OutTrafficCounter, uint64(sentBytes))
 	atomic.AddUint64(&c.sentFrames, 1)

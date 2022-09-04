@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"net"
 	"time"
 )
 
@@ -27,6 +28,8 @@ type Transaction struct {
 	Complete        bool
 	Result          []byte
 	Err             error
+
+	udpSourceAddress *net.UDPAddr
 }
 
 const (
