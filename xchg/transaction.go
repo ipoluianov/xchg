@@ -72,6 +72,7 @@ func Parse(frame []byte) (tr *Transaction, err error) {
 		frame[0] != 0xAA ||
 		frame[1] != 0x01 {
 		err = errors.New(ERR_XCHG_TR_WRONG_FRAME)
+		return
 	}
 
 	tr = &Transaction{}
