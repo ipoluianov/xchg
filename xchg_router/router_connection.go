@@ -313,7 +313,7 @@ func (c *RouterConnection) ConnectionAddressSignature() []byte {
 	c.mtxRouterConnection.Lock()
 	defer c.mtxRouterConnection.Unlock()
 
-	result := make([]byte, 32)
+	result := make([]byte, 64)
 	// 0-7 = ID
 	// 8-11 = UDP Hole IPv4 Address
 	// 12-13 = UDP Hole IPv4 Port
