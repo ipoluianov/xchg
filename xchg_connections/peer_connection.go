@@ -33,11 +33,6 @@ type PeerConnection struct {
 	remotePublicKey *rsa.PublicKey
 	remoteAddress   string
 
-	udpHole4Address net.IP
-	udpHole4Port    int
-	udpHole6Address net.IP
-	udpHole6Port    int
-
 	localSecretBytes  []byte
 	remoteSecretBytes []byte
 
@@ -444,23 +439,31 @@ func (c *PeerConnection) checkConnection() (connectionIsReady bool) {
 	return
 }
 
-func (c *PeerConnection) ResolveAddress(address string) (sid uint64, publicKey *rsa.PublicKey, err error) {
-	res, err := c.executeTransaction(xchg.FrameResolveAddress, 0, 0, []byte(address), 1000*time.Millisecond)
+func (c *PeerConnection) ResolveAddress(address string) (sid uint64, publicKey *rsa.PublicKey, udpHole *net.UDPAddr, err error) {
+	res, err := c.executeTransaction(xchg.FrameResolveAddress, 0, 0, []byte(address), 1000*time.Millisecond, nil)
 	if err != nil {
-		return 0, nil, err
+		return
 	}
 	if len(res) < 64 {
-		return 0, nil, errors.New(xchg.ERR_XCHG_PEER_CONN_REQ_SID_SIZE)
+		err = errors.New(xchg.ERR_XCHG_PEER_CONN_REQ_SID_SIZE)
+		return
 	}
 	sid = binary.LittleEndian.Uint64(res[0:])
-	c.udpHole4Address = res[8:12]
-	c.udpHole4Port = int(binary.LittleEndian.Uint16(res[12:]))
-	c.udpHole6Address = res[14:30]
-	c.udpHole6Port = int(binary.LittleEndian.Uint16(res[30:]))
+	udpHole4Address := res[8:12]
+	udpHole4Port := int(binary.LittleEndian.Uint16(res[12:]))
+	//udpHole6Address := res[14:30]
+	//udpHole6Port := int(binary.LittleEndian.Uint16(res[30:]))
+
+	if udpHole4Port != 0 {
+		udpHole = &net.UDPAddr{
+			IP:   net.IPv4(udpHole4Address[0], udpHole4Address[1], udpHole4Address[2], udpHole4Address[3]),
+			Port: udpHole4Port,
+		}
+	}
 
 	publicKey, err = crypt_tools.RSAPublicKeyFromDer(res[64:])
 	if err != nil {
-		return 0, nil, err
+		return
 	}
 	return
 }
@@ -484,7 +487,7 @@ func (c *PeerConnection) MakeUDPHole() {
 
 	otp := make([]byte, 32)
 	rand.Read(otp)
-	_, err := c.executeTransaction(xchg.FrameSetOTP, 0, 0, otp, 1000*time.Millisecond)
+	_, err := c.executeTransaction(xchg.FrameSetOTP, 0, 0, otp, 1000*time.Millisecond, nil)
 	if err != nil {
 		return
 	}
@@ -492,12 +495,12 @@ func (c *PeerConnection) MakeUDPHole() {
 	return
 }
 
-func (c *PeerConnection) Call(sid uint64, sessionId uint64, frame []byte) (result []byte, err error) {
-	result, err = c.executeTransaction(xchg.FrameCall, sid, sessionId, frame, 1000*time.Millisecond)
+func (c *PeerConnection) Call(sid uint64, sessionId uint64, frame []byte, udpHole *net.UDPAddr) (result []byte, err error) {
+	result, err = c.executeTransaction(xchg.FrameCall, sid, sessionId, frame, 1000*time.Millisecond, udpHole)
 	return
 }
 
-func (c *PeerConnection) executeTransaction(frameType byte, targetSID uint64, sessionId uint64, data []byte, timeout time.Duration) (result []byte, err error) {
+func (c *PeerConnection) executeTransaction(frameType byte, targetSID uint64, sessionId uint64, data []byte, timeout time.Duration, udpHole *net.UDPAddr) (result []byte, err error) {
 	// Get transaction ID
 	var transactionId uint64
 	c.mtxPeerConnection.Lock()
@@ -522,6 +525,7 @@ func (c *PeerConnection) executeTransaction(frameType byte, targetSID uint64, se
 		blockTransaction := xchg.NewTransaction(frameType, targetSID, transactionId, sessionId, data[offset:offset+currentBlockSize])
 		blockTransaction.Offset = uint32(offset)
 		blockTransaction.TotalSize = uint32(len(data))
+		blockTransaction.UDPSourceAddress = udpHole
 
 		err = c.connection.Send(blockTransaction)
 		if err != nil {

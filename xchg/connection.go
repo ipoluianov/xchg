@@ -283,6 +283,7 @@ func (c *Connection) thReceive() {
 				IP:   net.ParseIP("0.0.0.0"),
 			}
 			c.connUDP, err = net.DialUDP("udp", &udpLocalAddress, &udpRemoteAddress)
+			fmt.Println("UDP create result: ", err)
 			c.mtxBaseConnection.Unlock()
 		}
 
@@ -389,7 +390,7 @@ func (c *Connection) thReceiveUDP() {
 			c.mtxBaseConnection.Lock()
 			if c.processor != nil {
 				logger.Println("[-]", "Connection::thReceiveUDP", "received frame (UDP):", transaction.FrameType, c.internalId)
-				transaction.udpSourceAddress = remoteAddr
+				transaction.UDPSourceAddress = remoteAddr
 				go c.processor.ProcessTransaction(transaction)
 			}
 			c.mtxBaseConnection.Unlock()
@@ -418,7 +419,8 @@ func (c *Connection) Send(transaction *Transaction) (err error) {
 	frame := transaction.marshal()
 	sentBytes := 0
 
-	if transaction.udpSourceAddress == nil {
+	if transaction.UDPSourceAddress == nil {
+		// Send via TCP
 		var n int
 		c.mtxBaseConnectionSend.Lock()
 		for sentBytes < len(frame) {
@@ -436,8 +438,9 @@ func (c *Connection) Send(transaction *Transaction) (err error) {
 		c.mtxBaseConnectionSend.Unlock()
 	} else {
 		if udpConn != nil {
-			sentBytes, err = udpConn.WriteToUDP(frame, transaction.udpSourceAddress)
-			fmt.Println("[-]", "Connection::Send", "via UDP to", transaction.udpSourceAddress.String())
+			// Response via UDP Hole
+			sentBytes, err = udpConn.WriteToUDP(frame, transaction.UDPSourceAddress)
+			fmt.Println("[-]", "Connection::Send", "via UDP to", transaction.UDPSourceAddress.String())
 		}
 	}
 

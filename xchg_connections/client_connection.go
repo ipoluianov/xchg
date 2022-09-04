@@ -6,6 +6,7 @@ import (
 	"encoding/base32"
 	"encoding/binary"
 	"errors"
+	"net"
 	"sync"
 	"time"
 
@@ -31,6 +32,7 @@ type ClientConnection struct {
 	secretBytes []byte
 
 	network *xchg_network.Network
+	udpHole *net.UDPAddr
 
 	authData string
 
@@ -250,14 +252,15 @@ func (c *ClientConnection) regularCall(function string, data []byte, aesKey []by
 
 			conn := NewPeerConnection(address, localPrivateKey, nil, "client")
 			conn.Start()
-			if !conn.WaitForConnection(500 * time.Millisecond) {
+			if !conn.WaitForConnection(1000 * time.Millisecond) {
 				conn.Stop()
 				conn.Dispose()
 				continue
 			}
 
 			var remotePublicKey *rsa.PublicKey
-			currentSID, remotePublicKey, err = conn.ResolveAddress(c.address)
+			var udpHole *net.UDPAddr
+			currentSID, remotePublicKey, udpHole, err = conn.ResolveAddress(c.address)
 			if err != nil || currentSID == 0 || remotePublicKey == nil || xchg.AddressForPublicKey(remotePublicKey) != c.address {
 				conn.Stop()
 				conn.Dispose()
@@ -265,6 +268,7 @@ func (c *ClientConnection) regularCall(function string, data []byte, aesKey []by
 			}
 
 			c.mtxClientConnection.Lock()
+			c.udpHole = udpHole
 			c.currentConnection = conn
 			c.currentSID = currentSID
 			c.remotePublicKey = remotePublicKey
@@ -315,7 +319,7 @@ func (c *ClientConnection) regularCall(function string, data []byte, aesKey []by
 		copy(frame[1+len(function):], data)
 	}
 
-	result, err = connection.Call(currentSID, sessionId, frame)
+	result, err = connection.Call(currentSID, sessionId, frame, c.udpHole)
 
 	if xchg.NeedToChangeNode(err) {
 		c.Reset()

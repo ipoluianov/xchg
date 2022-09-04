@@ -29,7 +29,7 @@ type Transaction struct {
 	Result          []byte
 	Err             error
 
-	udpSourceAddress *net.UDPAddr
+	UDPSourceAddress *net.UDPAddr
 }
 
 const (

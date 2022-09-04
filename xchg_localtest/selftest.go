@@ -155,12 +155,26 @@ func Client(address string, network *xchg_network.Network) {
 }
 
 func SimpleClient() {
+	var err error
+
 	network := xchg_network.NewNetworkFromInternet()
 	serverPrivateKey, _ := crypt_tools.GenerateRSAKey()
-	serverPrivateKey32 := base32.StdEncoding.EncodeToString(crypt_tools.RSAPrivateKeyToDer(serverPrivateKey))
+	//serverPrivateKey32 := base32.StdEncoding.EncodeToString(crypt_tools.RSAPrivateKeyToDer(serverPrivateKey))
 	serverAddress := xchg.AddressForPublicKey(&serverPrivateKey.PublicKey)
-	cl := xchg_examples.NewSimpleClient(serverPrivateKey32, network)
-	cl.Version()
+	cl := xchg_examples.NewSimpleClient("aj7tyijvlefngx2hwtrppafbkf7a6xpufkr62d2bpzjwklgp", network)
+
+	for i := 0; i < 1; i++ {
+		var bs string
+		fmt.Println("=============== CALLING ==============")
+		bs, err = cl.Version()
+		if err != nil {
+			fmt.Println("ERROR", err)
+		} else {
+			fmt.Println("RESULT", bs)
+		}
+		time.Sleep(1000 * time.Millisecond)
+	}
+
 	fmt.Println("Client Address", serverAddress)
 	fmt.Println("------------- Press Enter to stop Simple Server -------------")
 	fmt.Scanln()
