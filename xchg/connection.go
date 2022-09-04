@@ -383,7 +383,7 @@ func (c *Connection) thReceiveUDP() {
 		}
 		buffer := make([]byte, 4096)
 		n, remoteAddr, err := conn.ReadFromUDP(buffer)
-		logger.Println("[-]", "Connection::thReceiveUDP", n, remoteAddr, err, buffer[:n])
+		fmt.Println("UDP:", n, remoteAddr, err, buffer[:n])
 		var transaction *Transaction
 		transaction, err = Parse(buffer[:n])
 		if err == nil {
@@ -459,7 +459,7 @@ func (c *Connection) MakeUDPHole(address string, otp []byte) {
 	connUDP := c.connUDP
 	c.mtxBaseConnection.Unlock()
 
-	fmt.Println("Addr: ", address)
+	//fmt.Println("Addr: ", address)
 
 	if connUDP != nil {
 		addrBS := []byte(address)
