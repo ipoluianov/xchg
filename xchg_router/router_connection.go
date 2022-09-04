@@ -327,13 +327,13 @@ func (c *RouterConnection) ConnectionAddressSignature() []byte {
 	}
 	fmt.Println("ConnectionAddressSignature4:", []byte(c.udpHole4IP), c.udpHole4Port)
 	fmt.Println("ConnectionAddressSignature6:", c.udpHole6IP, c.udpHole6Port)
-	if len(c.udpHole4IP) == 4 {
-		copy(result[8:], c.udpHole4IP)
+	if len(c.udpHole4IP) == 16 {
+		copy(result[8:], []byte(c.udpHole4IP)[12:16])
 		binary.LittleEndian.PutUint16(result[12:], uint16(c.udpHole4Port))
 	}
 
 	if len(c.udpHole6IP) == 16 {
-		copy(result[14:], c.udpHole6IP)
+		copy(result[14:], []byte(c.udpHole6IP))
 		binary.LittleEndian.PutUint16(result[30:], uint16(c.udpHole6Port))
 	}
 
