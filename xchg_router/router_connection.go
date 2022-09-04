@@ -37,9 +37,12 @@ type RouterConnection struct {
 
 	configMaxAddressSize int
 
-	currentOTP  []byte
-	udpHoleIP   net.IP
-	udpHolePort int
+	currentOTP []byte
+
+	udpHole4IP   net.IP
+	udpHole4Port int
+	udpHole6IP   net.IP
+	udpHole6Port int
 
 	init1Received bool
 	init4Received bool
@@ -239,10 +242,11 @@ func (c *RouterConnection) processResolveAddress(transaction *xchg.Transaction) 
 		c.SendError(transaction, errors.New(xchg.ERR_XCHG_ROUTER_CONN_NO_ROUTE_TO_PEER))
 		return
 	}
-	publicKey := connection.RemotePublicKeyBS()
-	data := make([]byte, 8+len(publicKey))
-	binary.LittleEndian.PutUint64(data, connection.Id())
-	copy(data[8:], publicKey)
+	publicKeyBS := connection.RemotePublicKeyBS()
+	connectionSignature := connection.ConnectionAddressSignature()
+	data := make([]byte, 64+len(publicKeyBS))
+	copy(data[0:], connectionSignature)
+	copy(data[64:], publicKeyBS)
 	c.Send(xchg.NewTransaction(xchg.FrameResponse, 0, transaction.TransactionId, 0, data))
 }
 
@@ -305,6 +309,35 @@ func (c *RouterConnection) SetResponse(transaction *xchg.Transaction) {
 	c.Send(trResponse)
 }
 
+func (c *RouterConnection) ConnectionAddressSignature() []byte {
+	c.mtxRouterConnection.Lock()
+	defer c.mtxRouterConnection.Unlock()
+
+	result := make([]byte, 32)
+	// 0-7 = ID
+	// 8-11 = UDP Hole IPv4 Address
+	// 12-13 = UDP Hole IPv4 Port
+	// 14-29 = UDP Hole IPv6 Address
+	// 30-31 = UDP Hole IPv6 Port
+	// 32-63 = reserved (0)
+
+	binary.LittleEndian.PutUint64(result[0:], c.id)
+	for i := 8; i < 64; i++ {
+		result[i] = 0
+	}
+	if len(c.udpHole4IP) == 4 {
+		copy(result[8:], c.udpHole4IP)
+		binary.LittleEndian.PutUint16(result[12:], uint16(c.udpHole4Port))
+	}
+
+	if len(c.udpHole6IP) == 16 {
+		copy(result[14:], c.udpHole6IP)
+		binary.LittleEndian.PutUint16(result[30:], uint16(c.udpHole6Port))
+	}
+
+	return result
+}
+
 func (c *RouterConnection) SetUDPHole(otp []byte, ip net.IP, port int) {
 	c.mtxRouterConnection.Lock()
 	defer c.mtxRouterConnection.Unlock()
@@ -324,8 +357,8 @@ func (c *RouterConnection) SetUDPHole(otp []byte, ip net.IP, port int) {
 
 	c.currentOTP = nil
 
-	c.udpHoleIP = ip
-	c.udpHolePort = port
+	c.udpHole4IP = ip
+	c.udpHole4Port = port
 }
 
 func (c *RouterConnection) State() (state RouterConnectionState) {
@@ -336,7 +369,7 @@ func (c *RouterConnection) State() (state RouterConnectionState) {
 	state.Init4Received = c.init4Received
 	state.Init5Received = c.init5Received
 
-	state.UDPHoleAddr = fmt.Sprint(c.udpHoleIP.String()) + ":" + fmt.Sprint(c.udpHolePort)
+	state.UDPHoleAddr = fmt.Sprint(c.udpHole4IP.String()) + ":" + fmt.Sprint(c.udpHole4Port)
 
 	state.StatBeginTransactionCounter = atomic.LoadUint64(&c.statBeginTransactionCounter)
 	state.StatSetResponseCounter = atomic.LoadUint64(&c.statSetResponseCounter)

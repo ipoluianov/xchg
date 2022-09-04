@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"net"
 	"sync"
 	"time"
 
@@ -31,6 +32,11 @@ type PeerConnection struct {
 	// Remote Address
 	remotePublicKey *rsa.PublicKey
 	remoteAddress   string
+
+	udpHole4Address net.IP
+	udpHole4Port    int
+	udpHole6Address net.IP
+	udpHole6Port    int
 
 	localSecretBytes  []byte
 	remoteSecretBytes []byte
@@ -443,11 +449,16 @@ func (c *PeerConnection) ResolveAddress(address string) (sid uint64, publicKey *
 	if err != nil {
 		return 0, nil, err
 	}
-	if len(res) < 8 {
+	if len(res) < 64 {
 		return 0, nil, errors.New(xchg.ERR_XCHG_PEER_CONN_REQ_SID_SIZE)
 	}
-	sid = binary.LittleEndian.Uint64(res)
-	publicKey, err = crypt_tools.RSAPublicKeyFromDer(res[8:])
+	sid = binary.LittleEndian.Uint64(res[0:])
+	c.udpHole4Address = res[8:12]
+	c.udpHole4Port = int(binary.LittleEndian.Uint16(res[12:]))
+	c.udpHole6Address = res[14:30]
+	c.udpHole6Port = int(binary.LittleEndian.Uint16(res[30:]))
+
+	publicKey, err = crypt_tools.RSAPublicKeyFromDer(res[64:])
 	if err != nil {
 		return 0, nil, err
 	}
