@@ -43,6 +43,8 @@ func TryService() bool {
 	startFlagPtr := flag.Bool("start", false, "Start service")
 	stopFlagPtr := flag.Bool("stop", false, "Stop service")
 	selftestFlagPtr := flag.Bool("selftest", false, "Self test")
+	simpleServerFlagPtr := flag.Bool("simple-server", false, "Simple Server")
+	simpleClientFlagPtr := flag.Bool("simple-client", false, "Simple Client")
 
 	flag.Parse()
 
@@ -73,6 +75,16 @@ func TryService() bool {
 
 	if *selftestFlagPtr {
 		xchg_localtest.SelfTest()
+		return true
+	}
+
+	if *simpleClientFlagPtr {
+		xchg_localtest.SimpleClient()
+		return true
+	}
+
+	if *simpleServerFlagPtr {
+		xchg_localtest.SimpleServer()
 		return true
 	}
 
