@@ -323,6 +323,7 @@ func (c *PeerConnection) processCall(transaction *xchg.Transaction) {
 
 			err := c.connection.Send(blockTransaction)
 			if err != nil {
+				fmt.Println("send error", err)
 				break
 			}
 			offset += currentBlockSize
