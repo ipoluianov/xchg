@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -327,6 +328,11 @@ func (c *ClientConnection) regularCall(function string, data []byte, aesKey []by
 	}
 
 	if err != nil {
+		if strings.Contains(err.Error(), xchg.ERR_XCHG_PEER_CONN_TR_TIMEOUT) {
+			c.mtxClientConnection.Lock()
+			c.udpHole = nil
+			c.mtxClientConnection.Unlock()
+		}
 		err = errors.New(xchg.ERR_XCHG_CL_CONN_CALL_ERR + ":" + err.Error())
 		return
 	}
