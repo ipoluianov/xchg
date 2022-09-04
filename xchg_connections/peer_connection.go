@@ -192,7 +192,7 @@ func (c *PeerConnection) waitDurationOrStopping(duration time.Duration) {
 }
 
 func (c *PeerConnection) ProcessTransaction(transaction *xchg.Transaction) {
-	//fmt.Println("ProcessTransaction", transaction.FrameType)
+	fmt.Println("ProcessTransaction", transaction.FrameType)
 	switch transaction.ProtocolVersion {
 	case 0x01:
 		switch transaction.FrameType {
@@ -266,6 +266,7 @@ func (c *PeerConnection) processError(transaction *xchg.Transaction) {
 }
 
 func (c *PeerConnection) processCall(transaction *xchg.Transaction) {
+	fmt.Println("processCall")
 	var processor EdgeConnectionProcessor
 	c.mtxPeerConnection.Lock()
 	processor = c.processor
@@ -302,6 +303,7 @@ func (c *PeerConnection) processCall(transaction *xchg.Transaction) {
 	c.mtxPeerConnection.Unlock()
 
 	if processor != nil {
+		fmt.Println("Received call")
 		resp := processor.onEdgeReceivedCall(c, incomingTransaction.SessionId, incomingTransaction.Data)
 		trResponse := xchg.NewTransaction(xchg.FrameResponse, incomingTransaction.SID, incomingTransaction.TransactionId, incomingTransaction.SessionId, resp)
 
@@ -317,6 +319,7 @@ func (c *PeerConnection) processCall(transaction *xchg.Transaction) {
 			blockTransaction := xchg.NewTransaction(trResponse.FrameType, trResponse.SID, trResponse.TransactionId, trResponse.SessionId, trResponse.Data[offset:offset+currentBlockSize])
 			blockTransaction.Offset = uint32(offset)
 			blockTransaction.TotalSize = uint32(len(trResponse.Data))
+			fmt.Println("Send call response")
 
 			err := c.connection.Send(blockTransaction)
 			if err != nil {
