@@ -325,7 +325,7 @@ func (c *RouterConnection) ConnectionAddressSignature() []byte {
 	for i := 8; i < 64; i++ {
 		result[i] = 0
 	}
-	fmt.Println("ConnectionAddressSignature4:", c.udpHole4IP, c.udpHole4Port)
+	fmt.Println("ConnectionAddressSignature4:", []byte(c.udpHole4IP), c.udpHole4Port)
 	fmt.Println("ConnectionAddressSignature6:", c.udpHole6IP, c.udpHole6Port)
 	if len(c.udpHole4IP) == 4 {
 		copy(result[8:], c.udpHole4IP)
