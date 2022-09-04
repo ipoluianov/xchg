@@ -378,13 +378,13 @@ func (c *Connection) thReceiveUDP() {
 		}
 		buffer := make([]byte, 4096)
 		n, remoteAddr, err := conn.ReadFromUDP(buffer)
-		fmt.Println("UDP:", n, remoteAddr, err, buffer[:n])
+		//fmt.Println("UDP:", n, remoteAddr, err, buffer[:n])
 		var transaction *Transaction
 		transaction, err = Parse(buffer[:n])
 		if err == nil {
 			c.mtxBaseConnection.Lock()
 			if c.processor != nil {
-				logger.Println("[-]", "Connection::thReceiveUDP", "received frame (UDP):", transaction.FrameType, c.internalId)
+				//logger.Println("[-]", "Connection::thReceiveUDP", "received frame (UDP):", transaction.FrameType, c.internalId)
 				transaction.UDPSourceAddress = remoteAddr
 				go c.processor.ProcessTransaction(transaction)
 			}
@@ -399,7 +399,7 @@ func (c *Connection) SendError(transaction *Transaction, err error) {
 }
 
 func (c *Connection) Send(transaction *Transaction) (err error) {
-	fmt.Println("send - begin")
+	//fmt.Println("send - begin")
 	var conn net.Conn
 	var udpConn *net.UDPConn
 	c.mtxBaseConnection.Lock()
@@ -416,7 +416,7 @@ func (c *Connection) Send(transaction *Transaction) (err error) {
 	sentBytes := 0
 
 	if transaction.UDPSourceAddress == nil {
-		fmt.Println("send - 1")
+		//fmt.Println("send - 1")
 		// Send via TCP
 		var n int
 		c.mtxBaseConnectionSend.Lock()
@@ -434,11 +434,11 @@ func (c *Connection) Send(transaction *Transaction) (err error) {
 		}
 		c.mtxBaseConnectionSend.Unlock()
 	} else {
-		fmt.Println("send - 2")
+		//fmt.Println("send - 2")
 		if udpConn != nil {
 			// Response via UDP Hole
 			sentBytes, err = udpConn.WriteToUDP(frame, transaction.UDPSourceAddress)
-			fmt.Println("[-]", "Connection::Send", "via UDP to", transaction.UDPSourceAddress.String(), err)
+			//fmt.Println("[-]", "Connection::Send", "via UDP to", transaction.UDPSourceAddress.String(), err)
 		}
 	}
 
@@ -448,7 +448,7 @@ func (c *Connection) Send(transaction *Transaction) (err error) {
 	atomic.AddUint64(&c.sentBytes, uint64(sentBytes))
 	atomic.AddUint64(&c.totalPerformanceCounters.OutTrafficCounter, uint64(sentBytes))
 	atomic.AddUint64(&c.sentFrames, 1)
-	fmt.Println("send - end")
+	//fmt.Println("send - end")
 
 	return
 }
