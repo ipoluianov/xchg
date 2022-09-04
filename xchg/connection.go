@@ -399,6 +399,7 @@ func (c *Connection) SendError(transaction *Transaction, err error) {
 }
 
 func (c *Connection) Send(transaction *Transaction) (err error) {
+	fmt.Println("send - begin")
 	var conn net.Conn
 	var udpConn *net.UDPConn
 	c.mtxBaseConnection.Lock()
@@ -415,6 +416,7 @@ func (c *Connection) Send(transaction *Transaction) (err error) {
 	sentBytes := 0
 
 	if transaction.UDPSourceAddress == nil {
+		fmt.Println("send - 1")
 		// Send via TCP
 		var n int
 		c.mtxBaseConnectionSend.Lock()
@@ -432,6 +434,7 @@ func (c *Connection) Send(transaction *Transaction) (err error) {
 		}
 		c.mtxBaseConnectionSend.Unlock()
 	} else {
+		fmt.Println("send - 2")
 		if udpConn != nil {
 			// Response via UDP Hole
 			sentBytes, err = udpConn.WriteToUDP(frame, transaction.UDPSourceAddress)
@@ -445,6 +448,7 @@ func (c *Connection) Send(transaction *Transaction) (err error) {
 	atomic.AddUint64(&c.sentBytes, uint64(sentBytes))
 	atomic.AddUint64(&c.totalPerformanceCounters.OutTrafficCounter, uint64(sentBytes))
 	atomic.AddUint64(&c.sentFrames, 1)
+	fmt.Println("send - end")
 
 	return
 }
