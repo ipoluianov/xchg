@@ -273,16 +273,11 @@ func (c *Connection) thReceive() {
 
 			c.mtxBaseConnection.Lock()
 			c.conn = conn
-			addressParts := strings.Split(c.host, ":")
-			udpRemoteAddress := net.UDPAddr{
-				Port: 8484,
-				IP:   net.ParseIP(addressParts[0]),
-			}
 			udpLocalAddress := net.UDPAddr{
 				Port: 0,
 				IP:   net.ParseIP("0.0.0.0"),
 			}
-			c.connUDP, err = net.DialUDP("udp", &udpLocalAddress, &udpRemoteAddress)
+			c.connUDP, err = net.ListenUDP("udp", &udpLocalAddress)
 			fmt.Println("UDP create result: ", err)
 			c.mtxBaseConnection.Unlock()
 		}
@@ -440,7 +435,7 @@ func (c *Connection) Send(transaction *Transaction) (err error) {
 		if udpConn != nil {
 			// Response via UDP Hole
 			sentBytes, err = udpConn.WriteToUDP(frame, transaction.UDPSourceAddress)
-			fmt.Println("[-]", "Connection::Send", "via UDP to", transaction.UDPSourceAddress.String())
+			fmt.Println("[-]", "Connection::Send", "via UDP to", transaction.UDPSourceAddress.String(), err)
 		}
 	}
 
@@ -457,16 +452,20 @@ func (c *Connection) Send(transaction *Transaction) (err error) {
 func (c *Connection) MakeUDPHole(address string, otp []byte) {
 	c.mtxBaseConnection.Lock()
 	connUDP := c.connUDP
+
+	addressParts := strings.Split(c.host, ":")
+	udpRemoteAddress := &net.UDPAddr{
+		Port: 8484,
+		IP:   net.ParseIP(addressParts[0]),
+	}
+
 	c.mtxBaseConnection.Unlock()
-
-	//fmt.Println("Addr: ", address)
-
 	if connUDP != nil {
 		addrBS := []byte(address)
 		UDPframe := make([]byte, 32+len(addrBS))
 		copy(UDPframe, otp)
 		copy(UDPframe[32:], addrBS)
-		c.connUDP.Write(UDPframe)
+		c.connUDP.WriteToUDP(UDPframe, udpRemoteAddress)
 	}
 }
 
