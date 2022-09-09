@@ -1,8 +1,6 @@
 package xchg_localtest
 
 import (
-	"crypto/rsa"
-	"encoding/base32"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -70,64 +68,14 @@ func SelfTest() {
 	GenNetwork()
 	GenConfig()
 
-	fmt.Println("-------------- Press Enter to start ROUTERS --------------")
-	fmt.Scanln()
-
-	network := xchg_network.NewNetwork()
-	for r := 0; r < 16; r++ {
-		rangePrefix := fmt.Sprintf("%X", r)
-		for i := 0; i < 1; i++ {
-			network.AddHostToRange(rangePrefix, "127.0.0.1:"+fmt.Sprint(8484+i))
-		}
-	}
-
-	//fmt.Println(network.String())
-
-	routers := make([]*xchg_router.Router, 0)
-	for i := 0; i < 1; i++ {
-		var privateKey *rsa.PrivateKey
-		privateKey, _ = crypt_tools.GenerateRSAKey()
-		var config xchg_router.RouterConfig
-		config.Init()
-		config.BinServerPort = 8484 + i
-		config.HttpServerPort = 9800 + i
-
-		router := xchg_router.NewRouter(privateKey, config, network)
-		router.Start()
-		routers = append(routers, router)
-	}
-
-	fmt.Println("------------- Press Enter to start SERVERS --------------")
-	fmt.Scanln()
-
 	serverPrivateKey, _ := crypt_tools.GenerateRSAKey()
-	serverPrivateKey32 := base32.StdEncoding.EncodeToString(crypt_tools.RSAPrivateKeyToDer(serverPrivateKey))
 	serverAddress := xchg.AddressForPublicKey(&serverPrivateKey.PublicKey)
-
 	fmt.Println("Server address:", serverAddress)
 
-	// TODO: remove for local tests
-	network = xchg_network.NewNetwork()
-	for r := 0; r < 16; r++ {
-		rangePrefix := fmt.Sprintf("%X", r)
-		network.AddHostToRange(rangePrefix, "54.37.73.160:8484")
-	}
-
-	//network = xchg_network.NewNetworkFromInternet()
-
-	ss := xchg_examples.NewSimpleServer(serverPrivateKey32, network)
+	ss := xchg_examples.NewSimpleServer(serverPrivateKey)
 	ss.Start()
 
-	go Client(serverAddress, network)
-
-	fmt.Println("------------- Press Enter to stop ROUTERS -------------")
-	fmt.Scanln()
-
-	for _, router := range routers {
-		router.Stop()
-	}
-
-	ss.Stop()
+	go Client(serverAddress)
 
 	fmt.Println("------------- Press Enter to stop PROCESS -------------")
 	fmt.Scanln()
@@ -135,14 +83,13 @@ func SelfTest() {
 	fmt.Println("PROCESS was finished")
 }
 
-func Client(address string, network *xchg_network.Network) {
+func Client(address string) {
 	time.Sleep(500 * time.Millisecond)
 	var err error
-	s := xchg_examples.NewSimpleClient(address, network)
+	s := xchg_examples.NewSimpleClient(address)
 	for i := 0; i < 1000; i++ {
 		time.Sleep(1000 * time.Millisecond)
 		var bs string
-		fmt.Println("=============== CALLING ==============")
 		bs, err = s.Version()
 		if err != nil {
 			fmt.Println("ERROR", err)
@@ -157,11 +104,11 @@ func Client(address string, network *xchg_network.Network) {
 func SimpleClient() {
 	var err error
 
-	network := xchg_network.NewNetworkFromInternet()
+	//network := xchg_network.NewNetworkFromInternet()
 	serverPrivateKey, _ := crypt_tools.GenerateRSAKey()
 	//serverPrivateKey32 := base32.StdEncoding.EncodeToString(crypt_tools.RSAPrivateKeyToDer(serverPrivateKey))
 	serverAddress := xchg.AddressForPublicKey(&serverPrivateKey.PublicKey)
-	cl := xchg_examples.NewSimpleClient("bgjjjg3ysqumb66ggivq453t3hl7q7vphnjtibtvaw5atipd", network)
+	cl := xchg_examples.NewSimpleClient("bgjjjg3ysqumb66ggivq453t3hl7q7vphnjtibtvaw5atipd")
 
 	for i := 0; i < 1000; i++ {
 		var bs string
@@ -182,11 +129,9 @@ func SimpleClient() {
 }
 
 func SimpleServer() {
-	network := xchg_network.NewNetworkFromInternet()
 	serverPrivateKey, _ := crypt_tools.GenerateRSAKey()
-	serverPrivateKey32 := base32.StdEncoding.EncodeToString(crypt_tools.RSAPrivateKeyToDer(serverPrivateKey))
 	serverAddress := xchg.AddressForPublicKey(&serverPrivateKey.PublicKey)
-	ss := xchg_examples.NewSimpleServer(serverPrivateKey32, network)
+	ss := xchg_examples.NewSimpleServer(serverPrivateKey)
 	ss.Start()
 	fmt.Println("Server Address", serverAddress)
 	fmt.Println("------------- Press Enter to stop Simple Server -------------")

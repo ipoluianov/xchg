@@ -412,7 +412,7 @@ func (c *Connection) Send(transaction *Transaction) (err error) {
 		return
 	}
 
-	frame := transaction.marshal()
+	frame := transaction.Marshal()
 	sentBytes := 0
 
 	if transaction.UDPSourceAddress == nil {

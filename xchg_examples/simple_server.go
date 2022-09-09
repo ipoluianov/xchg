@@ -1,31 +1,27 @@
 package xchg_examples
 
 import (
+	"crypto/rsa"
 	"encoding/json"
 	"errors"
 
+	"github.com/ipoluianov/xchg/connection"
 	"github.com/ipoluianov/xchg/xchg"
-	"github.com/ipoluianov/xchg/xchg_connections"
-	"github.com/ipoluianov/xchg/xchg_network"
 )
 
 type SimpleServer struct {
-	serverPrivateKey32 string
-	network            *xchg_network.Network
-	serverConnection   *xchg_connections.ServerConnection
+	serverConnection *connection.Peer
 }
 
-func NewSimpleServer(serverPrivateKey32 string, network *xchg_network.Network) *SimpleServer {
+func NewSimpleServer(privateKey *rsa.PrivateKey) *SimpleServer {
 	var c SimpleServer
-	c.serverPrivateKey32 = serverPrivateKey32
-	c.network = network
-	c.serverConnection = xchg_connections.NewServerConnection()
+	c.serverConnection = connection.NewPeer(privateKey)
 	c.serverConnection.SetProcessor(&c)
 	return &c
 }
 
 func (c *SimpleServer) Start() {
-	c.serverConnection.Start(c.serverPrivateKey32, c.network)
+	c.serverConnection.Start()
 }
 
 func (c *SimpleServer) Stop() {

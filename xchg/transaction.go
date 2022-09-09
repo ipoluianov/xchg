@@ -91,7 +91,7 @@ func Parse(frame []byte) (tr *Transaction, err error) {
 	return
 }
 
-func (c *Transaction) marshal() (result []byte) {
+func (c *Transaction) Marshal() (result []byte) {
 	c.FrameLen = uint32(TransactionHeaderSize + len(c.Data))
 	result = make([]byte, TransactionHeaderSize+len(c.Data))
 	result[0] = 0xAA // Signature
