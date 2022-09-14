@@ -67,13 +67,8 @@ func (c *RemotePeer) processFrame11(conn net.PacketConn, sourceAddress *net.UDPA
 	if err != nil {
 		return
 	}
-	c.setTransactionResponse(transaction)
-}
 
-func (c *RemotePeer) setTransactionResponse(transaction *Transaction) {
 	c.mtx.Lock()
-	defer c.mtx.Unlock()
-
 	if t, ok := c.outgoingTransactions[transaction.TransactionId]; ok {
 		if transaction.Err == nil {
 			if len(t.Result) != int(transaction.TotalSize) {
@@ -90,6 +85,7 @@ func (c *RemotePeer) setTransactionResponse(transaction *Transaction) {
 			t.Complete = true
 		}
 	}
+	c.mtx.Unlock()
 }
 
 func (c *RemotePeer) sendError(conn net.PacketConn, sourceAddress *net.UDPAddr, originalFrame []byte, errorCode byte) {
