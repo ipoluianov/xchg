@@ -4,14 +4,13 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ipoluianov/gomisc/crypt_tools"
 	"github.com/ipoluianov/xchg/xchg"
 	"github.com/ipoluianov/xchg/xchg_examples"
 )
 
 func SelfTest() {
 
-	serverPrivateKey, _ := crypt_tools.GenerateRSAKey()
+	serverPrivateKey, _ := xchg.GenerateRSAKey()
 	serverAddress := xchg.AddressForPublicKey(&serverPrivateKey.PublicKey)
 	fmt.Println("Server address:", serverAddress)
 
@@ -48,7 +47,7 @@ func SimpleClient() {
 	var err error
 
 	//network := xchg_network.NewNetworkFromInternet()
-	serverPrivateKey, _ := crypt_tools.GenerateRSAKey()
+	serverPrivateKey, _ := xchg.GenerateRSAKey()
 	//serverPrivateKey32 := base32.StdEncoding.EncodeToString(crypt_tools.RSAPrivateKeyToDer(serverPrivateKey))
 	serverAddress := xchg.AddressForPublicKey(&serverPrivateKey.PublicKey)
 	cl := xchg_examples.NewSimpleClient("bgjjjg3ysqumb66ggivq453t3hl7q7vphnjtibtvaw5atipd")
@@ -72,7 +71,7 @@ func SimpleClient() {
 }
 
 func SimpleServer() {
-	serverPrivateKey, _ := crypt_tools.GenerateRSAKey()
+	serverPrivateKey, _ := xchg.GenerateRSAKey()
 	serverAddress := xchg.AddressForPublicKey(&serverPrivateKey.PublicKey)
 	ss := xchg_examples.NewSimpleServer(serverPrivateKey)
 	ss.Start()

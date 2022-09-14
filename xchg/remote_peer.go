@@ -10,8 +10,6 @@ import (
 	"strconv"
 	"sync"
 	"time"
-
-	"github.com/ipoluianov/gomisc/crypt_tools"
 )
 
 type RemotePeer struct {
@@ -229,7 +227,7 @@ func (c *RemotePeer) auth(conn net.PacketConn, remoteConnectionPoint *net.UDPAdd
 		return
 	}
 
-	localPublicKeyBS := crypt_tools.RSAPublicKeyToDer(&localPrivateKey.PublicKey)
+	localPublicKeyBS := RSAPublicKeyToDer(&localPrivateKey.PublicKey)
 
 	authFrameSecret := make([]byte, 16+len(authData))
 	copy(authFrameSecret, nonce)
@@ -318,7 +316,7 @@ func (c *RemotePeer) regularCall(conn net.PacketConn, remoteConnectionPoint *net
 		copy(frame[9:], function)
 		copy(frame[9+len(function):], data)
 		frame = PackBytes(frame)
-		frame, err = crypt_tools.EncryptAESGCM(frame, aesKey)
+		frame, err = EncryptAESGCM(frame, aesKey)
 		if err != nil {
 			c.Reset()
 			err = errors.New(ERR_XCHG_CL_CONN_CALL_ENC + ":" + err.Error())
@@ -345,7 +343,7 @@ func (c *RemotePeer) regularCall(conn net.PacketConn, remoteConnectionPoint *net
 	}
 
 	if encrypted {
-		result, err = crypt_tools.DecryptAESGCM(result, aesKey)
+		result, err = DecryptAESGCM(result, aesKey)
 		if err != nil {
 			c.Reset()
 			err = errors.New(ERR_XCHG_CL_CONN_CALL_DECRYPT + ":" + err.Error())

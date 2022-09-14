@@ -10,10 +10,6 @@ import (
 	"os"
 	"sync"
 	"time"
-
-	"github.com/ipoluianov/gomisc/crypt_tools"
-	"github.com/ipoluianov/gomisc/nonce_generator"
-	"github.com/ipoluianov/gomisc/snake_counter"
 )
 
 type Peer struct {
@@ -29,7 +25,7 @@ type Peer struct {
 	// Server
 	incomingTransactions  map[string]*Transaction
 	sessionsById          map[uint64]*Session
-	nonceGenerator        *nonce_generator.NonceGenerator
+	nonceGenerator        *NonceGenerator
 	nextSessionId         uint64
 	processor             ServerProcessor
 	lastPurgeSessionsTime time.Time
@@ -49,7 +45,7 @@ type Session struct {
 	id           uint64
 	aesKey       []byte
 	lastAccessDT time.Time
-	snakeCounter *snake_counter.SnakeCounter
+	snakeCounter *SnakeCounter
 }
 
 const (
@@ -61,13 +57,13 @@ func NewPeer(privateKey *rsa.PrivateKey) *Peer {
 	var c Peer
 	c.remotePeers = make(map[string]*RemotePeer)
 	c.incomingTransactions = make(map[string]*Transaction)
-	c.nonceGenerator = nonce_generator.NewNonceGenerator(10000)
+	c.nonceGenerator = NewNonceGenerator(10000)
 	c.sessionsById = make(map[uint64]*Session)
 	c.nextSessionId = 1
 
 	c.privateKey = privateKey
 	if c.privateKey == nil {
-		c.privateKey, _ = crypt_tools.GenerateRSAKey()
+		c.privateKey, _ = GenerateRSAKey()
 	}
 	go c.thReceive()
 	return &c
@@ -271,7 +267,7 @@ func (c *Peer) processFrame20(conn net.PacketConn, sourceAddress *net.UDPAddr, f
 		return
 	}
 
-	publicKeyBS := crypt_tools.RSAPublicKeyToDer(&c.privateKey.PublicKey)
+	publicKeyBS := RSAPublicKeyToDer(&c.privateKey.PublicKey)
 
 	response := make([]byte, 8+len(publicKeyBS))
 	copy(response, frame[:8])
@@ -282,7 +278,7 @@ func (c *Peer) processFrame20(conn net.PacketConn, sourceAddress *net.UDPAddr, f
 
 func (c *Peer) processFrame21(conn net.PacketConn, sourceAddress *net.UDPAddr, frame []byte) {
 	receivedPublicKeyBS := frame[8:]
-	receivedPublicKey, err := crypt_tools.RSAPublicKeyFromDer([]byte(receivedPublicKeyBS))
+	receivedPublicKey, err := RSAPublicKeyFromDer([]byte(receivedPublicKeyBS))
 	if err != nil {
 		return
 	}
@@ -412,7 +408,7 @@ func (c *Peer) onEdgeReceivedCall(sessionId uint64, data []byte) (response []byt
 			response = prepareResponseError(errors.New(ERR_XCHG_SRV_CONN_WRONG_SESSION))
 			return
 		}
-		data, err = crypt_tools.DecryptAESGCM(data, session.aesKey)
+		data, err = DecryptAESGCM(data, session.aesKey)
 		if err != nil {
 			response = prepareResponseError(errors.New(ERR_XCHG_SRV_CONN_DECR + ":" + err.Error()))
 			return
@@ -478,7 +474,7 @@ func (c *Peer) onEdgeReceivedCall(sessionId uint64, data []byte) (response []byt
 
 	if encryped {
 		response = PackBytes(response)
-		response, err = crypt_tools.EncryptAESGCM(response, session.aesKey)
+		response, err = EncryptAESGCM(response, session.aesKey)
 		if err != nil {
 			return
 		}
@@ -501,7 +497,7 @@ func (c *Peer) processAuth(functionParameter []byte) (response []byte, err error
 
 	remotePublicKeyBS := functionParameter[4 : 4+remotePublicKeyBSLen]
 	var remotePublicKey *rsa.PublicKey
-	remotePublicKey, err = crypt_tools.RSAPublicKeyFromDer(remotePublicKeyBS)
+	remotePublicKey, err = RSAPublicKeyFromDer(remotePublicKeyBS)
 	if err != nil {
 		return
 	}
@@ -539,7 +535,7 @@ func (c *Peer) processAuth(functionParameter []byte) (response []byte, err error
 	session.id = sessionId
 	session.lastAccessDT = time.Now()
 	session.aesKey = make([]byte, 32)
-	session.snakeCounter = snake_counter.NewSnakeCounter(100, 0)
+	session.snakeCounter = NewSnakeCounter(100, 0)
 	rand.Read(session.aesKey)
 	c.sessionsById[sessionId] = session
 	response = make([]byte, 8+32)

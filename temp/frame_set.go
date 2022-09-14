@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/ipoluianov/gomisc/crypt_tools"
+	"github.com/ipoluianov/xchg/xchg"
 )
 
 func XchgSet(conn net.PacketConn, ipAddress string, timeout time.Duration, privateKey *rsa.PrivateKey) (err error) {
@@ -28,7 +28,7 @@ func XchgSet(conn net.PacketConn, ipAddress string, timeout time.Duration, priva
 	data[0] = 42
 	data[1] = 84
 
-	publicKeyBS := crypt_tools.RSAPublicKeyToDer(&privateKey.PublicKey)
+	publicKeyBS := xchg.RSAPublicKeyToDer(&privateKey.PublicKey)
 
 	request := make([]byte, 8+16+8+256+4+len(publicKeyBS)+len(data))
 

@@ -4,13 +4,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ipoluianov/gomisc/crypt_tools"
 	"github.com/ipoluianov/xchg/xchg"
 	"github.com/ipoluianov/xchg/xchg_examples"
 )
 
 func main() {
-	serverPrivateKey, _ := crypt_tools.GenerateRSAKey()
+	serverPrivateKey, _ := xchg.GenerateRSAKey()
 	server := xchg_examples.NewSimpleServer(serverPrivateKey)
 	server.Start()
 

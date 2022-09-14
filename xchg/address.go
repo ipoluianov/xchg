@@ -5,8 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/base32"
 	"strings"
-
-	"github.com/ipoluianov/gomisc/crypt_tools"
 )
 
 const Base32Alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
@@ -22,7 +20,7 @@ func AddressForPublicKey(publicKey *rsa.PublicKey) string {
 	if publicKey == nil {
 		return ""
 	}
-	bs := crypt_tools.RSAPublicKeyToDer(publicKey)
+	bs := RSAPublicKeyToDer(publicKey)
 	return AddressForPublicKeyBS(bs)
 }
 
