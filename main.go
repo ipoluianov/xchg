@@ -1,17 +1,29 @@
 package main
 
 import (
-	"github.com/ipoluianov/xchg/app"
+	"fmt"
+	"time"
+
+	"github.com/ipoluianov/gomisc/crypt_tools"
+	"github.com/ipoluianov/xchg/xchg"
+	"github.com/ipoluianov/xchg/xchg_examples"
 )
 
 func main() {
-	app.ServiceName = "xchg"
-	app.ServiceDisplayName = "Traffic exchange service"
-	app.ServiceDescription = "Traffic exchange service"
-	app.ServiceRunFunc = app.RunAsServiceF
-	app.ServiceStopFunc = app.StopServiceF
+	serverPrivateKey, _ := crypt_tools.GenerateRSAKey()
+	server := xchg_examples.NewSimpleServer(serverPrivateKey)
+	server.Start()
 
-	if !app.TryService() {
-		app.RunConsole()
+	serverAddress := xchg.AddressForPublicKey(&serverPrivateKey.PublicKey)
+	client := xchg_examples.NewSimpleClient(serverAddress)
+
+	for {
+		res, err := client.Version()
+		if err != nil {
+			fmt.Println("RESULT: error:", err)
+		} else {
+			fmt.Println("RESULT:", res)
+		}
+		time.Sleep(1 * time.Second)
 	}
 }
