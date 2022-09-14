@@ -154,6 +154,8 @@ func (c *Peer) thReceive() {
 				time.Sleep(100 * time.Millisecond)
 				continue
 			}
+
+			fmt.Println("UDP Opened", conn.LocalAddr())
 		}
 
 		err = conn.SetReadDeadline(time.Now().Add(200 * time.Millisecond))
@@ -202,47 +204,38 @@ func (c *Peer) processFrame(conn net.PacketConn, sourceAddress *net.UDPAddr, fra
 		return
 	}
 
-	receivedFromConnectionPoint := RemoteConnectionPointString(sourceAddress)
-
 	frameType := frame[0]
 
+	// Ping
 	if frameType == 0x00 {
 		c.sendResponse(conn, sourceAddress, frame, make([]byte, 8))
 		return
 	}
 
-	if frameType == 0x20 {
-		c.processFrame20(conn, sourceAddress, frame)
-		return
-	}
-
-	if frameType == 0x21 {
-		c.processFrame21(conn, sourceAddress, frame)
-		return
-	}
-
-	// Request for server
+	// Call Request
 	if frameType == 0x10 {
 		c.processFrame10(conn, sourceAddress, frame)
 		return
 	}
 
-	// Response received
+	// Call Response
 	if frameType == 0x11 {
-		var remotePeer *RemotePeer
-		c.mtx.Lock()
-		for _, peer := range c.remotePeers {
-			if peer.RemoteConnectionPoint() == receivedFromConnectionPoint {
-				remotePeer = peer
-				break
-			}
-		}
-		c.mtx.Unlock()
-		if remotePeer != nil {
-			remotePeer.processFrame(conn, sourceAddress, frame)
-		}
+		c.processFrame11(conn, sourceAddress, frame)
 		return
 	}
+
+	// ARP request
+	if frameType == 0x20 {
+		c.processFrame20(conn, sourceAddress, frame)
+		return
+	}
+
+	// ARP response
+	if frameType == 0x21 {
+		c.processFrame21(conn, sourceAddress, frame)
+		return
+	}
+
 }
 
 func (c *Peer) sendError(conn net.PacketConn, sourceAddress *net.UDPAddr, originalFrame []byte, errorCode byte) {
@@ -256,45 +249,6 @@ func (c *Peer) sendResponse(conn net.PacketConn, sourceAddress *net.UDPAddr, ori
 	copy(responseFrame, originalFrame[:8])
 	responseFrame[1] = 0x00
 	_, _ = conn.WriteTo(responseFrame, sourceAddress)
-}
-
-func (c *Peer) processFrame20(conn net.PacketConn, sourceAddress *net.UDPAddr, frame []byte) {
-	c.mtx.Lock()
-	localAddress := AddressForPublicKey(&c.privateKey.PublicKey)
-	c.mtx.Unlock()
-	requestedAddress := string(frame[8:])
-	if requestedAddress != localAddress {
-		return
-	}
-
-	publicKeyBS := RSAPublicKeyToDer(&c.privateKey.PublicKey)
-
-	response := make([]byte, 8+len(publicKeyBS))
-	copy(response, frame[:8])
-	response[0] = 0x21
-	copy(response[8:], publicKeyBS)
-	_, _ = conn.WriteTo(response, sourceAddress)
-}
-
-func (c *Peer) processFrame21(conn net.PacketConn, sourceAddress *net.UDPAddr, frame []byte) {
-	receivedPublicKeyBS := frame[8:]
-	receivedPublicKey, err := RSAPublicKeyFromDer([]byte(receivedPublicKeyBS))
-	if err != nil {
-		return
-	}
-
-	receivedAddress := AddressForPublicKey(receivedPublicKey)
-
-	c.mtx.Lock()
-
-	for _, peer := range c.remotePeers {
-		if peer.remoteAddress == receivedAddress {
-			peer.setRemoteConnectionPoint(sourceAddress, receivedPublicKey)
-			break
-		}
-	}
-
-	c.mtx.Unlock()
 }
 
 func (c *Peer) Call(remoteAddress string, authData string, function string, data []byte, timeout time.Duration) (result []byte, err error) {
@@ -316,7 +270,6 @@ func (c *Peer) Call(remoteAddress string, authData string, function string, data
 }
 
 func (c *Peer) processFrame10(conn net.PacketConn, sourceAddress *net.UDPAddr, frame []byte) {
-	fmt.Println("processCall")
 	var processor ServerProcessor
 
 	transaction, err := Parse(frame)
@@ -357,7 +310,6 @@ func (c *Peer) processFrame10(conn net.PacketConn, sourceAddress *net.UDPAddr, f
 	c.mtx.Unlock()
 
 	if processor != nil {
-		fmt.Println("Received call")
 		resp := c.onEdgeReceivedCall(incomingTransaction.SessionId, incomingTransaction.Data)
 		trResponse := NewTransaction(0x11, incomingTransaction.TransactionId, incomingTransaction.SessionId, 0, len(resp), resp)
 
@@ -385,6 +337,62 @@ func (c *Peer) processFrame10(conn net.PacketConn, sourceAddress *net.UDPAddr, f
 		}
 	}
 
+}
+
+func (c *Peer) processFrame11(conn net.PacketConn, sourceAddress *net.UDPAddr, frame []byte) {
+	receivedFromConnectionPoint := RemoteConnectionPointString(sourceAddress)
+
+	var remotePeer *RemotePeer
+	c.mtx.Lock()
+	for _, peer := range c.remotePeers {
+		if peer.RemoteConnectionPoint() == receivedFromConnectionPoint {
+			remotePeer = peer
+			break
+		}
+	}
+	c.mtx.Unlock()
+	if remotePeer != nil {
+		remotePeer.processFrame(conn, sourceAddress, frame)
+	}
+}
+
+func (c *Peer) processFrame20(conn net.PacketConn, sourceAddress *net.UDPAddr, frame []byte) {
+	c.mtx.Lock()
+	localAddress := AddressForPublicKey(&c.privateKey.PublicKey)
+	c.mtx.Unlock()
+	requestedAddress := string(frame[8:])
+	if requestedAddress != localAddress {
+		return
+	}
+
+	publicKeyBS := RSAPublicKeyToDer(&c.privateKey.PublicKey)
+
+	response := make([]byte, 8+len(publicKeyBS))
+	copy(response, frame[:8])
+	response[0] = 0x21
+	copy(response[8:], publicKeyBS)
+	_, _ = conn.WriteTo(response, sourceAddress)
+}
+
+func (c *Peer) processFrame21(conn net.PacketConn, sourceAddress *net.UDPAddr, frame []byte) {
+	receivedPublicKeyBS := frame[8:]
+	receivedPublicKey, err := RSAPublicKeyFromDer([]byte(receivedPublicKeyBS))
+	if err != nil {
+		return
+	}
+
+	receivedAddress := AddressForPublicKey(receivedPublicKey)
+
+	c.mtx.Lock()
+
+	for _, peer := range c.remotePeers {
+		if peer.remoteAddress == receivedAddress {
+			peer.setRemoteConnectionPoint(sourceAddress, receivedPublicKey)
+			break
+		}
+	}
+
+	c.mtx.Unlock()
 }
 
 func (c *Peer) onEdgeReceivedCall(sessionId uint64, data []byte) (response []byte) {
