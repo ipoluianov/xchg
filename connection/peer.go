@@ -28,11 +28,12 @@ type Peer struct {
 	remotePeers map[string]*RemotePeer
 
 	// Server
-	incomingTransactions map[string]*Transaction
-	sessionsById         map[uint64]*Session
-	nonceGenerator       *nonce_generator.NonceGenerator
-	nextSessionId        uint64
-	processor            ServerProcessor
+	incomingTransactions  map[string]*Transaction
+	sessionsById          map[uint64]*Session
+	nonceGenerator        *nonce_generator.NonceGenerator
+	nextSessionId         uint64
+	processor             ServerProcessor
+	lastPurgeSessionsTime time.Time
 }
 
 type ServerProcessor interface {
@@ -105,7 +106,7 @@ func (c *Peer) Stop() (err error) {
 	c.mtx.Unlock()
 
 	if started {
-		err = errors.New("started")
+		err = errors.New("timeout")
 	}
 
 	return
@@ -155,7 +156,7 @@ func (c *Peer) thReceive() {
 			}
 		}
 
-		err = conn.SetReadDeadline(time.Now().Add(1000 * time.Millisecond))
+		err = conn.SetReadDeadline(time.Now().Add(200 * time.Millisecond))
 		if err != nil {
 			time.Sleep(100 * time.Millisecond)
 			c.mtx.Lock()
@@ -168,7 +169,7 @@ func (c *Peer) thReceive() {
 
 		n, addr, err = conn.ReadFrom(buffer)
 		if errors.Is(err, os.ErrDeadlineExceeded) {
-			// c.backgroundOperations()
+			c.purgeSessions()
 			continue
 		}
 
@@ -545,6 +546,20 @@ func (c *Peer) processAuth(functionParameter []byte) (response []byte, err error
 	c.mtx.Unlock()
 
 	return
+}
+
+func (c *Peer) purgeSessions() {
+	now := time.Now()
+	c.mtx.Lock()
+	if now.Sub(c.lastPurgeSessionsTime).Seconds() > 60 {
+		for sessionId, session := range c.sessionsById {
+			if now.Sub(session.lastAccessDT).Seconds() > 60 {
+				delete(c.sessionsById, sessionId)
+			}
+		}
+		c.lastPurgeSessionsTime = time.Now()
+	}
+	c.mtx.Unlock()
 }
 
 func prepareResponse(data []byte) []byte {

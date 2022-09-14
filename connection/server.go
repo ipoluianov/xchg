@@ -26,7 +26,7 @@ const (
 	INPUT_BUFFER_SIZE = 1024 * 1024
 )
 
-func NewConnection() *Server {
+func NewConnection1() *Server {
 	var c Server
 	return &c
 }
