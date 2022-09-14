@@ -1,15 +1,6 @@
 package connection
 
-import (
-	"crypto/rsa"
-	"errors"
-	"fmt"
-	"net"
-	"os"
-	"sync"
-	"time"
-)
-
+/*
 type Server struct {
 	privateKey *rsa.PrivateKey
 
@@ -21,10 +12,7 @@ type Server struct {
 	stopping bool
 }
 
-const (
-	UDP_PORT          = 8484
-	INPUT_BUFFER_SIZE = 1024 * 1024
-)
+const ()
 
 func NewConnection1() *Server {
 	var c Server
@@ -154,3 +142,4 @@ func (c *Server) processFrame11(conn net.PacketConn, sourceAddress *net.UDPAddr,
 	// Response received
 	c.sendResponse(conn, sourceAddress, frame, make([]byte, 8))
 }
+*/

@@ -1,4 +1,4 @@
-package connection
+package xchg
 
 import (
 	"crypto/rand"
@@ -14,7 +14,6 @@ import (
 	"github.com/ipoluianov/gomisc/crypt_tools"
 	"github.com/ipoluianov/gomisc/nonce_generator"
 	"github.com/ipoluianov/gomisc/snake_counter"
-	"github.com/ipoluianov/xchg/xchg"
 )
 
 type Peer struct {
@@ -40,6 +39,11 @@ type ServerProcessor interface {
 	ServerProcessorAuth(authData []byte) (err error)
 	ServerProcessorCall(function string, parameter []byte) (response []byte, err error)
 }
+
+const (
+	UDP_PORT          = 8484
+	INPUT_BUFFER_SIZE = 1024 * 1024
+)
 
 type Session struct {
 	id           uint64
@@ -260,7 +264,7 @@ func (c *Peer) sendResponse(conn net.PacketConn, sourceAddress *net.UDPAddr, ori
 
 func (c *Peer) processFrame20(conn net.PacketConn, sourceAddress *net.UDPAddr, frame []byte) {
 	c.mtx.Lock()
-	localAddress := xchg.AddressForPublicKey(&c.privateKey.PublicKey)
+	localAddress := AddressForPublicKey(&c.privateKey.PublicKey)
 	c.mtx.Unlock()
 	requestedAddress := string(frame[8:])
 	if requestedAddress != localAddress {
@@ -283,7 +287,7 @@ func (c *Peer) processFrame21(conn net.PacketConn, sourceAddress *net.UDPAddr, f
 		return
 	}
 
-	receivedAddress := xchg.AddressForPublicKey(receivedPublicKey)
+	receivedAddress := AddressForPublicKey(receivedPublicKey)
 
 	c.mtx.Lock()
 
@@ -405,41 +409,41 @@ func (c *Peer) onEdgeReceivedCall(sessionId uint64, data []byte) (response []byt
 
 	if sessionId != 0 {
 		if session == nil {
-			response = prepareResponseError(errors.New(xchg.ERR_XCHG_SRV_CONN_WRONG_SESSION))
+			response = prepareResponseError(errors.New(ERR_XCHG_SRV_CONN_WRONG_SESSION))
 			return
 		}
 		data, err = crypt_tools.DecryptAESGCM(data, session.aesKey)
 		if err != nil {
-			response = prepareResponseError(errors.New(xchg.ERR_XCHG_SRV_CONN_DECR + ":" + err.Error()))
+			response = prepareResponseError(errors.New(ERR_XCHG_SRV_CONN_DECR + ":" + err.Error()))
 			return
 		}
 		data, err = UnpackBytes(data)
 		if err != nil {
-			response = prepareResponseError(errors.New(xchg.ERR_XCHG_SRV_CONN_UNPACK + ":" + err.Error()))
+			response = prepareResponseError(errors.New(ERR_XCHG_SRV_CONN_UNPACK + ":" + err.Error()))
 			return
 		}
 		if len(data) < 9 {
-			response = prepareResponseError(errors.New(xchg.ERR_XCHG_SRV_CONN_WRONG_LEN9))
+			response = prepareResponseError(errors.New(ERR_XCHG_SRV_CONN_WRONG_LEN9))
 			return
 		}
 		encryped = true
 		callNonce := binary.LittleEndian.Uint64(data)
 		err = session.snakeCounter.TestAndDeclare(int(callNonce))
 		if err != nil {
-			response = prepareResponseError(errors.New(xchg.ERR_XCHG_SRV_CONN_WRONG_NONCE))
+			response = prepareResponseError(errors.New(ERR_XCHG_SRV_CONN_WRONG_NONCE))
 			return
 		}
 		data = data[8:]
 	} else {
 		if len(data) < 1 {
-			response = prepareResponseError(errors.New(xchg.ERR_XCHG_SRV_CONN_WRONG_LEN1))
+			response = prepareResponseError(errors.New(ERR_XCHG_SRV_CONN_WRONG_LEN1))
 			return
 		}
 	}
 
 	functionLen := int(data[0])
 	if len(data) < 1+functionLen {
-		response = prepareResponseError(errors.New(xchg.ERR_XCHG_SRV_CONN_WRONG_LEN_FN))
+		response = prepareResponseError(errors.New(ERR_XCHG_SRV_CONN_WRONG_LEN_FN))
 		return
 	}
 	function := string(data[1 : 1+functionLen])
@@ -451,7 +455,7 @@ func (c *Peer) onEdgeReceivedCall(sessionId uint64, data []byte) (response []byt
 	c.mtx.Unlock()
 
 	if processor == nil {
-		response = prepareResponseError(errors.New(xchg.ERR_XCHG_SRV_CONN_NOT_IMPL))
+		response = prepareResponseError(errors.New(ERR_XCHG_SRV_CONN_NOT_IMPL))
 		return
 	}
 
@@ -485,13 +489,13 @@ func (c *Peer) onEdgeReceivedCall(sessionId uint64, data []byte) (response []byt
 
 func (c *Peer) processAuth(functionParameter []byte) (response []byte, err error) {
 	if len(functionParameter) < 4 {
-		err = errors.New(xchg.ERR_XCHG_SRV_CONN_AUTH_DATA_LEN4)
+		err = errors.New(ERR_XCHG_SRV_CONN_AUTH_DATA_LEN4)
 		return
 	}
 
 	remotePublicKeyBSLen := binary.LittleEndian.Uint32(functionParameter)
 	if len(functionParameter) < 4+int(remotePublicKeyBSLen) {
-		err = errors.New(xchg.ERR_XCHG_SRV_CONN_AUTH_DATA_LEN_PK)
+		err = errors.New(ERR_XCHG_SRV_CONN_AUTH_DATA_LEN_PK)
 		return
 	}
 
@@ -511,13 +515,13 @@ func (c *Peer) processAuth(functionParameter []byte) (response []byte, err error
 	}
 
 	if len(parameter) < 16 {
-		err = errors.New(xchg.ERR_XCHG_SRV_CONN_AUTH_DATA_LEN_NONCE)
+		err = errors.New(ERR_XCHG_SRV_CONN_AUTH_DATA_LEN_NONCE)
 		return
 	}
 
 	nonce := parameter[0:16]
 	if !c.nonceGenerator.Check(nonce) {
-		err = errors.New(xchg.ERR_XCHG_SRV_CONN_AUTH_WRONG_NONCE)
+		err = errors.New(ERR_XCHG_SRV_CONN_AUTH_WRONG_NONCE)
 		return
 	}
 

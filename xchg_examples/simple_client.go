@@ -3,18 +3,18 @@ package xchg_examples
 import (
 	"time"
 
-	"github.com/ipoluianov/xchg/connection"
+	"github.com/ipoluianov/xchg/xchg"
 )
 
 type SimpleClient struct {
 	address string
-	client  *connection.Peer
+	client  *xchg.Peer
 }
 
 func NewSimpleClient(address string) *SimpleClient {
 	var c SimpleClient
 	c.address = address
-	c.client = connection.NewPeer(nil)
+	c.client = xchg.NewPeer(nil)
 	return &c
 }
 

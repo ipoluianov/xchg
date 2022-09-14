@@ -1,4 +1,4 @@
-package xchg_connections
+package xchg
 
 import (
 	"archive/zip"

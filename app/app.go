@@ -12,8 +12,6 @@ import (
 	"github.com/ipoluianov/gomisc/logger"
 	"github.com/ipoluianov/xchg/xchg"
 	"github.com/ipoluianov/xchg/xchg_localtest"
-	"github.com/ipoluianov/xchg/xchg_network"
-	"github.com/ipoluianov/xchg/xchg_router"
 	"github.com/kardianos/osext"
 	"github.com/kardianos/service"
 )
@@ -184,33 +182,31 @@ func (p *program) Stop(_ service.Service) error {
 }
 
 /////////////////////////////
-var srv *xchg_router.RouterServer
-var router *xchg_router.Router
-
 func Start() error {
-	logger.Println("[i]", "App::Start", "begin")
-	TuneFDs()
+	/*	logger.Println("[i]", "App::Start", "begin")
+		TuneFDs()
 
-	conf, err := xchg_router.LoadConfigFromFile(logger.CurrentExePath() + "/" + "config.json")
-	if err != nil {
-		logger.Println("[i]", "App::Start", "xchg_router.LoadConfigFromFile error:", err)
-		return err
-	}
+		conf, err := xchg_router.LoadConfigFromFile(logger.CurrentExePath() + "/" + "config.json")
+		if err != nil {
+			logger.Println("[i]", "App::Start", "xchg_router.LoadConfigFromFile error:", err)
+			return err
+		}
 
-	network := xchg_network.NewNetworkFromFileOrCreate(logger.CurrentExePath() + "/" + "network.json")
+		network := xchg_network.NewNetworkFromFileOrCreate(logger.CurrentExePath() + "/" + "network.json")
 
-	var privateKey *rsa.PrivateKey
-	privateKey, err = LoadKeys()
-	if err != nil {
-		logger.Println("[i]", "App::Start", "LoadKeys() error:", err)
-		return err
-	}
+		var privateKey *rsa.PrivateKey
+		privateKey, err = LoadKeys()
+		if err != nil {
+			logger.Println("[i]", "App::Start", "LoadKeys() error:", err)
+			return err
+		}
 
-	router = xchg_router.NewRouter(privateKey, conf, network)
-	router.Start()
+		router = xchg_router.NewRouter(privateKey, conf, network)
+		router.Start()
 
-	logger.Println("[i]", "App::Start", "end")
+		logger.Println("[i]", "App::Start", "end")
 
+		return nil*/
 	return nil
 }
 
@@ -256,7 +252,6 @@ func LoadKeys() (privateKey *rsa.PrivateKey, err error) {
 }
 
 func Stop() {
-	srv.Stop()
 }
 
 func RunConsole() {

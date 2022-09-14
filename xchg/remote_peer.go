@@ -1,4 +1,4 @@
-package connection
+package xchg
 
 import (
 	"crypto/rand"
@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/ipoluianov/gomisc/crypt_tools"
-	"github.com/ipoluianov/xchg/xchg"
 )
 
 type RemotePeer struct {
@@ -211,11 +210,11 @@ func (c *RemotePeer) auth(conn net.PacketConn, remoteConnectionPoint *net.UDPAdd
 	var nonce []byte
 	nonce, err = c.regularCall(conn, remoteConnectionPoint, "/xchg-get-nonce", nil, nil, timeout)
 	if err != nil {
-		err = errors.New(xchg.ERR_XCHG_CL_CONN_AUTH_GET_NONCE + ":" + err.Error())
+		err = errors.New(ERR_XCHG_CL_CONN_AUTH_GET_NONCE + ":" + err.Error())
 		return
 	}
 	if len(nonce) != 16 {
-		err = errors.New(xchg.ERR_XCHG_CL_CONN_AUTH_WRONG_NONCE_LEN)
+		err = errors.New(ERR_XCHG_CL_CONN_AUTH_WRONG_NONCE_LEN)
 		return
 	}
 
@@ -226,7 +225,7 @@ func (c *RemotePeer) auth(conn net.PacketConn, remoteConnectionPoint *net.UDPAdd
 	copy(authData, []byte(c.authData))
 	c.mtx.Unlock()
 	if c.privateKey == nil {
-		err = errors.New(xchg.ERR_XCHG_CL_CONN_AUTH_NO_LOCAL_PRIVATE_KEY)
+		err = errors.New(ERR_XCHG_CL_CONN_AUTH_NO_LOCAL_PRIVATE_KEY)
 		return
 	}
 
@@ -239,7 +238,7 @@ func (c *RemotePeer) auth(conn net.PacketConn, remoteConnectionPoint *net.UDPAdd
 	var encryptedAuthFrame []byte
 	encryptedAuthFrame, err = rsa.EncryptPKCS1v15(rand.Reader, remotePublicKey, []byte(authFrameSecret))
 	if err != nil {
-		err = errors.New(xchg.ERR_XCHG_CL_CONN_AUTH_ENC + ":" + err.Error())
+		err = errors.New(ERR_XCHG_CL_CONN_AUTH_ENC + ":" + err.Error())
 		return
 	}
 
@@ -251,18 +250,18 @@ func (c *RemotePeer) auth(conn net.PacketConn, remoteConnectionPoint *net.UDPAdd
 	var result []byte
 	result, err = c.regularCall(conn, remoteConnectionPoint, "/xchg-auth", authFrame, nil, timeout)
 	if err != nil {
-		err = errors.New(xchg.ERR_XCHG_CL_CONN_AUTH_AUTH + ":" + err.Error())
+		err = errors.New(ERR_XCHG_CL_CONN_AUTH_AUTH + ":" + err.Error())
 		return
 	}
 
 	result, err = rsa.DecryptPKCS1v15(rand.Reader, localPrivateKey, result)
 	if err != nil {
-		err = errors.New(xchg.ERR_XCHG_CL_CONN_AUTH_DECR + ":" + err.Error())
+		err = errors.New(ERR_XCHG_CL_CONN_AUTH_DECR + ":" + err.Error())
 		return
 	}
 
 	if len(result) != 8+32 {
-		err = errors.New(xchg.ERR_XCHG_CL_CONN_AUTH_WRONG_AUTH_RESP_LEN)
+		err = errors.New(ERR_XCHG_CL_CONN_AUTH_WRONG_AUTH_RESP_LEN)
 		return
 	}
 
@@ -282,7 +281,7 @@ func (c *RemotePeer) regularCall(conn net.PacketConn, remoteConnectionPoint *net
 	}
 
 	if len(function) > 255 {
-		err = errors.New(xchg.ERR_XCHG_CL_CONN_CALL_WRONG_FUNCTION_LEN)
+		err = errors.New(ERR_XCHG_CL_CONN_CALL_WRONG_FUNCTION_LEN)
 		return
 	}
 
@@ -298,7 +297,7 @@ func (c *RemotePeer) regularCall(conn net.PacketConn, remoteConnectionPoint *net
 	c.mtx.Unlock()
 
 	if localPrivateKey == nil {
-		err = errors.New(xchg.ERR_XCHG_CL_CONN_CALL_NO_LOCAL_PRIVATE_KEY)
+		err = errors.New(ERR_XCHG_CL_CONN_CALL_NO_LOCAL_PRIVATE_KEY)
 		return
 	}
 
@@ -322,7 +321,7 @@ func (c *RemotePeer) regularCall(conn net.PacketConn, remoteConnectionPoint *net
 		frame, err = crypt_tools.EncryptAESGCM(frame, aesKey)
 		if err != nil {
 			c.Reset()
-			err = errors.New(xchg.ERR_XCHG_CL_CONN_CALL_ENC + ":" + err.Error())
+			err = errors.New(ERR_XCHG_CL_CONN_CALL_ENC + ":" + err.Error())
 			return
 		}
 		encrypted = true
@@ -335,13 +334,13 @@ func (c *RemotePeer) regularCall(conn net.PacketConn, remoteConnectionPoint *net
 
 	result, err = c.executeTransaction(conn, remoteConnectionPoint, sessionId, frame, timeout)
 
-	if xchg.NeedToChangeNode(err) {
+	if NeedToChangeNode(err) {
 		c.Reset()
 		return
 	}
 
 	if err != nil {
-		err = errors.New(xchg.ERR_XCHG_CL_CONN_CALL_ERR + ":" + err.Error())
+		err = errors.New(ERR_XCHG_CL_CONN_CALL_ERR + ":" + err.Error())
 		return
 	}
 
@@ -349,19 +348,19 @@ func (c *RemotePeer) regularCall(conn net.PacketConn, remoteConnectionPoint *net
 		result, err = crypt_tools.DecryptAESGCM(result, aesKey)
 		if err != nil {
 			c.Reset()
-			err = errors.New(xchg.ERR_XCHG_CL_CONN_CALL_DECRYPT + ":" + err.Error())
+			err = errors.New(ERR_XCHG_CL_CONN_CALL_DECRYPT + ":" + err.Error())
 			return
 		}
 		result, err = UnpackBytes(result)
 		if err != nil {
 			c.Reset()
-			err = errors.New(xchg.ERR_XCHG_CL_CONN_CALL_UNPACK + ":" + err.Error())
+			err = errors.New(ERR_XCHG_CL_CONN_CALL_UNPACK + ":" + err.Error())
 			return
 		}
 	}
 
 	if len(result) < 1 {
-		err = errors.New(xchg.ERR_XCHG_CL_CONN_CALL_RESP_LEN)
+		err = errors.New(ERR_XCHG_CL_CONN_CALL_RESP_LEN)
 		c.Reset()
 		return
 	}
@@ -375,8 +374,8 @@ func (c *RemotePeer) regularCall(conn net.PacketConn, remoteConnectionPoint *net
 
 	if result[0] == 1 {
 		// Error response
-		err = errors.New(xchg.ERR_XCHG_CL_CONN_CALL_FROM_PEER + ":" + string(result[1:]))
-		if xchg.NeedToMakeSession(err) {
+		err = errors.New(ERR_XCHG_CL_CONN_CALL_FROM_PEER + ":" + string(result[1:]))
+		if NeedToMakeSession(err) {
 			// Any server error - make new session
 			c.sessionId = 0
 		}
@@ -384,7 +383,7 @@ func (c *RemotePeer) regularCall(conn net.PacketConn, remoteConnectionPoint *net
 		return
 	}
 
-	err = errors.New(xchg.ERR_XCHG_CL_CONN_CALL_RESP_STATUS_BYTE)
+	err = errors.New(ERR_XCHG_CL_CONN_CALL_RESP_STATUS_BYTE)
 	c.Reset()
 	return
 }
@@ -474,5 +473,5 @@ func (c *RemotePeer) executeTransaction(conn net.PacketConn, remoteConnectionPoi
 	delete(c.outgoingTransactions, t.TransactionId)
 	c.mtx.Unlock()
 
-	return nil, errors.New(xchg.ERR_XCHG_PEER_CONN_TR_TIMEOUT)
+	return nil, errors.New(ERR_XCHG_PEER_CONN_TR_TIMEOUT)
 }

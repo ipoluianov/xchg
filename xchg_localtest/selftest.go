@@ -1,72 +1,15 @@
 package xchg_localtest
 
 import (
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"strings"
 	"time"
 
 	"github.com/ipoluianov/gomisc/crypt_tools"
 	"github.com/ipoluianov/xchg/xchg"
 	"github.com/ipoluianov/xchg/xchg_examples"
-	"github.com/ipoluianov/xchg/xchg_network"
-	"github.com/ipoluianov/xchg/xchg_router"
 )
 
-func GetNetworkDescription(network *xchg_network.Network) {
-	result := ""
-	for _, r := range network.Ranges {
-		rangeBlock := `<div style="font-family: Consolas, 'Courier New', Courier, monospace;font-size: 10pt;">` + "\r\n"
-		rangeBlock += "<h1>" + r.Prefix + "...</h1>\r\n"
-		for _, h := range r.Hosts {
-			httpAddr := strings.ReplaceAll(h.Address, "8484", "8485")
-
-			hostBlock := `<table style="margin-bottom: 10px; border-bottom: 2px solid #4169e1;" >` + "\r\n"
-			hostBlock += "<tr><td>Address</td><td>" + h.Address + "</td><tr>\r\n"
-			hostBlock += "<tr><td>Name</td><td>" + h.Name + "</td><tr>\r\n"
-			hostBlock += "<tr><td>ETH Address</td><td>" + h.EthAddress + "</td><tr>\r\n"
-			hostBlock += `<tr><td>State</td><td><a href="http://` + httpAddr + `/state">State</td><tr>` + "\r\n"
-			hostBlock += `<tr><td>Performance</td><td><a href="http://` + httpAddr + `/performance">Performance</td><tr>` + "\r\n"
-			hostBlock += "</table>\r\n"
-			rangeBlock += hostBlock
-		}
-		rangeBlock += "</div>\r\n"
-		result += rangeBlock
-	}
-	ioutil.WriteFile("network.html", []byte(result), 0666)
-}
-
-func GenNetwork() {
-	network := xchg_network.NewNetwork()
-	s1 := "54.37.73.160:8484"
-	//s2 := "54.37.73.229:8484"
-	//s3 := "134.0.115.16:8484"
-
-	for r := 0; r < 16; r++ {
-		rangePrefix := fmt.Sprintf("%X", r)
-		network.AddHostToRange(rangePrefix, s1)
-		/*network.AddHostToRange(rangePrefix, s2)
-		network.AddHostToRange(rangePrefix, s3)*/
-	}
-
-	network.SaveToFile("network.json")
-	GetNetworkDescription(network)
-
-}
-
-func GenConfig() {
-	var config xchg_router.RouterConfig
-	config.Init()
-	config.BinServerPort = 8484
-	config.HttpServerPort = 8485
-	bs, _ := json.MarshalIndent(config, "", " ")
-	ioutil.WriteFile("config.json", bs, 0666)
-}
-
 func SelfTest() {
-	GenNetwork()
-	GenConfig()
 
 	serverPrivateKey, _ := crypt_tools.GenerateRSAKey()
 	serverAddress := xchg.AddressForPublicKey(&serverPrivateKey.PublicKey)

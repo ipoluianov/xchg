@@ -5,17 +5,16 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/ipoluianov/xchg/connection"
 	"github.com/ipoluianov/xchg/xchg"
 )
 
 type SimpleServer struct {
-	serverConnection *connection.Peer
+	serverConnection *xchg.Peer
 }
 
 func NewSimpleServer(privateKey *rsa.PrivateKey) *SimpleServer {
 	var c SimpleServer
-	c.serverConnection = connection.NewPeer(privateKey)
+	c.serverConnection = xchg.NewPeer(privateKey)
 	c.serverConnection.SetProcessor(&c)
 	return &c
 }
@@ -57,7 +56,7 @@ func (c *SimpleServer) ServerProcessorCall(function string, parameter []byte) (r
 		resp.C = request.A + request.B
 		response, err = json.MarshalIndent(resp, "", " ")
 	default:
-		err = errors.New(xchg.ERR_SIMPLE_SERVER_FUNC_IS_NOT_IMPL)
+		err = errors.New(xchg.ERR_XCHG_NOT_IMPLEMENTED)
 	}
 
 	return
