@@ -80,7 +80,6 @@ func Parse(frame []byte) (tr *Transaction, err error) {
 }
 
 func (c *Transaction) Marshal() (result []byte) {
-	//c.FrameLen = uint32(TransactionHeaderSize + len(c.Data))
 	result = make([]byte, TransactionHeaderSize+len(c.Data))
 	result[0] = c.FrameType // Signature
 	result[1] = c.Status

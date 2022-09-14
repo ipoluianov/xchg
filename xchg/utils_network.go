@@ -1,4 +1,4 @@
-package xchg_network
+package xchg
 
 import (
 	"encoding/base32"
@@ -26,6 +26,43 @@ type Network struct {
 	SolAddress string  `json:"sol_addr"`
 	Ranges     []*rng  `json:"ranges"`
 	Gateways   []*host `json:"gateways"`
+}
+
+type host struct {
+	Address    string `json:"address"`
+	Name       string `json:"name"`
+	EthAddress string `json:"eth_addr"`
+	SolAddress string `json:"sol_addr"`
+}
+
+func NewHost(address string) *host {
+	var c host
+	c.Address = address
+	c.Name = "MainNet"
+	c.EthAddress = "0x60087f17b9dAF691DEd6c40Cb1fA6CE4407fa58C"
+	c.SolAddress = "todo"
+	return &c
+}
+
+type rng struct {
+	Prefix string  `json:"prefix"`
+	Hosts  []*host `json:"hosts"`
+}
+
+func NewRange(prefix string) *rng {
+	var c rng
+	c.Prefix = strings.ToLower(prefix)
+	c.Hosts = make([]*host, 0)
+	return &c
+}
+
+func (c *rng) addHostIfNotExists(address string) {
+	for _, h := range c.Hosts {
+		if h.Address == address {
+			return
+		}
+	}
+	c.Hosts = append(c.Hosts, NewHost(address))
 }
 
 func NewNetwork() *Network {
