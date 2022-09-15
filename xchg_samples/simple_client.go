@@ -1,4 +1,4 @@
-package xchg_examples
+package xchg_samples
 
 import (
 	"time"

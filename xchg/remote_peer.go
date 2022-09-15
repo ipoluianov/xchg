@@ -20,14 +20,16 @@ type RemotePeer struct {
 	privateKey      *rsa.PrivateKey
 	remotePublicKey *rsa.PublicKey
 
-	remoteConnectionPoint *net.UDPAddr
-	findingConnection     bool
-	authProcessing        bool
-	aesKey                []byte
-	sessionId             uint64
-	sessionNonceCounter   uint64
-	outgoingTransactions  map[uint64]*Transaction
-	nextTransactionId     uint64
+	lanConnectionPoint      *net.UDPAddr
+	internetConnectionPoint *net.UDPAddr
+
+	findingConnection    bool
+	authProcessing       bool
+	aesKey               []byte
+	sessionId            uint64
+	sessionNonceCounter  uint64
+	outgoingTransactions map[uint64]*Transaction
+	nextTransactionId    uint64
 }
 
 func NewRemotePeer(remoteAddress string, authData string, privateKey *rsa.PrivateKey) *RemotePeer {
@@ -40,17 +42,23 @@ func NewRemotePeer(remoteAddress string, authData string, privateKey *rsa.Privat
 	return &c
 }
 
-func RemoteConnectionPointString(remoteConnectionPoint *net.UDPAddr) string {
+func ConnectionPointString(remoteConnectionPoint *net.UDPAddr) string {
 	if remoteConnectionPoint == nil {
 		return "<nil>"
 	}
 	return remoteConnectionPoint.String()
 }
 
-func (c *RemotePeer) RemoteConnectionPoint() string {
+func (c *RemotePeer) InternetConnectionPoint() string {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
-	return RemoteConnectionPointString(c.remoteConnectionPoint)
+	return ConnectionPointString(c.internetConnectionPoint)
+}
+
+func (c *RemotePeer) LANConnectionPoint() string {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+	return ConnectionPointString(c.lanConnectionPoint)
 }
 
 func (c *RemotePeer) processFrame(conn net.PacketConn, sourceAddress *net.UDPAddr, frame []byte) {
@@ -101,11 +109,11 @@ func (c *RemotePeer) sendResponse(conn net.PacketConn, sourceAddress *net.UDPAdd
 	_, _ = conn.WriteTo(responseFrame, sourceAddress)
 }
 
-func (c *RemotePeer) checkRemoteConnectionPoint(conn net.PacketConn) (err error) {
+func (c *RemotePeer) checkLANConnectionPoint(conn net.PacketConn) (err error) {
 	c.mtx.Lock()
-	remoteConnectionPoint := c.remoteConnectionPoint
+	lanConnectionPoint := c.lanConnectionPoint
 	c.mtx.Unlock()
-	if remoteConnectionPoint != nil {
+	if lanConnectionPoint != nil {
 		return
 	}
 
@@ -116,9 +124,9 @@ func (c *RemotePeer) checkRemoteConnectionPoint(conn net.PacketConn) (err error)
 
 	for i := PEER_UDP_START_PORT; i < PEER_UDP_END_PORT; i++ {
 		c.mtx.Lock()
-		remoteConnectionPoint = c.remoteConnectionPoint
+		lanConnectionPoint = c.lanConnectionPoint
 		c.mtx.Unlock()
-		if remoteConnectionPoint != nil {
+		if lanConnectionPoint != nil {
 			break
 		}
 
@@ -138,7 +146,7 @@ func (c *RemotePeer) checkRemoteConnectionPoint(conn net.PacketConn) (err error)
 
 func (c *RemotePeer) setRemoteConnectionPoint(udpAddr *net.UDPAddr, remotePublicKey *rsa.PublicKey) {
 	c.mtx.Lock()
-	c.remoteConnectionPoint = udpAddr
+	c.lanConnectionPoint = udpAddr
 	c.remotePublicKey = remotePublicKey
 	c.mtx.Unlock()
 	fmt.Println("Received Address for", c.remoteAddress, "from", udpAddr)
@@ -148,7 +156,7 @@ func (c *RemotePeer) Call(conn net.PacketConn, function string, data []byte, tim
 
 	c.mtx.Lock()
 	sessionId := c.sessionId
-	remoteConnectionPoint := c.remoteConnectionPoint
+	remoteConnectionPoint := c.lanConnectionPoint
 	c.mtx.Unlock()
 
 	if conn == nil {
@@ -157,7 +165,7 @@ func (c *RemotePeer) Call(conn net.PacketConn, function string, data []byte, tim
 	}
 
 	if remoteConnectionPoint == nil {
-		go c.checkRemoteConnectionPoint(conn)
+		go c.checkLANConnectionPoint(conn)
 		err = errors.New("no route to peer")
 		return
 	}

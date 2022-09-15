@@ -340,12 +340,16 @@ func (c *Peer) processFrame10(conn net.PacketConn, sourceAddress *net.UDPAddr, f
 }
 
 func (c *Peer) processFrame11(conn net.PacketConn, sourceAddress *net.UDPAddr, frame []byte) {
-	receivedFromConnectionPoint := RemoteConnectionPointString(sourceAddress)
+	receivedFromConnectionPoint := ConnectionPointString(sourceAddress)
 
 	var remotePeer *RemotePeer
 	c.mtx.Lock()
 	for _, peer := range c.remotePeers {
-		if peer.RemoteConnectionPoint() == receivedFromConnectionPoint {
+		if peer.LANConnectionPoint() == receivedFromConnectionPoint {
+			remotePeer = peer
+			break
+		}
+		if peer.InternetConnectionPoint() == receivedFromConnectionPoint {
 			remotePeer = peer
 			break
 		}
