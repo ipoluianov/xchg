@@ -314,7 +314,7 @@ func (c *Peer) processFrame10(conn net.PacketConn, sourceAddress *net.UDPAddr, f
 		trResponse := NewTransaction(0x11, incomingTransaction.TransactionId, incomingTransaction.SessionId, 0, len(resp), resp)
 
 		offset := 0
-		blockSize := 1024 - 40
+		blockSize := 1024
 		for offset < len(trResponse.Data) {
 			currentBlockSize := blockSize
 			restDataLen := len(trResponse.Data) - offset
@@ -582,6 +582,8 @@ func prepareResponse(data []byte) []byte {
 }
 
 func prepareResponseError(err error) []byte {
+	fmt.Println("CALL ERROR:", err)
+
 	errBS := make([]byte, 0)
 	if err != nil {
 		errBS = []byte(err.Error())
