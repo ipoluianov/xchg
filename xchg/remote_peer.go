@@ -73,6 +73,7 @@ func (c *RemotePeer) processFrame(conn net.PacketConn, sourceAddress *net.UDPAdd
 func (c *RemotePeer) processFrame11(conn net.PacketConn, sourceAddress *net.UDPAddr, frame []byte) {
 	transaction, err := Parse(frame)
 	if err != nil {
+		fmt.Println(err)
 		return
 	}
 
@@ -87,7 +88,9 @@ func (c *RemotePeer) processFrame11(conn net.PacketConn, sourceAddress *net.UDPA
 			if t.ReceivedDataLen >= int(transaction.TotalSize) {
 				t.Complete = true
 			}
+			fmt.Println("Response received", transaction.TransactionId, transaction.Offset, transaction.TotalSize, t.ReceivedDataLen)
 		} else {
+			fmt.Println("Transaction error recevied", transaction.Err, transaction.TransactionId, transaction.Offset, transaction.TotalSize)
 			t.Result = transaction.Data
 			t.Err = transaction.Err
 			t.Complete = true
