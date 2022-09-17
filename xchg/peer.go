@@ -199,7 +199,7 @@ func (c *Peer) thReceive() {
 }
 
 func (c *Peer) processFrame(conn net.PacketConn, sourceAddress *net.UDPAddr, frame []byte) {
-	fmt.Println("processFrame from", sourceAddress, frame[0])
+	//fmt.Println("processFrame from", sourceAddress, frame[0])
 	if len(frame) < 8 {
 		return
 	}
