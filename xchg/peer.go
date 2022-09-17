@@ -144,7 +144,15 @@ func (c *Peer) thReceive() {
 				conn, err = net.ListenPacket("udp", ":"+fmt.Sprint(i))
 				if err == nil {
 					c.mtx.Lock()
-					c.conn = conn
+					udpConn := conn.(*net.UDPConn)
+					err = udpConn.SetReadBuffer(10 * 1024 * 1024)
+					if err == nil {
+						c.conn = conn
+					} else {
+						fmt.Println("SetReadBuffer error")
+						conn.Close()
+						conn = nil
+					}
 					c.mtx.Unlock()
 					break
 				}

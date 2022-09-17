@@ -17,11 +17,11 @@ func main() {
 	client := xchg_samples.NewSimpleClient(serverAddress)
 
 	for {
-		res, err := client.Version()
+		_, err := client.Version()
 		if err != nil {
 			fmt.Println("RESULT: error:", err)
 		} else {
-			fmt.Println("RESULT:", res)
+			fmt.Println("RESULT OK")
 		}
 		time.Sleep(1 * time.Second)
 	}
