@@ -1,23 +1,28 @@
 package xchg
 
 import (
+	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"net"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 )
 
 type Peer struct {
-	mtx        sync.Mutex
-	privateKey *rsa.PrivateKey
-	started    bool
-	stopping   bool
-	conn       net.PacketConn
+	mtx          sync.Mutex
+	privateKey   *rsa.PrivateKey
+	localAddress string
+	started      bool
+	stopping     bool
+	conn         net.PacketConn
+	network      *Network
 
 	// Client
 	remotePeers map[string]*RemotePeer
@@ -25,10 +30,12 @@ type Peer struct {
 	// Server
 	incomingTransactions  map[string]*Transaction
 	sessionsById          map[uint64]*Session
-	nonceGenerator        *NonceGenerator
+	authNonces            *Nonces
 	nextSessionId         uint64
 	processor             ServerProcessor
 	lastPurgeSessionsTime time.Time
+
+	declareAddressInInternetLastTime time.Time
 }
 
 type ServerProcessor interface {
@@ -57,14 +64,16 @@ func NewPeer(privateKey *rsa.PrivateKey) *Peer {
 	var c Peer
 	c.remotePeers = make(map[string]*RemotePeer)
 	c.incomingTransactions = make(map[string]*Transaction)
-	c.nonceGenerator = NewNonceGenerator(10000)
+	c.authNonces = NewNonces(100)
 	c.sessionsById = make(map[uint64]*Session)
 	c.nextSessionId = 1
+	c.network = NewNetworkLocalhost()
 
 	c.privateKey = privateKey
 	if c.privateKey == nil {
 		c.privateKey, _ = GenerateRSAKey()
 	}
+	c.localAddress = AddressForPublicKey(&c.privateKey.PublicKey)
 	go c.thReceive()
 	return &c
 }
@@ -110,6 +119,10 @@ func (c *Peer) Stop() (err error) {
 	}
 
 	return
+}
+
+func (c *Peer) Network() *Network {
+	return c.network
 }
 
 func (c *Peer) SetProcessor(processor ServerProcessor) {
@@ -180,6 +193,7 @@ func (c *Peer) thReceive() {
 		n, addr, err = conn.ReadFrom(buffer)
 		if errors.Is(err, os.ErrDeadlineExceeded) {
 			c.purgeSessions()
+			c.declareAddressInInternet(conn)
 			continue
 		}
 
@@ -206,6 +220,56 @@ func (c *Peer) thReceive() {
 	c.mtx.Unlock()
 }
 
+func (c *Peer) declareAddressInInternet(conn net.PacketConn) {
+	if time.Now().Sub(c.declareAddressInInternetLastTime) < 1*time.Second {
+		return
+	}
+	c.declareAddressInInternetLastTime = time.Now()
+
+	var err error
+	c.mtx.Lock()
+	localAddress := c.localAddress
+	c.mtx.Unlock()
+
+	addresses := c.network.GetNodesAddressesByAddress(localAddress)
+
+	for _, ipAddress := range addresses {
+		var ipStr string
+		var portStr string
+		ipStr, portStr, err = net.SplitHostPort(ipAddress)
+		if err != nil {
+			continue
+		}
+
+		var addr net.UDPAddr
+		addr.IP = net.ParseIP(ipStr)
+		if addr.IP == nil {
+			err = errors.New("wrong IP address")
+			continue
+		}
+		var portInt int64
+		portInt, err = strconv.ParseInt(portStr, 10, 32)
+		if err != nil {
+			continue
+		}
+		addr.Port = int(portInt)
+
+		var err error
+		request := make([]byte, 8)
+		request[0] = 0x01
+		var n int
+		n, err = conn.WriteTo(request, &addr)
+		if err != nil {
+			continue
+		}
+		if n != len(request) {
+			err = errors.New("data sent partially")
+			continue
+		}
+		//fmt.Println("Sent frame 0x01 to", addr)
+	}
+}
+
 func (c *Peer) processFrame(conn net.PacketConn, sourceAddress *net.UDPAddr, frame []byte) {
 	//fmt.Println("processFrame from", sourceAddress, frame[0])
 	if len(frame) < 8 {
@@ -217,6 +281,18 @@ func (c *Peer) processFrame(conn net.PacketConn, sourceAddress *net.UDPAddr, fra
 	// Ping
 	if frameType == 0x00 {
 		c.sendResponse(conn, sourceAddress, frame, make([]byte, 8))
+		return
+	}
+
+	// Internet ARP
+	if frameType == 0x01 {
+		c.processFrame01(conn, sourceAddress, frame)
+		return
+	}
+
+	// Internet ARP
+	if frameType == 0x03 {
+		c.processFrame03(conn, sourceAddress, frame)
 		return
 	}
 
@@ -241,6 +317,18 @@ func (c *Peer) processFrame(conn net.PacketConn, sourceAddress *net.UDPAddr, fra
 	// ARP response
 	if frameType == 0x21 {
 		c.processFrame21(conn, sourceAddress, frame)
+		return
+	}
+
+	// Get Public Key
+	if frameType == 0x22 {
+		c.processFrame22(conn, sourceAddress, frame)
+		return
+	}
+
+	// Get Public Key Response
+	if frameType == 0x23 {
+		c.processFrame23(conn, sourceAddress, frame)
 		return
 	}
 
@@ -269,12 +357,87 @@ func (c *Peer) Call(remoteAddress string, authData string, function string, data
 	}
 	remotePeer, remotePeerOk := c.remotePeers[remoteAddress]
 	if !remotePeerOk || remotePeer == nil {
-		remotePeer = NewRemotePeer(remoteAddress, authData, c.privateKey)
+		remotePeer = NewRemotePeer(remoteAddress, authData, c.privateKey, c.network)
 		c.remotePeers[remoteAddress] = remotePeer
 	}
 	c.mtx.Unlock()
 	result, err = remotePeer.Call(conn, function, data, timeout)
 	return
+}
+
+// Nonce
+func (c *Peer) processFrame01(conn net.PacketConn, sourceAddress *net.UDPAddr, frame []byte) {
+	fmt.Println("frame 01 recevied from", sourceAddress)
+	if frame[1] != 0 {
+		return
+	}
+
+	if len(frame) != 8+16 {
+		//err = errors.New("wrong response - size of frame")
+		return
+	}
+
+	nonce := frame[8:]
+
+	data := make([]byte, 0)
+
+	publicKeyBS := RSAPublicKeyToDer(&c.privateKey.PublicKey)
+
+	request := make([]byte, 8+16+8+256+4+len(publicKeyBS)+len(data))
+
+	request[0] = 0x02
+
+	copy(request[8:], nonce)
+	// copy(request[24:], salt) // TODO: salt
+
+	hash := sha256.Sum256(request[8:32])
+	signature, err := rsa.SignPKCS1v15(rand.Reader, c.privateKey, crypto.SHA256, hash[:])
+	if err != nil {
+		return
+	}
+	copy(request[32:], signature)
+
+	binary.LittleEndian.PutUint32(request[288:], uint32(len(publicKeyBS)))
+	copy(request[292:], publicKeyBS)
+	copy(request[292+len(publicKeyBS):], data)
+
+	var n int
+	n, err = conn.WriteTo(request, sourceAddress)
+	if err != nil {
+		return
+	}
+	if n != len(request) {
+		err = errors.New("data sent partially")
+		return
+	}
+}
+
+func (c *Peer) processFrame03(conn net.PacketConn, sourceAddress *net.UDPAddr, frame []byte) {
+	if frame[1] != 0 {
+		return
+	}
+
+	receivedAddr := ""
+	data := make([]byte, 0)
+
+	for i := 8; i < len(frame); i++ {
+		if frame[i] == '=' {
+			receivedAddr = string(frame[8:i])
+			data = frame[i+1:]
+			break
+		}
+	}
+
+	c.mtx.Lock()
+
+	for _, peer := range c.remotePeers {
+		if peer.remoteAddress == receivedAddr {
+			peer.setInternetConnectionPoint(sourceAddress, data)
+			break
+		}
+	}
+
+	c.mtx.Unlock()
 }
 
 func (c *Peer) processFrame10(conn net.PacketConn, sourceAddress *net.UDPAddr, frame []byte) {
@@ -372,6 +535,58 @@ func (c *Peer) processFrame20(conn net.PacketConn, sourceAddress *net.UDPAddr, f
 	c.mtx.Lock()
 	localAddress := AddressForPublicKey(&c.privateKey.PublicKey)
 	c.mtx.Unlock()
+
+	nonce := frame[8 : 8+16]
+	nonceHash := sha256.Sum256(nonce)
+
+	requestedAddress := string(frame[8+16:])
+	if requestedAddress != localAddress {
+		return // This is not my address
+	}
+
+	// Send my public key
+	publicKeyBS := RSAPublicKeyToDer(&c.privateKey.PublicKey)
+
+	// And signature
+	signature, err := rsa.SignPKCS1v15(rand.Reader, c.privateKey, crypto.SHA256, nonceHash[:])
+	if err != nil {
+		return
+	}
+
+	response := make([]byte, 8+16+256+len(publicKeyBS))
+	copy(response, frame[:8])
+	response[0] = 0x21
+	copy(response[8:], nonce)
+	copy(response[8+16:], signature)
+	copy(response[8+16+256:], publicKeyBS)
+	_, _ = conn.WriteTo(response, sourceAddress)
+}
+
+func (c *Peer) processFrame21(conn net.PacketConn, sourceAddress *net.UDPAddr, frame []byte) {
+	receivedPublicKeyBS := frame[8+16+256:]
+	receivedPublicKey, err := RSAPublicKeyFromDer([]byte(receivedPublicKeyBS))
+	if err != nil {
+		return
+	}
+
+	receivedAddress := AddressForPublicKey(receivedPublicKey)
+
+	c.mtx.Lock()
+
+	for _, peer := range c.remotePeers {
+		if peer.remoteAddress == receivedAddress {
+			peer.setLANConnectionPoint(sourceAddress, receivedPublicKey, frame[8:8+16], frame[8+16:8+16+256])
+			break
+		}
+	}
+
+	c.mtx.Unlock()
+}
+
+func (c *Peer) processFrame22(conn net.PacketConn, sourceAddress *net.UDPAddr, frame []byte) {
+	c.mtx.Lock()
+	localAddress := AddressForPublicKey(&c.privateKey.PublicKey)
+	c.mtx.Unlock()
 	requestedAddress := string(frame[8:])
 	if requestedAddress != localAddress {
 		return
@@ -381,12 +596,12 @@ func (c *Peer) processFrame20(conn net.PacketConn, sourceAddress *net.UDPAddr, f
 
 	response := make([]byte, 8+len(publicKeyBS))
 	copy(response, frame[:8])
-	response[0] = 0x21
+	response[0] = 0x23
 	copy(response[8:], publicKeyBS)
 	_, _ = conn.WriteTo(response, sourceAddress)
 }
 
-func (c *Peer) processFrame21(conn net.PacketConn, sourceAddress *net.UDPAddr, frame []byte) {
+func (c *Peer) processFrame23(conn net.PacketConn, sourceAddress *net.UDPAddr, frame []byte) {
 	receivedPublicKeyBS := frame[8:]
 	receivedPublicKey, err := RSAPublicKeyFromDer([]byte(receivedPublicKeyBS))
 	if err != nil {
@@ -399,7 +614,7 @@ func (c *Peer) processFrame21(conn net.PacketConn, sourceAddress *net.UDPAddr, f
 
 	for _, peer := range c.remotePeers {
 		if peer.remoteAddress == receivedAddress {
-			peer.setRemoteConnectionPoint(sourceAddress, receivedPublicKey)
+			peer.setRemotePublicKey(receivedPublicKey)
 			break
 		}
 	}
@@ -479,7 +694,8 @@ func (c *Peer) onEdgeReceivedCall(sessionId uint64, data []byte) (response []byt
 
 	switch function {
 	case "/xchg-get-nonce":
-		resp = c.nonceGenerator.Get()
+		nonce := c.authNonces.Next()
+		resp = nonce[:]
 	case "/xchg-auth":
 		resp, err = c.processAuth(functionParameter)
 	default:
@@ -536,7 +752,7 @@ func (c *Peer) processAuth(functionParameter []byte) (response []byte, err error
 	}
 
 	nonce := parameter[0:16]
-	if !c.nonceGenerator.Check(nonce) {
+	if !c.authNonces.Check(nonce) {
 		err = errors.New(ERR_XCHG_SRV_CONN_AUTH_WRONG_NONCE)
 		return
 	}

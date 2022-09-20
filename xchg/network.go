@@ -1,7 +1,7 @@
 package xchg
 
 import (
-	"encoding/base32"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -124,14 +124,25 @@ func NewNetworkFromFileOrCreate(fileName string) (network *Network) {
 func NewNetworkDefault() *Network {
 	network := NewNetwork()
 	s1 := "54.37.73.160:8484"
-	/*s2 := "54.37.73.229:8484"
-	s3 := "134.0.115.16:8484"*/
+	s2 := "54.37.73.229:8484"
+	s3 := "134.0.115.16:8484"
 
 	for r := 0; r < 16; r++ {
 		rangePrefix := fmt.Sprintf("%X", r)
 		network.AddHostToRange(rangePrefix, s1)
-		//network.AddHostToRange(rangePrefix, s2)
-		//network.AddHostToRange(rangePrefix, s3)
+		network.AddHostToRange(rangePrefix, s2)
+		network.AddHostToRange(rangePrefix, s3)
+	}
+	return network
+}
+
+func NewNetworkLocalhost() *Network {
+	network := NewNetwork()
+	s1 := "127.0.0.1:8484"
+
+	for r := 0; r < 16; r++ {
+		rangePrefix := fmt.Sprintf("%X", r)
+		network.AddHostToRange(rangePrefix, s1)
 	}
 	return network
 }
@@ -224,13 +235,10 @@ func (c *Network) GetNodesAddressesByAddress(address string) []string {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
-	addressBS, err := base32.StdEncoding.DecodeString(strings.ToUpper(address))
-	if err != nil {
-		return make([]string, 0)
-	}
+	address = strings.ToLower(address)
+	shaAddress := sha256.Sum256([]byte(address))
 
-	SHAPublicKeyHex := hex.EncodeToString(addressBS)
-	SHAPublicKeyHex = strings.ToLower(SHAPublicKeyHex)
+	SHAPublicKeyHex := hex.EncodeToString(shaAddress[:])
 
 	var preferredRange *rng
 	preferredRangeScore := 0
@@ -263,6 +271,31 @@ func (c *Network) GetNodesAddressesByAddress(address string) []string {
 	})
 
 	return addresses
+}
+
+func (c *Network) FlatListRandom() []string {
+	result := make([]string, 0)
+
+	c.mtx.Lock()
+	mapOfAddresses := make(map[string]bool)
+	for _, r := range c.Ranges {
+		for _, h := range r.Hosts {
+			mapOfAddresses[h.Address] = true
+		}
+	}
+	for h, _ := range mapOfAddresses {
+		result = append(result, h)
+	}
+	c.mtx.Unlock()
+
+	// Randomize
+	rnd := make([]byte, len(result))
+	rand.Read(rnd)
+	sort.Slice(result, func(i, j int) bool {
+		return rnd[i] < rnd[j]
+	})
+
+	return result
 }
 
 func (c *Network) GetLocalPrefixes() []string {

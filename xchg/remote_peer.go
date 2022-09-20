@@ -1,8 +1,10 @@
 package xchg
 
 import (
+	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -16,9 +18,12 @@ type RemotePeer struct {
 	mtx           sync.Mutex
 	remoteAddress string
 	authData      string
+	network       *Network
 
 	privateKey      *rsa.PrivateKey
 	remotePublicKey *rsa.PublicKey
+
+	nonces *Nonces
 
 	lanConnectionPoint      *net.UDPAddr
 	internetConnectionPoint *net.UDPAddr
@@ -32,13 +37,15 @@ type RemotePeer struct {
 	nextTransactionId    uint64
 }
 
-func NewRemotePeer(remoteAddress string, authData string, privateKey *rsa.PrivateKey) *RemotePeer {
+func NewRemotePeer(remoteAddress string, authData string, privateKey *rsa.PrivateKey, network *Network) *RemotePeer {
 	var c RemotePeer
 	c.privateKey = privateKey
 	c.remoteAddress = remoteAddress
 	c.authData = authData
 	c.outgoingTransactions = make(map[uint64]*Transaction)
 	c.nextTransactionId = 1
+	c.network = network
+	c.nonces = NewNonces(100)
 	return &c
 }
 
@@ -88,9 +95,7 @@ func (c *RemotePeer) processFrame11(conn net.PacketConn, sourceAddress *net.UDPA
 			if t.ReceivedDataLen >= int(transaction.TotalSize) {
 				t.Complete = true
 			}
-			//fmt.Println("Response received", transaction.TransactionId, transaction.Offset, transaction.TotalSize, t.ReceivedDataLen)
 		} else {
-			//fmt.Println("Transaction error recevied", transaction.Err, transaction.TransactionId, transaction.Offset, transaction.TotalSize)
 			t.Result = transaction.Data
 			t.Err = transaction.Err
 			t.Complete = true
@@ -120,10 +125,13 @@ func (c *RemotePeer) checkLANConnectionPoint(conn net.PacketConn) (err error) {
 		return
 	}
 
+	nonce := c.nonces.Next()
+
 	addressBS := []byte(c.remoteAddress)
-	request := make([]byte, 8+len(addressBS))
+	request := make([]byte, 8+16+len(addressBS))
 	request[0] = 0x20
-	copy(request[8:], addressBS)
+	copy(request[8:], nonce[:])
+	copy(request[8+16:], addressBS)
 
 	for i := PEER_UDP_START_PORT; i < PEER_UDP_END_PORT; i++ {
 		c.mtx.Lock()
@@ -147,19 +155,127 @@ func (c *RemotePeer) checkLANConnectionPoint(conn net.PacketConn) (err error) {
 	return
 }
 
-func (c *RemotePeer) setRemoteConnectionPoint(udpAddr *net.UDPAddr, remotePublicKey *rsa.PublicKey) {
+func (c *RemotePeer) checkInternetConnectionPoint(conn net.PacketConn) (err error) {
+	/*c.mtx.Lock()
+	internetConnectionPoint := c.internetConnectionPoint
+	c.mtx.Unlock()
+	if internetConnectionPoint != nil {
+		return
+	}*/
+
+	fmt.Println("checkInternetConnectionPoint")
+
+	addressBS := []byte(c.remoteAddress)
+	request := make([]byte, 8+len(addressBS))
+	request[0] = 0x20
+	copy(request[8:], addressBS)
+
+	ipAddresses := c.network.GetNodesAddressesByAddress(c.remoteAddress)
+	for _, ipAddress := range ipAddresses {
+		var ipStr string
+		var portStr string
+		ipStr, portStr, err = net.SplitHostPort(ipAddress)
+		if err != nil {
+			return
+		}
+
+		var addr net.UDPAddr
+		addr.IP = net.ParseIP(ipStr)
+		if addr.IP == nil {
+			err = errors.New("wrong IP address")
+			return
+		}
+		var portInt int64
+		portInt, err = strconv.ParseInt(portStr, 10, 32)
+		if err != nil {
+			return
+		}
+		addr.Port = int(portInt)
+		request := make([]byte, 8+len(addressBS))
+		request[0] = 0x03
+		copy(request[8:], addressBS)
+		var n int
+		n, err = conn.WriteTo(request, &addr)
+		if err != nil {
+			return
+		}
+		if n != len(request) {
+			err = errors.New("data sent partially")
+			return
+		}
+	}
+
+	return
+}
+
+func (c *RemotePeer) setLANConnectionPoint(udpAddr *net.UDPAddr, publicKey *rsa.PublicKey, nonce []byte, signature []byte) {
+	if !c.nonces.Check(nonce) {
+		return
+	}
+
+	nonceHash := sha256.Sum256(nonce)
+	err := rsa.VerifyPKCS1v15(publicKey, crypto.SHA256, nonceHash[:], signature)
+	if err != nil {
+		return
+	}
+
 	c.mtx.Lock()
 	c.lanConnectionPoint = udpAddr
-	c.remotePublicKey = remotePublicKey
 	c.mtx.Unlock()
 	fmt.Println("Received Address for", c.remoteAddress, "from", udpAddr)
+}
+
+func (c *RemotePeer) setInternetConnectionPoint(sourceAddress *net.UDPAddr, data []byte) {
+	fmt.Println("setInternetConnectionPoint")
+	if (len(data) % 32) != 0 {
+		return
+	}
+
+	for i := 0; i < len(data); i += 32 {
+		var udpAddr net.UDPAddr
+		udpAddr.IP = data[i+2 : i+2+16]
+		udpAddr.Port = int(binary.LittleEndian.Uint16(data[i+2+16:]))
+		fmt.Println("Received Internet Address for", c.remoteAddress, "from", udpAddr)
+		c.mtx.Lock()
+		c.internetConnectionPoint = &udpAddr
+		c.mtx.Unlock()
+	}
+
+}
+
+func (c *RemotePeer) setRemotePublicKey(publicKey *rsa.PublicKey) {
+	c.mtx.Lock()
+	c.remotePublicKey = publicKey
+	c.mtx.Unlock()
+}
+
+func (c *RemotePeer) requestRemotePublicKey(conn net.PacketConn) {
+	fmt.Println("requestRemotePublicKey")
+	addressBS := []byte(c.remoteAddress)
+	request := make([]byte, 8+len(addressBS))
+	request[0] = 0x22
+	copy(request[8:], addressBS)
+
+	c.mtx.Lock()
+	lanConnectionPoint := c.lanConnectionPoint
+	internetConnectionPoint := c.internetConnectionPoint
+	c.mtx.Unlock()
+
+	if lanConnectionPoint != nil {
+		conn.WriteTo(request, lanConnectionPoint)
+	}
+
+	if internetConnectionPoint != nil {
+		conn.WriteTo(request, internetConnectionPoint)
+	}
 }
 
 func (c *RemotePeer) Call(conn net.PacketConn, function string, data []byte, timeout time.Duration) (result []byte, err error) {
 
 	c.mtx.Lock()
 	sessionId := c.sessionId
-	remoteConnectionPoint := c.lanConnectionPoint
+	lanConnectionPoint := c.lanConnectionPoint
+	internetConnectionPoint := c.internetConnectionPoint
 	c.mtx.Unlock()
 
 	if conn == nil {
@@ -167,14 +283,20 @@ func (c *RemotePeer) Call(conn net.PacketConn, function string, data []byte, tim
 		return
 	}
 
-	if remoteConnectionPoint == nil {
+	if lanConnectionPoint == nil {
 		go c.checkLANConnectionPoint(conn)
+	}
+	if internetConnectionPoint == nil || true {
+		go c.checkInternetConnectionPoint(conn)
+	}
+
+	if lanConnectionPoint == nil && internetConnectionPoint == nil {
 		err = errors.New("no route to peer")
 		return
 	}
 
 	if sessionId == 0 {
-		err = c.auth(conn, remoteConnectionPoint, 1000*time.Millisecond)
+		err = c.auth(conn, lanConnectionPoint, 1000*time.Millisecond)
 		if err != nil {
 			return
 		}
@@ -186,7 +308,7 @@ func (c *RemotePeer) Call(conn net.PacketConn, function string, data []byte, tim
 	copy(aesKey, c.aesKey)
 	c.mtx.Unlock()
 
-	result, err = c.regularCall(conn, remoteConnectionPoint, function, data, aesKey, timeout)
+	result, err = c.regularCall(conn, lanConnectionPoint, function, data, aesKey, timeout)
 
 	return
 }
@@ -231,6 +353,12 @@ func (c *RemotePeer) auth(conn net.PacketConn, remoteConnectionPoint *net.UDPAdd
 	c.mtx.Unlock()
 	if c.privateKey == nil {
 		err = errors.New(ERR_XCHG_CL_CONN_AUTH_NO_LOCAL_PRIVATE_KEY)
+		return
+	}
+
+	if remotePublicKey == nil {
+		err = errors.New(ERR_XCHG_CL_CONN_AUTH_NO_REMOTE_PUBLIC_KEY)
+		c.requestRemotePublicKey(conn)
 		return
 	}
 

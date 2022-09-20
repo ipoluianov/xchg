@@ -45,7 +45,7 @@ func AddressForPublicKeyBS(publicKeyBS []byte) string {
 		hash = h[:]
 	}
 
-	return strings.ToLower(base32.StdEncoding.EncodeToString(hash[:AddressBytesSize]))
+	return "#" + strings.ToLower(base32.StdEncoding.EncodeToString(hash[:AddressBytesSize]))
 }
 
 func NormalizeAddress(address string) string {
