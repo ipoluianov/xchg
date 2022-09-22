@@ -153,7 +153,7 @@ func (c *Peer) thReceive() {
 				if err == nil {
 					c.mtx.Lock()
 					udpConn := conn.(*net.UDPConn)
-					err = udpConn.SetReadBuffer(10 * 1024 * 1024)
+					err = udpConn.SetReadBuffer(2 * 1024 * 1024)
 					if err == nil {
 						c.conn = conn
 					} else {
