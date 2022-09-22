@@ -105,7 +105,7 @@ no action
 
 ---
 
-# 0x09 - Resolve Custom Address
+# 0x09 - Resolve Custom Address - Response
     09 00 00 00 00 00 00 00 [address] 3D('=') [native address]
 
 ## Behavior of Router
