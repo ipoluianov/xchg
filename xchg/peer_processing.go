@@ -20,22 +20,25 @@ func (c *Peer) processFrame(conn net.PacketConn, sourceAddress *net.UDPAddr, fra
 
 	frameType := frame[0]
 
-	// Ping
+	// Ping Request
 	if frameType == 0x00 {
 		c.processFrame00(conn, sourceAddress, frame)
 		return
 	}
+
+	// Ping Response
 	if frameType == 0x01 {
 		c.processFrame01(conn, sourceAddress, frame)
 		return
 	}
 
-	// Internet ARP
+	// Internet ARP Request
 	if frameType == 0x02 {
 		c.processFrame02(conn, sourceAddress, frame)
 		return
 	}
-	// Internet ARP
+
+	// Internet ARP Response
 	if frameType == 0x03 {
 		c.processFrame03(conn, sourceAddress, frame)
 		return
@@ -85,7 +88,7 @@ func (c *Peer) processFrame(conn net.PacketConn, sourceAddress *net.UDPAddr, fra
 
 func (c *Peer) processFrame00(conn net.PacketConn, sourceAddress *net.UDPAddr, frame []byte) {
 	// response to ping request
-	frame[0] = 0x01
+	frame[0] = 0x01 // Ping response
 	frame[1] = 0x00
 	conn.WriteTo(frame, sourceAddress)
 }
