@@ -284,7 +284,7 @@ func (c *Network) FlatListRandom() []string {
 			mapOfAddresses[h.Address] = true
 		}
 	}
-	for h, _ := range mapOfAddresses {
+	for h := range mapOfAddresses {
 		result = append(result, h)
 	}
 	c.mtx.Unlock()
