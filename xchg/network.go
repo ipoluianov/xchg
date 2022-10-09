@@ -123,6 +123,7 @@ func NewNetworkFromFileOrCreate(fileName string) (network *Network) {
 
 func NewNetworkDefault() *Network {
 	network := NewNetwork()
+
 	s1 := "54.37.73.160:8484"
 	s2 := "54.37.73.229:8484"
 	s3 := "134.0.115.16:8484"
