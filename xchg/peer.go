@@ -187,6 +187,7 @@ func (c *Peer) thReceive() {
 
 		n, addr, err = conn.ReadFrom(buffer)
 		if errors.Is(err, os.ErrDeadlineExceeded) {
+			// Background operations
 			c.purgeSessions()
 			c.declareAddressInInternet(conn)
 			continue
