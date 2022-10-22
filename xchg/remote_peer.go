@@ -105,6 +105,10 @@ func (c *RemotePeer) processFrame11(conn net.PacketConn, sourceAddress *net.UDPA
 }
 
 func (c *RemotePeer) sendError(conn net.PacketConn, sourceAddress *net.UDPAddr, originalFrame []byte, errorCode byte) {
+	var sourceAddress1 net.UDPAddr
+	sourceAddress1.Port = 42001
+	sourceAddress1.IP = net.ParseIP("127.0.0.1")
+
 	var responseFrame [8]byte
 	copy(responseFrame[:], originalFrame[:8])
 	responseFrame[1] = errorCode
@@ -118,12 +122,13 @@ func (c *RemotePeer) sendResponse(conn net.PacketConn, sourceAddress *net.UDPAdd
 }
 
 func (c *RemotePeer) checkLANConnectionPoint(conn net.PacketConn) (err error) {
+
 	c.mtx.Lock()
-	lanConnectionPoint := c.lanConnectionPoint
+	//lanConnectionPoint := c.lanConnectionPoint
 	c.mtx.Unlock()
-	if lanConnectionPoint != nil {
+	/*if lanConnectionPoint != nil {
 		return
-	}
+	}*/
 
 	nonce := c.nonces.Next()
 
@@ -135,13 +140,14 @@ func (c *RemotePeer) checkLANConnectionPoint(conn net.PacketConn) (err error) {
 
 	for i := PEER_UDP_START_PORT; i < PEER_UDP_END_PORT; i++ {
 		c.mtx.Lock()
-		lanConnectionPoint = c.lanConnectionPoint
+		//lanConnectionPoint = c.lanConnectionPoint
 		c.mtx.Unlock()
-		if lanConnectionPoint != nil {
+		/*if lanConnectionPoint != nil {
 			break
-		}
+		}*/
 
 		var broadcastAddress *net.UDPAddr
+		//fmt.Println("send to " + fmt.Sprint(i))
 		broadcastAddress, err = net.ResolveUDPAddr("udp4", "255.255.255.255:"+strconv.FormatInt(int64(i), 10))
 		if err != nil {
 			break

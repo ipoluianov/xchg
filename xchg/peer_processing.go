@@ -194,7 +194,7 @@ func (c *Peer) processFrame09(conn net.PacketConn, sourceAddress *net.UDPAddr, f
 }
 
 // ----------------------------------------
-// Resolve Custom Address
+// Incoming Call - Server Role
 // ----------------------------------------
 
 func (c *Peer) processFrame10(conn net.PacketConn, sourceAddress *net.UDPAddr, frame []byte) {
@@ -288,6 +288,7 @@ func (c *Peer) processFrame11(conn net.PacketConn, sourceAddress *net.UDPAddr, f
 	}
 }
 
+// ARP LAN request
 func (c *Peer) processFrame20(conn net.PacketConn, sourceAddress *net.UDPAddr, frame []byte) {
 	c.mtx.Lock()
 	localAddress := AddressForPublicKey(&c.privateKey.PublicKey)

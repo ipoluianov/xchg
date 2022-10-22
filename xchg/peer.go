@@ -149,6 +149,7 @@ func (c *Peer) thReceive() {
 		if conn == nil {
 			// Open any UDP port in diapason PEER_UDP_START_PORT:PEER_UDP_END_PORT
 			for i := PEER_UDP_START_PORT; i < PEER_UDP_END_PORT; i++ {
+				fmt.Println("trying open port " + fmt.Sprint(i))
 				conn, err = net.ListenPacket("udp", ":"+fmt.Sprint(i))
 				if err == nil {
 					c.mtx.Lock()
