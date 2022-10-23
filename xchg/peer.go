@@ -63,7 +63,8 @@ func NewPeer(privateKey *rsa.PrivateKey) *Peer {
 	c.authNonces = NewNonces(100)
 	c.sessionsById = make(map[uint64]*Session)
 	c.nextSessionId = 1
-	c.network = NewNetworkLocalhost()
+	//c.network = NewNetworkLocalhost()
+	c.network = NewNetworkDefault()
 
 	c.privateKey = privateKey
 	if c.privateKey == nil {
