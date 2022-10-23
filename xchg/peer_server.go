@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"strconv"
 	"time"
@@ -180,6 +181,7 @@ func (c *Peer) purgeSessions() {
 		for sessionId, session := range c.sessionsById {
 			if now.Sub(session.lastAccessDT).Seconds() > 60 {
 				delete(c.sessionsById, sessionId)
+				log.Println("Session removed", sessionId)
 			}
 		}
 		c.lastPurgeSessionsTime = time.Now()
