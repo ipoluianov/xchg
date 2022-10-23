@@ -190,11 +190,48 @@ func (c *Peer) purgeSessions() {
 	c.mtx.Unlock()
 }
 
+func (c *Peer) getLocalIPs() []net.IP {
+	result := make([]net.IP, 0)
+	return result
+
+	fmt.Println("------------------------------")
+
+	ifaces, err := net.Interfaces()
+	if err == nil {
+		for _, netInterface := range ifaces {
+			if (netInterface.Flags&net.FlagUp == 0) || (netInterface.Flags&net.FlagLoopback != 0) {
+				continue
+			}
+
+			addrs, err := netInterface.Addrs()
+			fmt.Println("INTERFACE:", netInterface.Name)
+			if err == nil {
+				for _, a := range addrs {
+					var ip net.IP
+					switch v := a.(type) {
+					case *net.IPNet:
+						ip = v.IP
+					case *net.IPAddr:
+						ip = v.IP
+					}
+					result = append(result, ip)
+					fmt.Println(ip)
+				}
+			}
+		}
+	}
+
+	fmt.Println("------------------------------")
+
+	return result
+}
+
 func (c *Peer) declareAddressInInternet(conn net.PacketConn) {
-	if time.Now().Sub(c.declareAddressInInternetLastTime) < 1*time.Second {
+	if time.Now().Sub(c.declareAddressInInternetLastTime) < 3*time.Second {
 		return
 	}
 	c.declareAddressInInternetLastTime = time.Now()
+	c.getLocalIPs()
 
 	var err error
 	c.mtx.Lock()
@@ -226,7 +263,7 @@ func (c *Peer) declareAddressInInternet(conn net.PacketConn) {
 
 		var err error
 		request := make([]byte, 8)
-		request[0] = 0x01
+		request[0] = 0x02
 		var n int
 		n, err = conn.WriteTo(request, &addr)
 		if err != nil {

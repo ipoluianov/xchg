@@ -11,13 +11,14 @@ import (
 )
 
 type Peer struct {
-	mtx          sync.Mutex
-	privateKey   *rsa.PrivateKey
-	localAddress string
-	started      bool
-	stopping     bool
-	conn         net.PacketConn
-	network      *Network
+	mtx            sync.Mutex
+	privateKey     *rsa.PrivateKey
+	localAddress   string
+	started        bool
+	stopping       bool
+	conn           net.PacketConn
+	network        *Network
+	currentUDPPort int
 
 	// Client
 	remotePeers map[string]*RemotePeer
@@ -157,6 +158,7 @@ func (c *Peer) thReceive() {
 					err = udpConn.SetReadBuffer(1 * 1024 * 1024)
 					if err == nil {
 						c.conn = conn
+						c.currentUDPPort = i
 					} else {
 						fmt.Println("SetReadBuffer error")
 						conn.Close()

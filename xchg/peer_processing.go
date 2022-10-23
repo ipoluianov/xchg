@@ -115,10 +115,19 @@ func (c *Peer) processFrame03(conn net.PacketConn, sourceAddress *net.UDPAddr, f
 
 	nonce := frame[8:]
 
-	data := make([]byte, 0)
+	localIPs := c.getLocalIPs()
+	data := make([]byte, len(localIPs)*32)
+	for i := 0; i < len(localIPs); i++ {
+		offset := i * 32
+		data[offset+0] = 0x02
+		data[offset+1] = 0x00
+		copy(data[offset+2:], localIPs[i][:])
+		binary.LittleEndian.PutUint16(data[offset+18:], uint16(c.currentUDPPort))
+	}
+
 	publicKeyBS := RSAPublicKeyToDer(&c.privateKey.PublicKey)
 	request := make([]byte, 8+16+8+256+4+len(publicKeyBS)+len(data))
-	request[0] = 0x02
+	request[0] = 0x04
 
 	copy(request[8:], nonce)
 	// copy(request[24:], salt) // TODO: salt
@@ -143,6 +152,14 @@ func (c *Peer) processFrame03(conn net.PacketConn, sourceAddress *net.UDPAddr, f
 		err = errors.New("data sent partially")
 		return
 	}
+}
+
+func (c *Peer) processFrame04(conn net.PacketConn, sourceAddress *net.UDPAddr, frame []byte) {
+	// nothing to do
+}
+
+func (c *Peer) processFrame05(conn net.PacketConn, sourceAddress *net.UDPAddr, frame []byte) {
+	// nothing to do
 }
 
 // ----------------------------------------
