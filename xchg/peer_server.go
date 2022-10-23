@@ -55,6 +55,7 @@ func (c *Peer) onEdgeReceivedCall(sessionId uint64, data []byte) (response []byt
 			return
 		}
 		data = data[8:]
+		session.lastAccessDT = time.Now()
 	} else {
 		if len(data) < 1 {
 			response = prepareResponseError(errors.New(ERR_XCHG_SRV_CONN_WRONG_LEN1))
