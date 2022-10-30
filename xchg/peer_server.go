@@ -193,37 +193,37 @@ func (c *Peer) purgeSessions() {
 func (c *Peer) getLocalIPs() []net.IP {
 	result := make([]net.IP, 0)
 	return result
+	/*
+		fmt.Println("------------------------------")
 
-	fmt.Println("------------------------------")
+		ifaces, err := net.Interfaces()
+		if err == nil {
+			for _, netInterface := range ifaces {
+				if (netInterface.Flags&net.FlagUp == 0) || (netInterface.Flags&net.FlagLoopback != 0) {
+					continue
+				}
 
-	ifaces, err := net.Interfaces()
-	if err == nil {
-		for _, netInterface := range ifaces {
-			if (netInterface.Flags&net.FlagUp == 0) || (netInterface.Flags&net.FlagLoopback != 0) {
-				continue
-			}
-
-			addrs, err := netInterface.Addrs()
-			fmt.Println("INTERFACE:", netInterface.Name)
-			if err == nil {
-				for _, a := range addrs {
-					var ip net.IP
-					switch v := a.(type) {
-					case *net.IPNet:
-						ip = v.IP
-					case *net.IPAddr:
-						ip = v.IP
+				addrs, err := netInterface.Addrs()
+				fmt.Println("INTERFACE:", netInterface.Name)
+				if err == nil {
+					for _, a := range addrs {
+						var ip net.IP
+						switch v := a.(type) {
+						case *net.IPNet:
+							ip = v.IP
+						case *net.IPAddr:
+							ip = v.IP
+						}
+						result = append(result, ip)
+						fmt.Println(ip)
 					}
-					result = append(result, ip)
-					fmt.Println(ip)
 				}
 			}
 		}
-	}
 
-	fmt.Println("------------------------------")
+		fmt.Println("------------------------------")
 
-	return result
+		return result*/
 }
 
 func (c *Peer) declareAddressInInternet(conn net.PacketConn) {
