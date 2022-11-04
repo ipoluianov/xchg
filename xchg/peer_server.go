@@ -7,8 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"net"
-	"strconv"
 	"time"
 )
 
@@ -188,93 +186,6 @@ func (c *Peer) purgeSessions() {
 		c.lastPurgeSessionsTime = time.Now()
 	}
 	c.mtx.Unlock()
-}
-
-func (c *Peer) getLocalIPs() []net.IP {
-	result := make([]net.IP, 0)
-	return result
-	/*
-		fmt.Println("------------------------------")
-
-		ifaces, err := net.Interfaces()
-		if err == nil {
-			for _, netInterface := range ifaces {
-				if (netInterface.Flags&net.FlagUp == 0) || (netInterface.Flags&net.FlagLoopback != 0) {
-					continue
-				}
-
-				addrs, err := netInterface.Addrs()
-				fmt.Println("INTERFACE:", netInterface.Name)
-				if err == nil {
-					for _, a := range addrs {
-						var ip net.IP
-						switch v := a.(type) {
-						case *net.IPNet:
-							ip = v.IP
-						case *net.IPAddr:
-							ip = v.IP
-						}
-						result = append(result, ip)
-						fmt.Println(ip)
-					}
-				}
-			}
-		}
-
-		fmt.Println("------------------------------")
-
-		return result*/
-}
-
-func (c *Peer) declareAddressInInternet(conn net.PacketConn) {
-	if time.Now().Sub(c.declareAddressInInternetLastTime) < 3*time.Second {
-		return
-	}
-	c.declareAddressInInternetLastTime = time.Now()
-	c.getLocalIPs()
-
-	var err error
-	c.mtx.Lock()
-	localAddress := c.localAddress
-	c.mtx.Unlock()
-
-	addresses := c.network.GetNodesAddressesByAddress(localAddress)
-
-	for _, ipAddress := range addresses {
-		var ipStr string
-		var portStr string
-		ipStr, portStr, err = net.SplitHostPort(ipAddress)
-		if err != nil {
-			continue
-		}
-
-		var addr net.UDPAddr
-		addr.IP = net.ParseIP(ipStr)
-		if addr.IP == nil {
-			err = errors.New("wrong IP address")
-			continue
-		}
-		var portInt int64
-		portInt, err = strconv.ParseInt(portStr, 10, 32)
-		if err != nil {
-			continue
-		}
-		addr.Port = int(portInt)
-
-		var err error
-		request := make([]byte, 8)
-		request[0] = 0x02
-		var n int
-		n, err = conn.WriteTo(request, &addr)
-		if err != nil {
-			continue
-		}
-		if n != len(request) {
-			err = errors.New("data sent partially")
-			continue
-		}
-		//fmt.Println("Sent frame 0x01 to", addr)
-	}
 }
 
 func prepareResponseError(err error) []byte {

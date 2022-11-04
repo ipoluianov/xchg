@@ -14,15 +14,35 @@ func main() {
 	server.Start()
 
 	serverAddress := xchg.AddressForPublicKey(&serverPrivateKey.PublicKey)
-	client := xchg_samples.NewSimpleClient(serverAddress)
+
+	count := 0
+	errs := 0
+
+	fn := func() {
+		client := xchg_samples.NewSimpleClient(serverAddress)
+
+		for {
+			_, err := client.Version()
+			if err != nil {
+				//fmt.Println("RESULT: error:", err)
+				errs++
+			} else {
+				count++
+				//fmt.Println("RESULT OK")
+			}
+			time.Sleep(1 * time.Millisecond)
+		}
+	}
+
+	for i := 0; i < 100; i++ {
+		time.Sleep(1 * time.Millisecond)
+		go fn()
+	}
 
 	for {
-		_, err := client.Version()
-		if err != nil {
-			fmt.Println("RESULT: error:", err)
-		} else {
-			fmt.Println("RESULT OK")
-		}
 		time.Sleep(1 * time.Second)
+		fmt.Println("res:", count, errs)
+		count = 0
+		errs = 0
 	}
 }

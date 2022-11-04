@@ -1,10 +1,18 @@
 package xchg
 
 import (
+	"bytes"
 	"crypto/rsa"
+	"encoding/base64"
+	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
+	"io/ioutil"
+	"mime/multipart"
 	"net"
+	"net/http"
+	"net/http/cookiejar"
 	"os"
 	"sync"
 	"time"
@@ -22,6 +30,10 @@ type Peer struct {
 
 	// Client
 	remotePeers map[string]*RemotePeer
+
+	httpClient            *http.Client
+	gettingFromInternet   bool
+	lastReceivedMessageId uint64
 
 	// Server
 	incomingTransactions  map[string]*Transaction
@@ -53,7 +65,7 @@ type Session struct {
 
 const (
 	PEER_UDP_START_PORT = 42000
-	PEER_UDP_END_PORT   = 42100
+	PEER_UDP_END_PORT   = 45900
 )
 
 func NewPeer(privateKey *rsa.PrivateKey) *Peer {
@@ -65,6 +77,11 @@ func NewPeer(privateKey *rsa.PrivateKey) *Peer {
 	c.nextSessionId = 1
 	//c.network = NewNetworkLocalhost()
 	c.network = NewNetworkDefault()
+
+	tr := &http.Transport{}
+	jar, _ := cookiejar.New(nil)
+	c.httpClient = &http.Client{Transport: tr, Jar: jar}
+	c.httpClient.Timeout = 2 * time.Second
 
 	c.privateKey = privateKey
 	if c.privateKey == nil {
@@ -193,7 +210,8 @@ func (c *Peer) thReceive() {
 		if errors.Is(err, os.ErrDeadlineExceeded) {
 			// Background operations
 			c.purgeSessions()
-			c.declareAddressInInternet(conn)
+			go c.getFramesFromInternet()
+			//c.declareAddressInInternet(conn)
 			continue
 		}
 
@@ -218,4 +236,111 @@ func (c *Peer) thReceive() {
 	c.stopping = false
 	c.started = false
 	c.mtx.Unlock()
+}
+
+func (c *Peer) getFramesFromInternet() {
+	// Just one calling
+	if c.gettingFromInternet {
+		return
+	}
+	c.gettingFromInternet = true
+	defer func() {
+		c.gettingFromInternet = false
+	}()
+
+	// Get message
+	{
+		getMessageRequest := make([]byte, 16)
+		binary.LittleEndian.PutUint64(getMessageRequest[0:], c.lastReceivedMessageId)
+		binary.LittleEndian.PutUint64(getMessageRequest[8:], 1024*1024)
+
+		transaction := NewTransaction(0x06, AddressForPublicKey(&c.privateKey.PublicKey), "", 0, 0, 0, 0, getMessageRequest)
+		res, err := c.httpCall("127.0.0.1:8084", transaction.Marshal())
+		if err != nil {
+			return
+		}
+		if len(res) >= 8 {
+			c.lastReceivedMessageId = binary.LittleEndian.Uint64(res[0:])
+			//fmt.Println("RECEIVED ID:", c.lastReceivedMessageId)
+
+			offset := 8
+
+			responses := make([]byte, 0)
+			responsesCount := 0
+
+			for offset < len(res) {
+				if offset+128 <= len(res) {
+					frameLen := int(binary.LittleEndian.Uint32(res[offset:]))
+					if offset+frameLen <= len(res) {
+						responseFrames := c.processFrame(c.conn, nil, res[offset:offset+frameLen])
+						for _, f := range responseFrames {
+							responses = append(responses, f.Marshal()...)
+							responsesCount++
+						}
+					} else {
+						break
+					}
+					offset += frameLen
+				} else {
+					break
+				}
+			}
+			if len(responses) > 0 {
+				//fmt.Println("RESPONSE SIZE", len(responses), responsesCount)
+				c.httpCall("127.0.0.1:8084", responses)
+			}
+		}
+	}
+}
+
+func (c *Peer) httpCall(routerHost string, frame []byte) (result []byte, err error) {
+	if len(routerHost) == 0 {
+		return
+	}
+
+	if len(frame) < 128 {
+		return
+	}
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	{
+		fw, _ := writer.CreateFormField("fn")
+		fw.Write([]byte("d"))
+	}
+	{
+		fw, _ := writer.CreateFormField("d")
+		frame64 := base64.StdEncoding.EncodeToString(frame)
+		fw.Write([]byte(frame64))
+	}
+	writer.Close()
+
+	addr := "http://" + routerHost
+
+	response, err := c.Post(addr+"/api/request", writer.FormDataContentType(), &body, "https://"+addr)
+
+	if err != nil {
+		fmt.Println("HTTP error:", err)
+		return
+	} else {
+		var content []byte
+		content, err = ioutil.ReadAll(response.Body)
+		if err != nil {
+			response.Body.Close()
+			return
+		}
+		result, err = base64.StdEncoding.DecodeString(string(content))
+		response.Body.Close()
+	}
+	return
+}
+
+func (c *Peer) Post(url, contentType string, body io.Reader, host string) (resp *http.Response, err error) {
+	req, err := http.NewRequest("POST", url, body)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", contentType)
+	req.Header.Set("Origin", host)
+	return c.httpClient.Do(req)
 }
