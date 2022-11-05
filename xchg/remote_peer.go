@@ -35,7 +35,6 @@ type RemotePeer struct {
 	allowLocalConnection bool
 	lanConnectionPoint   *net.UDPAddr
 	routerHost           string
-	//internetConnectionPoint *net.UDPAddr
 
 	httpClient *http.Client
 
@@ -59,6 +58,8 @@ func NewRemotePeer(remoteAddress string, authData string, privateKey *rsa.Privat
 	c.nonces = NewNonces(100)
 
 	c.routerHost = ""
+
+	c.allowLocalConnection = true
 
 	tr := &http.Transport{}
 	jar, _ := cookiejar.New(nil)
@@ -612,7 +613,7 @@ func (c *RemotePeer) httpCall(routerHost string, function string, frame []byte) 
 	response, err := c.Post(addr+"/api/"+function, writer.FormDataContentType(), &body, "https://"+addr)
 
 	if err != nil {
-		fmt.Println("HTTP error:", err)
+		//fmt.Println("HTTP error:", err)
 		return
 	} else {
 		var content []byte

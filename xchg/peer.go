@@ -31,7 +31,9 @@ type Peer struct {
 	// Client
 	remotePeers map[string]*RemotePeer
 
-	httpClient            *http.Client
+	httpClient     *http.Client
+	httpClientLong *http.Client
+
 	gettingFromInternet   bool
 	lastReceivedMessageId uint64
 
@@ -78,10 +80,19 @@ func NewPeer(privateKey *rsa.PrivateKey) *Peer {
 	//c.network = NewNetworkLocalhost()
 	c.network = NewNetworkDefault()
 
-	tr := &http.Transport{}
-	jar, _ := cookiejar.New(nil)
-	c.httpClient = &http.Client{Transport: tr, Jar: jar}
-	c.httpClient.Timeout = 2 * time.Second
+	{
+		tr := &http.Transport{}
+		jar, _ := cookiejar.New(nil)
+		c.httpClient = &http.Client{Transport: tr, Jar: jar}
+		c.httpClient.Timeout = 2 * time.Second
+	}
+
+	{
+		tr := &http.Transport{}
+		jar, _ := cookiejar.New(nil)
+		c.httpClientLong = &http.Client{Transport: tr, Jar: jar}
+		c.httpClientLong.Timeout = 12 * time.Second
+	}
 
 	c.privateKey = privateKey
 	if c.privateKey == nil {
@@ -228,7 +239,10 @@ func (c *Peer) thReceive() {
 		if ok {
 			frame := make([]byte, n)
 			copy(frame, buffer[:n])
-			go c.processFrame(conn, udpAddr, frame)
+			responseFrames := c.processFrame(conn, udpAddr, frame)
+			for _, f := range responseFrames {
+				conn.WriteTo(f.Marshal(), udpAddr)
+			}
 		}
 	}
 
@@ -256,7 +270,7 @@ func (c *Peer) getFramesFromInternet() {
 		copy(getMessageRequest[16:], AddressBSForPublicKey(&c.privateKey.PublicKey))
 
 		//transaction := NewTransaction(0x06, AddressForPublicKey(&c.privateKey.PublicKey), "", 0, 0, 0, 0, getMessageRequest)
-		res, err := c.httpCall("127.0.0.1:8084", "r", getMessageRequest)
+		res, err := c.httpCall(c.httpClientLong, "127.0.0.1:8084", "r", getMessageRequest)
 		if err != nil {
 			return
 		}
@@ -287,14 +301,14 @@ func (c *Peer) getFramesFromInternet() {
 			if len(responses) > 0 {
 				//fmt.Println("RESPONSE SIZE", len(responses), responsesCount)
 				for _, f := range responses {
-					c.httpCall("127.0.0.1:8084", "w", f.Marshal())
+					c.httpCall(c.httpClient, "127.0.0.1:8084", "w", f.Marshal())
 				}
 			}
 		}
 	}
 }
 
-func (c *Peer) httpCall(routerHost string, function string, frame []byte) (result []byte, err error) {
+func (c *Peer) httpCall(httpClient *http.Client, routerHost string, function string, frame []byte) (result []byte, err error) {
 	if len(routerHost) == 0 {
 		return
 	}
@@ -314,10 +328,10 @@ func (c *Peer) httpCall(routerHost string, function string, frame []byte) (resul
 
 	addr := "http://" + routerHost
 
-	response, err := c.Post(addr+"/api/"+function, writer.FormDataContentType(), &body, "https://"+addr)
+	response, err := c.Post(httpClient, addr+"/api/"+function, writer.FormDataContentType(), &body, "https://"+addr)
 
 	if err != nil {
-		fmt.Println("HTTP error:", err)
+		//fmt.Println("HTTP error:", err)
 		return
 	} else {
 		var content []byte
@@ -332,12 +346,12 @@ func (c *Peer) httpCall(routerHost string, function string, frame []byte) (resul
 	return
 }
 
-func (c *Peer) Post(url, contentType string, body io.Reader, host string) (resp *http.Response, err error) {
+func (c *Peer) Post(httpClient *http.Client, url, contentType string, body io.Reader, host string) (resp *http.Response, err error) {
 	req, err := http.NewRequest("POST", url, body)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("Origin", host)
-	return c.httpClient.Do(req)
+	return httpClient.Do(req)
 }

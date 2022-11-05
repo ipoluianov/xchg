@@ -22,6 +22,7 @@ func main() {
 		client := xchg_samples.NewSimpleClient(serverAddress)
 
 		for {
+			time.Sleep(1000 * time.Millisecond)
 			_, err := client.Version()
 			if err != nil {
 				//fmt.Println("RESULT: error:", err)
@@ -30,11 +31,10 @@ func main() {
 				count++
 				//fmt.Println("RESULT OK")
 			}
-			time.Sleep(1 * time.Millisecond)
 		}
 	}
 
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 1; i++ {
 		time.Sleep(10 * time.Millisecond)
 		go fn()
 	}
