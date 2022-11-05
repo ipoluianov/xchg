@@ -15,6 +15,7 @@ func NewSimpleClient(address string) *SimpleClient {
 	var c SimpleClient
 	c.address = address
 	c.client = xchg.NewPeer(nil)
+	c.client.Start()
 	return &c
 }
 

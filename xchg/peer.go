@@ -99,7 +99,6 @@ func NewPeer(privateKey *rsa.PrivateKey) *Peer {
 		c.privateKey, _ = GenerateRSAKey()
 	}
 	c.localAddress = AddressForPublicKey(&c.privateKey.PublicKey)
-	go c.thReceive()
 	return &c
 }
 
@@ -111,6 +110,7 @@ func (c *Peer) Start() (err error) {
 		return
 	}
 	c.mtx.Unlock()
+	go c.thReceive()
 	return
 }
 
@@ -221,7 +221,7 @@ func (c *Peer) thReceive() {
 		if errors.Is(err, os.ErrDeadlineExceeded) {
 			// Background operations
 			c.purgeSessions()
-			go c.getFramesFromInternet()
+			go c.getFramesFromInternet("127.0.0.1:8084")
 			//c.declareAddressInInternet(conn)
 			continue
 		}
@@ -239,7 +239,7 @@ func (c *Peer) thReceive() {
 		if ok {
 			frame := make([]byte, n)
 			copy(frame, buffer[:n])
-			responseFrames := c.processFrame(conn, udpAddr, frame)
+			responseFrames := c.processFrame(conn, udpAddr, "", frame)
 			for _, f := range responseFrames {
 				conn.WriteTo(f.Marshal(), udpAddr)
 			}
@@ -252,7 +252,7 @@ func (c *Peer) thReceive() {
 	c.mtx.Unlock()
 }
 
-func (c *Peer) getFramesFromInternet() {
+func (c *Peer) getFramesFromInternet(routerHost string) {
 	// Just one calling
 	if c.gettingFromInternet {
 		return
@@ -270,7 +270,7 @@ func (c *Peer) getFramesFromInternet() {
 		copy(getMessageRequest[16:], AddressBSForPublicKey(&c.privateKey.PublicKey))
 
 		//transaction := NewTransaction(0x06, AddressForPublicKey(&c.privateKey.PublicKey), "", 0, 0, 0, 0, getMessageRequest)
-		res, err := c.httpCall(c.httpClientLong, "127.0.0.1:8084", "r", getMessageRequest)
+		res, err := c.httpCall(c.httpClientLong, routerHost, "r", getMessageRequest)
 		if err != nil {
 			return
 		}
@@ -287,7 +287,7 @@ func (c *Peer) getFramesFromInternet() {
 				if offset+128 <= len(res) {
 					frameLen := int(binary.LittleEndian.Uint32(res[offset:]))
 					if offset+frameLen <= len(res) {
-						responseFrames := c.processFrame(c.conn, nil, res[offset:offset+frameLen])
+						responseFrames := c.processFrame(c.conn, nil, routerHost, res[offset:offset+frameLen])
 						responses = append(responses, responseFrames...)
 						responsesCount += len(responseFrames)
 					} else {

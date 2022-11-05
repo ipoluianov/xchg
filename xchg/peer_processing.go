@@ -6,12 +6,14 @@ import (
 	"crypto/rsa"
 	"crypto/sha256"
 	"encoding/base32"
+	"errors"
 	"fmt"
 	"net"
+	"strings"
 	"time"
 )
 
-func (c *Peer) processFrame(conn net.PacketConn, sourceAddress *net.UDPAddr, frame []byte) (responseFrames []*Transaction) {
+func (c *Peer) processFrame(conn net.PacketConn, sourceAddress *net.UDPAddr, routerHost string, frame []byte) (responseFrames []*Transaction) {
 	if len(frame) < 8 {
 		//fmt.Println("processFrame from", sourceAddress, frame)
 		return
@@ -40,7 +42,7 @@ func (c *Peer) processFrame(conn net.PacketConn, sourceAddress *net.UDPAddr, fra
 
 	// ARP response
 	if frameType == 0x21 {
-		c.processFrame21(conn, sourceAddress, frame)
+		c.processFrame21(conn, routerHost, sourceAddress, frame)
 		return
 	}
 
@@ -167,19 +169,19 @@ func (c *Peer) processFrame10(conn net.PacketConn, sourceAddress *net.UDPAddr, f
 }
 
 func (c *Peer) processFrame11(conn net.PacketConn, sourceAddress *net.UDPAddr, frame []byte) {
-	receivedFromConnectionPoint := ConnectionPointString(sourceAddress)
+	tr, err := Parse(frame)
+	if err != nil {
+		return
+	}
 
 	var remotePeer *RemotePeer
 	c.mtx.Lock()
 	for _, peer := range c.remotePeers {
-		if peer.LANConnectionPoint() == receivedFromConnectionPoint {
+		srcAddress := "#" + strings.ToLower(base32.StdEncoding.EncodeToString(tr.SrcAddress[:]))
+		if peer.RemoteAddress() == srcAddress {
 			remotePeer = peer
 			break
 		}
-		/*if peer.InternetConnectionPoint() == receivedFromConnectionPoint {
-			remotePeer = peer
-			break
-		}*/
 	}
 	c.mtx.Unlock()
 	if remotePeer != nil {
@@ -230,9 +232,14 @@ func (c *Peer) processFrame20(conn net.PacketConn, sourceAddress *net.UDPAddr, f
 	//_, _ = conn.WriteTo(response.Marshal(), sourceAddress)
 }
 
-func (c *Peer) processFrame21(conn net.PacketConn, sourceAddress *net.UDPAddr, frame []byte) {
+func (c *Peer) processFrame21(conn net.PacketConn, routerHost string, sourceAddress *net.UDPAddr, frame []byte) {
 	transaction, err := Parse(frame)
 	if err != nil {
+		return
+	}
+
+	if len(transaction.Data) < 16+256 {
+		err = errors.New("wrong frame size")
 		return
 	}
 
@@ -247,8 +254,8 @@ func (c *Peer) processFrame21(conn net.PacketConn, sourceAddress *net.UDPAddr, f
 	c.mtx.Lock()
 
 	for _, peer := range c.remotePeers {
-		if peer.remoteAddress == receivedAddress {
-			peer.setLANConnectionPoint(sourceAddress, receivedPublicKey, transaction.Data[0:16], transaction.Data[16:16+256])
+		if peer.RemoteAddress() == receivedAddress {
+			peer.setConnectionPoint(sourceAddress, routerHost, receivedPublicKey, transaction.Data[0:16], transaction.Data[16:16+256])
 			break
 		}
 	}
