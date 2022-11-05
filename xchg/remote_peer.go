@@ -197,7 +197,7 @@ func (c *RemotePeer) checkInternetConnectionPoint() (err error) {
 
 	routerHost = c.getNextRouter()
 	fmt.Println("Trying router", routerHost)
-	c.httpCall(routerHost, transaction.Marshal())
+	c.httpCall(routerHost, "w", transaction.Marshal())
 	return
 }
 
@@ -510,7 +510,7 @@ func (c *RemotePeer) sendFrame(conn net.PacketConn, remoteConnectionPoint *net.U
 			err = errors.New("can not send")
 		}
 	} else {
-		c.httpCall(c.routerHost, frame)
+		c.httpCall(c.routerHost, "w", frame)
 	}
 	return
 }
@@ -585,7 +585,7 @@ func (c *RemotePeer) executeTransaction(conn net.PacketConn, remoteConnectionPoi
 	return nil, errors.New(ERR_XCHG_PEER_CONN_TR_TIMEOUT)
 }
 
-func (c *RemotePeer) httpCall(routerHost string, frame []byte) (result []byte, err error) {
+func (c *RemotePeer) httpCall(routerHost string, function string, frame []byte) (result []byte, err error) {
 	if len(routerHost) == 0 {
 		return
 	}
@@ -596,10 +596,10 @@ func (c *RemotePeer) httpCall(routerHost string, frame []byte) (result []byte, e
 
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
-	{
+	/*{
 		fw, _ := writer.CreateFormField("fn")
-		fw.Write([]byte("d"))
-	}
+		fw.Write([]byte(function))
+	}*/
 	{
 		fw, _ := writer.CreateFormField("d")
 		frame64 := base64.StdEncoding.EncodeToString(frame)
@@ -609,7 +609,7 @@ func (c *RemotePeer) httpCall(routerHost string, frame []byte) (result []byte, e
 
 	addr := "http://" + routerHost
 
-	response, err := c.Post(addr+"/api/request", writer.FormDataContentType(), &body, "https://"+addr)
+	response, err := c.Post(addr+"/api/"+function, writer.FormDataContentType(), &body, "https://"+addr)
 
 	if err != nil {
 		fmt.Println("HTTP error:", err)

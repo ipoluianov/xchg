@@ -26,6 +26,14 @@ const Base32Alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
 const AddressBytesSize = 30
 const AddressSize = int((AddressBytesSize * 8) / 5)
 
+func AddressBSForPublicKey(publicKey *rsa.PublicKey) []byte {
+	if publicKey == nil {
+		return nil
+	}
+	bs := RSAPublicKeyToDer(publicKey)
+	return AddressBSForPublicKeyBS(bs)
+}
+
 func AddressForPublicKey(publicKey *rsa.PublicKey) string {
 	if publicKey == nil {
 		return ""
@@ -46,6 +54,20 @@ func AddressForPublicKeyBS(publicKeyBS []byte) string {
 	}
 
 	return "#" + strings.ToLower(base32.StdEncoding.EncodeToString(hash[:AddressBytesSize]))
+}
+
+func AddressBSForPublicKeyBS(publicKeyBS []byte) []byte {
+	if len(publicKeyBS) == 0 {
+		return nil
+	}
+
+	hash := publicKeyBS
+	for i := 0; i < 1; i++ {
+		h := sha256.Sum256(hash)
+		hash = h[:]
+	}
+
+	return hash[:AddressBytesSize]
 }
 
 func NormalizeAddress(address string) string {

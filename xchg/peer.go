@@ -250,12 +250,13 @@ func (c *Peer) getFramesFromInternet() {
 
 	// Get message
 	{
-		getMessageRequest := make([]byte, 16)
+		getMessageRequest := make([]byte, 16+30)
 		binary.LittleEndian.PutUint64(getMessageRequest[0:], c.lastReceivedMessageId)
 		binary.LittleEndian.PutUint64(getMessageRequest[8:], 1024*1024)
+		copy(getMessageRequest[16:], AddressBSForPublicKey(&c.privateKey.PublicKey))
 
-		transaction := NewTransaction(0x06, AddressForPublicKey(&c.privateKey.PublicKey), "", 0, 0, 0, 0, getMessageRequest)
-		res, err := c.httpCall("127.0.0.1:8084", transaction.Marshal())
+		//transaction := NewTransaction(0x06, AddressForPublicKey(&c.privateKey.PublicKey), "", 0, 0, 0, 0, getMessageRequest)
+		res, err := c.httpCall("127.0.0.1:8084", "r", getMessageRequest)
 		if err != nil {
 			return
 		}
@@ -265,7 +266,7 @@ func (c *Peer) getFramesFromInternet() {
 
 			offset := 8
 
-			responses := make([]byte, 0)
+			responses := make([]*Transaction, 0)
 			responsesCount := 0
 
 			for offset < len(res) {
@@ -273,10 +274,8 @@ func (c *Peer) getFramesFromInternet() {
 					frameLen := int(binary.LittleEndian.Uint32(res[offset:]))
 					if offset+frameLen <= len(res) {
 						responseFrames := c.processFrame(c.conn, nil, res[offset:offset+frameLen])
-						for _, f := range responseFrames {
-							responses = append(responses, f.Marshal()...)
-							responsesCount++
-						}
+						responses = append(responses, responseFrames...)
+						responsesCount += len(responseFrames)
 					} else {
 						break
 					}
@@ -287,18 +286,16 @@ func (c *Peer) getFramesFromInternet() {
 			}
 			if len(responses) > 0 {
 				//fmt.Println("RESPONSE SIZE", len(responses), responsesCount)
-				c.httpCall("127.0.0.1:8084", responses)
+				for _, f := range responses {
+					c.httpCall("127.0.0.1:8084", "w", f.Marshal())
+				}
 			}
 		}
 	}
 }
 
-func (c *Peer) httpCall(routerHost string, frame []byte) (result []byte, err error) {
+func (c *Peer) httpCall(routerHost string, function string, frame []byte) (result []byte, err error) {
 	if len(routerHost) == 0 {
-		return
-	}
-
-	if len(frame) < 128 {
 		return
 	}
 
@@ -306,7 +303,7 @@ func (c *Peer) httpCall(routerHost string, frame []byte) (result []byte, err err
 	writer := multipart.NewWriter(&body)
 	{
 		fw, _ := writer.CreateFormField("fn")
-		fw.Write([]byte("d"))
+		fw.Write([]byte(function))
 	}
 	{
 		fw, _ := writer.CreateFormField("d")
@@ -317,7 +314,7 @@ func (c *Peer) httpCall(routerHost string, frame []byte) (result []byte, err err
 
 	addr := "http://" + routerHost
 
-	response, err := c.Post(addr+"/api/request", writer.FormDataContentType(), &body, "https://"+addr)
+	response, err := c.Post(addr+"/api/"+function, writer.FormDataContentType(), &body, "https://"+addr)
 
 	if err != nil {
 		fmt.Println("HTTP error:", err)

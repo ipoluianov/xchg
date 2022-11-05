@@ -9,16 +9,16 @@ import (
 )
 
 func main() {
-	serverPrivateKey, _ := xchg.GenerateRSAKey()
-	server := xchg_samples.NewSimpleServer(serverPrivateKey)
-	server.Start()
-
-	serverAddress := xchg.AddressForPublicKey(&serverPrivateKey.PublicKey)
 
 	count := 0
 	errs := 0
 
 	fn := func() {
+		serverPrivateKey, _ := xchg.GenerateRSAKey()
+		server := xchg_samples.NewSimpleServer(serverPrivateKey)
+		server.Start()
+		serverAddress := xchg.AddressForPublicKey(&serverPrivateKey.PublicKey)
+
 		client := xchg_samples.NewSimpleClient(serverAddress)
 
 		for {
@@ -34,8 +34,8 @@ func main() {
 		}
 	}
 
-	for i := 0; i < 100; i++ {
-		time.Sleep(1 * time.Millisecond)
+	for i := 0; i < 10; i++ {
+		time.Sleep(10 * time.Millisecond)
 		go fn()
 	}
 
