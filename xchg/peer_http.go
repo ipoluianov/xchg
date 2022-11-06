@@ -1,0 +1,218 @@
+package xchg
+
+import (
+	"bytes"
+	"encoding/base64"
+	"encoding/binary"
+	"errors"
+	"io"
+	"io/ioutil"
+	"mime/multipart"
+	"net/http"
+	"net/http/cookiejar"
+	"sync"
+	"time"
+)
+
+type PeerHttp struct {
+	mtx  sync.Mutex
+	peer *Peer
+
+	started  bool
+	stopping bool
+	enabled  bool
+
+	localAddressBS []byte
+
+	gettingFromInternet   bool
+	lastReceivedMessageId uint64
+	httpClient            *http.Client
+	httpClientLong        *http.Client
+}
+
+func NewPeerHttp(peer *Peer, localAddressBS []byte) *PeerHttp {
+	var c PeerHttp
+	c.peer = peer
+	c.localAddressBS = localAddressBS
+	c.enabled = true
+	{
+		tr := &http.Transport{}
+		jar, _ := cookiejar.New(nil)
+		c.httpClient = &http.Client{Transport: tr, Jar: jar}
+		c.httpClient.Timeout = 2 * time.Second
+	}
+
+	{
+		tr := &http.Transport{}
+		jar, _ := cookiejar.New(nil)
+		c.httpClientLong = &http.Client{Transport: tr, Jar: jar}
+		c.httpClientLong.Timeout = 12 * time.Second
+	}
+
+	return &c
+}
+
+func (c *PeerHttp) Start() (err error) {
+	if !c.enabled {
+		return
+	}
+
+	c.mtx.Lock()
+	if c.started {
+		c.mtx.Unlock()
+		err = errors.New("already started")
+		return
+	}
+	c.mtx.Unlock()
+	go c.thWork()
+	return
+}
+
+func (c *PeerHttp) Stop() (err error) {
+	c.mtx.Lock()
+	if !c.started {
+		c.mtx.Unlock()
+		err = errors.New("already stopped")
+		return
+	}
+	c.stopping = true
+	started := c.started
+	c.mtx.Unlock()
+
+	dtBegin := time.Now()
+	for started {
+		time.Sleep(100 * time.Millisecond)
+		c.mtx.Lock()
+		started = c.started
+		c.mtx.Unlock()
+		if time.Now().Sub(dtBegin) > 1000*time.Second {
+			break
+		}
+	}
+	c.mtx.Lock()
+	started = c.started
+	c.mtx.Unlock()
+
+	if started {
+		err = errors.New("timeout")
+	}
+
+	return
+}
+
+func (c *PeerHttp) thWork() {
+	c.started = true
+	for {
+		// Stopping
+		c.mtx.Lock()
+		stopping := c.stopping
+		c.mtx.Unlock()
+		if stopping {
+			break
+		}
+
+		c.getFramesFromInternet("127.0.0.1:8084")
+		time.Sleep(100 * time.Millisecond)
+	}
+}
+
+func (c *PeerHttp) getFramesFromInternet(routerHost string) {
+	// Just one calling
+	if c.gettingFromInternet {
+		return
+	}
+	c.gettingFromInternet = true
+	defer func() {
+		c.gettingFromInternet = false
+	}()
+
+	// Get message
+	{
+		getMessageRequest := make([]byte, 16+30)
+		binary.LittleEndian.PutUint64(getMessageRequest[0:], c.lastReceivedMessageId)
+		binary.LittleEndian.PutUint64(getMessageRequest[8:], 1024*1024)
+		copy(getMessageRequest[16:], c.localAddressBS)
+
+		res, err := c.httpCall(c.httpClientLong, routerHost, "r", getMessageRequest)
+		if err != nil {
+			return
+		}
+		if len(res) >= 8 {
+			c.lastReceivedMessageId = binary.LittleEndian.Uint64(res[0:])
+
+			offset := 8
+
+			responses := make([]*Transaction, 0)
+			responsesCount := 0
+
+			for offset < len(res) {
+				if offset+128 <= len(res) {
+					frameLen := int(binary.LittleEndian.Uint32(res[offset:]))
+					if offset+frameLen <= len(res) {
+						responseFrames := c.peer.processFrame(nil, nil, routerHost, res[offset:offset+frameLen])
+						responses = append(responses, responseFrames...)
+						responsesCount += len(responseFrames)
+					} else {
+						break
+					}
+					offset += frameLen
+				} else {
+					break
+				}
+			}
+			if len(responses) > 0 {
+				for _, f := range responses {
+					c.httpCall(c.httpClient, "127.0.0.1:8084", "w", f.Marshal())
+				}
+			}
+		}
+	}
+}
+
+func (c *PeerHttp) httpCall(httpClient *http.Client, routerHost string, function string, frame []byte) (result []byte, err error) {
+	if len(routerHost) == 0 {
+		return
+	}
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	{
+		fw, _ := writer.CreateFormField("fn")
+		fw.Write([]byte(function))
+	}
+	{
+		fw, _ := writer.CreateFormField("d")
+		frame64 := base64.StdEncoding.EncodeToString(frame)
+		fw.Write([]byte(frame64))
+	}
+	writer.Close()
+
+	addr := "http://" + routerHost
+
+	response, err := c.Post(httpClient, addr+"/api/"+function, writer.FormDataContentType(), &body, "https://"+addr)
+
+	if err != nil {
+		//fmt.Println("HTTP error:", err)
+		return
+	} else {
+		var content []byte
+		content, err = ioutil.ReadAll(response.Body)
+		if err != nil {
+			response.Body.Close()
+			return
+		}
+		result, err = base64.StdEncoding.DecodeString(string(content))
+		response.Body.Close()
+	}
+	return
+}
+
+func (c *PeerHttp) Post(httpClient *http.Client, url, contentType string, body io.Reader, host string) (resp *http.Response, err error) {
+	req, err := http.NewRequest("POST", url, body)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", contentType)
+	req.Header.Set("Origin", host)
+	return httpClient.Do(req)
+}

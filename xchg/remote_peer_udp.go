@@ -64,6 +64,10 @@ func (c *RemotePeerUdp) ResetConnectionPoint() {
 }
 
 func (c *RemotePeerUdp) checkLANConnectionPoint(conn net.PacketConn) (err error) {
+	if conn == nil {
+		return
+	}
+
 	if !c.allowLocalConnection {
 		return
 	}
