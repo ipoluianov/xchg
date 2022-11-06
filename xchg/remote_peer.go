@@ -24,7 +24,7 @@ type RemotePeer struct {
 
 	nonces *Nonces
 
-	peer *Peer
+	//peer *Peer
 
 	remotePeerHttp *RemotePeerHttp
 	remotePeerUdp  *RemotePeerUdp
@@ -38,9 +38,9 @@ type RemotePeer struct {
 	nextTransactionId    uint64
 }
 
-func NewRemotePeer(peer *Peer, remoteAddress string, authData string, privateKey *rsa.PrivateKey, network *Network) *RemotePeer {
+func NewRemotePeer(remoteAddress string, authData string, privateKey *rsa.PrivateKey, network *Network) *RemotePeer {
 	var c RemotePeer
-	c.peer = peer
+	//c.peer = peer
 	c.privateKey = privateKey
 	c.remoteAddress = remoteAddress
 	c.authData = authData
@@ -117,11 +117,10 @@ func (c *RemotePeer) setConnectionPoint(udpAddr *net.UDPAddr, routerHost string,
 	fmt.Println("Received Address for", c.remoteAddress, "from", udpAddr)
 }
 
-func (c *RemotePeer) Call(function string, data []byte, timeout time.Duration) (result []byte, err error) {
+func (c *RemotePeer) Call(conn net.PacketConn, function string, data []byte, timeout time.Duration) (result []byte, err error) {
 
 	c.mtx.Lock()
 	sessionId := c.sessionId
-	conn := c.peer.peerUdp.Conn()
 	c.mtx.Unlock()
 
 	c.remotePeerUdp.Check(conn)
@@ -130,7 +129,7 @@ func (c *RemotePeer) Call(function string, data []byte, timeout time.Duration) (
 	}
 
 	if sessionId == 0 {
-		err = c.auth(1000 * time.Millisecond)
+		err = c.auth(conn, 1000*time.Millisecond)
 		if err != nil {
 			return
 		}
@@ -142,12 +141,12 @@ func (c *RemotePeer) Call(function string, data []byte, timeout time.Duration) (
 	copy(aesKey, c.aesKey)
 	c.mtx.Unlock()
 
-	result, err = c.regularCall(function, data, aesKey, timeout)
+	result, err = c.regularCall(conn, function, data, aesKey, timeout)
 
 	return
 }
 
-func (c *RemotePeer) auth(timeout time.Duration) (err error) {
+func (c *RemotePeer) auth(conn net.PacketConn, timeout time.Duration) (err error) {
 	c.mtx.Lock()
 	if c.authProcessing {
 		c.mtx.Unlock()
@@ -164,7 +163,7 @@ func (c *RemotePeer) auth(timeout time.Duration) (err error) {
 	}()
 
 	var nonce []byte
-	nonce, err = c.regularCall("/xchg-get-nonce", nil, nil, timeout)
+	nonce, err = c.regularCall(conn, "/xchg-get-nonce", nil, nil, timeout)
 	if err != nil {
 		err = errors.New(ERR_XCHG_CL_CONN_AUTH_GET_NONCE + ":" + err.Error())
 		return
@@ -210,7 +209,7 @@ func (c *RemotePeer) auth(timeout time.Duration) (err error) {
 	copy(authFrame[4+len(localPublicKeyBS):], encryptedAuthFrame)
 
 	var result []byte
-	result, err = c.regularCall("/xchg-auth", authFrame, nil, timeout)
+	result, err = c.regularCall(conn, "/xchg-auth", authFrame, nil, timeout)
 	if err != nil {
 		err = errors.New(ERR_XCHG_CL_CONN_AUTH_AUTH + ":" + err.Error())
 		return
@@ -236,7 +235,7 @@ func (c *RemotePeer) auth(timeout time.Duration) (err error) {
 	return
 }
 
-func (c *RemotePeer) regularCall(function string, data []byte, aesKey []byte, timeout time.Duration) (result []byte, err error) {
+func (c *RemotePeer) regularCall(conn net.PacketConn, function string, data []byte, aesKey []byte, timeout time.Duration) (result []byte, err error) {
 	if len(function) > 255 {
 		err = errors.New(ERR_XCHG_CL_CONN_CALL_WRONG_FUNCTION_LEN)
 		return
@@ -289,7 +288,7 @@ func (c *RemotePeer) regularCall(function string, data []byte, aesKey []byte, ti
 		copy(frame[1+len(function):], data)
 	}
 
-	result, err = c.executeTransaction(sessionId, frame, timeout)
+	result, err = c.executeTransaction(conn, sessionId, frame, timeout)
 
 	if NeedToChangeNode(err) {
 		c.Reset()
@@ -356,16 +355,7 @@ func (c *RemotePeer) reset() {
 	c.aesKey = nil
 }
 
-func (c *RemotePeer) sendFrame(frame []byte) (err error) {
-	conn := c.peer.peerUdp.Conn()
-	err = c.remotePeerUdp.Send(conn, frame)
-	if err != nil {
-		err = c.remotePeerHttp.Send(frame)
-	}
-	return
-}
-
-func (c *RemotePeer) executeTransaction(sessionId uint64, data []byte, timeout time.Duration) (result []byte, err error) {
+func (c *RemotePeer) executeTransaction(conn net.PacketConn, sessionId uint64, data []byte, timeout time.Duration) (result []byte, err error) {
 	// Get transaction ID
 	var transactionId uint64
 	c.mtx.Lock()
@@ -390,7 +380,13 @@ func (c *RemotePeer) executeTransaction(sessionId uint64, data []byte, timeout t
 		blockTransaction := NewTransaction(FrameTypeCall, AddressForPublicKey(&c.privateKey.PublicKey), c.remoteAddress, transactionId, sessionId, offset, len(data), data[offset:offset+currentBlockSize])
 		frame := blockTransaction.Marshal()
 
-		c.sendFrame(frame)
+		//c.sendFrame(frame)
+
+		err = c.remotePeerUdp.Send(conn, frame)
+		if err != nil {
+			err = c.remotePeerHttp.Send(frame)
+		}
+
 		if err != nil {
 			c.mtx.Lock()
 			delete(c.outgoingTransactions, t.TransactionId)

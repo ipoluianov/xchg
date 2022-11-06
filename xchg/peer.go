@@ -3,6 +3,7 @@ package xchg
 import (
 	"crypto/rsa"
 	"errors"
+	"net"
 	"sync"
 	"time"
 )
@@ -36,6 +37,10 @@ type Peer struct {
 	lastPurgeSessionsTime time.Time
 
 	declareAddressInInternetLastTime time.Time
+}
+
+type PeerProcessor interface {
+	processFrame(conn net.PacketConn, sourceAddress *net.UDPAddr, routerHost string, frame []byte) (responseFrames []*Transaction)
 }
 
 type ServerProcessor interface {
@@ -78,8 +83,8 @@ func NewPeer(privateKey *rsa.PrivateKey) *Peer {
 	}
 	c.localAddress = AddressForPublicKey(&c.privateKey.PublicKey)
 
-	c.peerUdp = NewPeerUdp(&c)
-	c.peerHttp = NewPeerHttp(&c, AddressBSForPublicKey(&c.privateKey.PublicKey))
+	c.peerUdp = NewPeerUdp()
+	c.peerHttp = NewPeerHttp()
 
 	return &c
 }
@@ -105,8 +110,8 @@ func (c *Peer) Start() (err error) {
 	}
 	c.mtx.Unlock()
 
-	c.peerUdp.Start()
-	c.peerHttp.Start()
+	c.peerUdp.Start(c)
+	c.peerHttp.Start(c, AddressBSForPublicKey(&c.privateKey.PublicKey))
 	go c.thWork()
 
 	return
@@ -146,6 +151,14 @@ func (c *Peer) Stop() (err error) {
 	}
 
 	return
+}
+
+func (c *Peer) IsUdpEnabled() bool {
+	return c.udpEnabled
+}
+
+func (c *Peer) IsHttpEnabled() bool {
+	return c.httpEnabled
 }
 
 func (c *Peer) Network() *Network {

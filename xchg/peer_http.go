@@ -15,12 +15,14 @@ import (
 )
 
 type PeerHttp struct {
-	mtx  sync.Mutex
-	peer *Peer
+	mtx           sync.Mutex
+	peerProcessor PeerProcessor
 
 	started  bool
 	stopping bool
 	enabled  bool
+
+	longPollingDelay time.Duration
 
 	localAddressBS []byte
 
@@ -30,11 +32,11 @@ type PeerHttp struct {
 	httpClientLong        *http.Client
 }
 
-func NewPeerHttp(peer *Peer, localAddressBS []byte) *PeerHttp {
+func NewPeerHttp() *PeerHttp {
 	var c PeerHttp
-	c.peer = peer
-	c.localAddressBS = localAddressBS
 	c.enabled = true
+	c.longPollingDelay = 12 * time.Second
+
 	{
 		tr := &http.Transport{}
 		jar, _ := cookiejar.New(nil)
@@ -46,16 +48,18 @@ func NewPeerHttp(peer *Peer, localAddressBS []byte) *PeerHttp {
 		tr := &http.Transport{}
 		jar, _ := cookiejar.New(nil)
 		c.httpClientLong = &http.Client{Transport: tr, Jar: jar}
-		c.httpClientLong.Timeout = 12 * time.Second
+		c.httpClientLong.Timeout = c.longPollingDelay
 	}
 
 	return &c
 }
 
-func (c *PeerHttp) Start() (err error) {
+func (c *PeerHttp) Start(peerProcessor PeerProcessor, localAddressBS []byte) (err error) {
 	if !c.enabled {
 		return
 	}
+
+	c.localAddressBS = localAddressBS
 
 	c.mtx.Lock()
 	if c.started {
@@ -63,6 +67,7 @@ func (c *PeerHttp) Start() (err error) {
 		err = errors.New("already started")
 		return
 	}
+	c.peerProcessor = peerProcessor
 	c.mtx.Unlock()
 	go c.thWork()
 	return
@@ -91,6 +96,7 @@ func (c *PeerHttp) Stop() (err error) {
 	}
 	c.mtx.Lock()
 	started = c.started
+	c.peerProcessor = nil
 	c.mtx.Unlock()
 
 	if started {
@@ -126,6 +132,13 @@ func (c *PeerHttp) getFramesFromInternet(routerHost string) {
 		c.gettingFromInternet = false
 	}()
 
+	c.mtx.Lock()
+	peerProcessor := c.peerProcessor
+	c.mtx.Unlock()
+	if peerProcessor == nil {
+		return
+	}
+
 	// Get message
 	{
 		getMessageRequest := make([]byte, 16+30)
@@ -149,7 +162,7 @@ func (c *PeerHttp) getFramesFromInternet(routerHost string) {
 				if offset+128 <= len(res) {
 					frameLen := int(binary.LittleEndian.Uint32(res[offset:]))
 					if offset+frameLen <= len(res) {
-						responseFrames := c.peer.processFrame(nil, nil, routerHost, res[offset:offset+frameLen])
+						responseFrames := peerProcessor.processFrame(nil, nil, routerHost, res[offset:offset+frameLen])
 						responses = append(responses, responseFrames...)
 						responsesCount += len(responseFrames)
 					} else {
@@ -192,7 +205,6 @@ func (c *PeerHttp) httpCall(httpClient *http.Client, routerHost string, function
 	response, err := c.Post(httpClient, addr+"/api/"+function, writer.FormDataContentType(), &body, "https://"+addr)
 
 	if err != nil {
-		//fmt.Println("HTTP error:", err)
 		return
 	} else {
 		var content []byte

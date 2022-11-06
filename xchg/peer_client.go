@@ -8,10 +8,11 @@ func (c *Peer) Call(remoteAddress string, authData string, function string, data
 	c.mtx.Lock()
 	remotePeer, remotePeerOk := c.remotePeers[remoteAddress]
 	if !remotePeerOk || remotePeer == nil {
-		remotePeer = NewRemotePeer(c, remoteAddress, authData, c.privateKey, c.network)
+		remotePeer = NewRemotePeer(remoteAddress, authData, c.privateKey, c.network)
 		c.remotePeers[remoteAddress] = remotePeer
 	}
 	c.mtx.Unlock()
-	result, err = remotePeer.Call(function, data, timeout)
+	conn := c.peerUdp.Conn()
+	result, err = remotePeer.Call(conn, function, data, timeout)
 	return
 }

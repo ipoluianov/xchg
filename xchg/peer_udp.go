@@ -11,7 +11,7 @@ import (
 
 type PeerUdp struct {
 	mtx            sync.Mutex
-	peer           *Peer
+	peerProcessor  PeerProcessor
 	currentUDPPort int
 	conn           net.PacketConn
 
@@ -20,14 +20,13 @@ type PeerUdp struct {
 	stopping bool
 }
 
-func NewPeerUdp(peer *Peer) *PeerUdp {
+func NewPeerUdp() *PeerUdp {
 	var c PeerUdp
-	c.peer = peer
 	c.enabled = true
 	return &c
 }
 
-func (c *PeerUdp) Start() (err error) {
+func (c *PeerUdp) Start(peerProcessor PeerProcessor) (err error) {
 	if !c.enabled {
 		return
 	}
@@ -37,6 +36,7 @@ func (c *PeerUdp) Start() (err error) {
 		err = errors.New("already started")
 		return
 	}
+	c.peerProcessor = peerProcessor
 	c.mtx.Unlock()
 	go c.thUdpServer()
 	return
@@ -65,6 +65,7 @@ func (c *PeerUdp) Stop() (err error) {
 	}
 	c.mtx.Lock()
 	started = c.started
+	c.peerProcessor = nil
 	c.mtx.Unlock()
 
 	if started {
@@ -163,9 +164,15 @@ func (c *PeerUdp) thUdpServer() {
 		if ok {
 			frame := make([]byte, n)
 			copy(frame, buffer[:n])
-			responseFrames := c.peer.processFrame(conn, udpAddr, "", frame)
-			for _, f := range responseFrames {
-				conn.WriteTo(f.Marshal(), udpAddr)
+
+			c.mtx.Lock()
+			peerProcessor := c.peerProcessor
+			c.mtx.Unlock()
+			if peerProcessor != nil {
+				responseFrames := peerProcessor.processFrame(conn, udpAddr, "", frame)
+				for _, f := range responseFrames {
+					conn.WriteTo(f.Marshal(), udpAddr)
+				}
 			}
 		}
 	}
