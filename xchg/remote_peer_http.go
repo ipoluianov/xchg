@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"crypto/rsa"
 	"encoding/base64"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"mime/multipart"
@@ -15,12 +14,12 @@ import (
 )
 
 type RemotePeerHttp struct {
-	mtx                          sync.Mutex
-	network                      *Network
-	nonces                       *Nonces
-	httpClient                   *http.Client
-	privateKey                   *rsa.PrivateKey
-	routerHost                   string
+	mtx        sync.Mutex
+	network    *Network
+	nonces     *Nonces
+	httpClient *http.Client
+	privateKey *rsa.PrivateKey
+	//prefRouterHost               string
 	remoteAddress                string
 	lastResetConnectionPointerDT time.Time
 }
@@ -35,55 +34,22 @@ func NewRemotePeerHttp(nonces *Nonces, network *Network, remoteAddress string, p
 	jar, _ := cookiejar.New(nil)
 	c.httpClient = &http.Client{Transport: tr, Jar: jar}
 	c.httpClient.Timeout = 2 * time.Second
-	c.routerHost = ""
 	return &c
 }
 
-func (c *RemotePeerHttp) Send(frame []byte) error {
-	//fmt.Println("HTTP SEND")
-
-	beginWaiting := time.Now()
-	for time.Now().Sub(beginWaiting) < 300*time.Millisecond {
-		if len(c.routerHost) > 0 {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
+func (c *RemotePeerHttp) Send(frame []byte) (err error) {
+	addrs := c.network.GetNodesAddressesByAddress(c.remoteAddress)
+	for _, a := range addrs {
+		go c.httpCall(a, "w", frame)
 	}
-
-	_, err := c.httpCall(c.routerHost, "w", frame)
-	//fmt.Println("HTTP SEND END")
-	return err
+	return
 }
 
 func (c *RemotePeerHttp) Check() {
 	go c.checkInternetConnectionPoint()
 }
 
-func (c *RemotePeerHttp) ResetConnectionPoint() {
-	c.mtx.Lock()
-	now := time.Now()
-	if now.Sub(c.lastResetConnectionPointerDT) > 2*time.Second {
-		if c.routerHost != "" {
-			fmt.Println("ResetConnectionPoint")
-		}
-		c.routerHost = ""
-		c.lastResetConnectionPointerDT = now
-	}
-	c.mtx.Unlock()
-}
-
-func (c *RemotePeerHttp) SetConnectionPoint(routerHost string) {
-	c.routerHost = routerHost
-}
-
 func (c *RemotePeerHttp) checkInternetConnectionPoint() (err error) {
-	c.mtx.Lock()
-	routerHost := c.routerHost
-	c.mtx.Unlock()
-	if routerHost != "" {
-		return
-	}
-
 	nonce := c.nonces.Next()
 	addressBS := []byte(c.remoteAddress)
 	transaction := NewTransaction(0x20, AddressForPublicKey(&c.privateKey.PublicKey), c.remoteAddress, 0, 0, 0, 0, nil)
@@ -91,9 +57,11 @@ func (c *RemotePeerHttp) checkInternetConnectionPoint() (err error) {
 	copy(transaction.Data[0:], nonce[:])
 	copy(transaction.Data[16:], addressBS)
 
-	routerHost = c.getNextRouter()
-	fmt.Println("Trying router", routerHost)
-	c.httpCall(routerHost, "w", transaction.Marshal())
+	addrs := c.network.GetNodesAddressesByAddress(c.remoteAddress)
+	for _, a := range addrs {
+		go c.httpCall(a, "w", transaction.Marshal())
+	}
+
 	return
 }
 

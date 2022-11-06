@@ -2,6 +2,7 @@ package xchg
 
 import (
 	"bytes"
+	"encoding/base32"
 	"encoding/base64"
 	"encoding/binary"
 	"errors"
@@ -10,6 +11,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/cookiejar"
+	"strings"
 	"sync"
 	"time"
 )
@@ -24,7 +26,11 @@ type PeerHttp struct {
 
 	longPollingDelay time.Duration
 
+	network *Network
+
 	localAddressBS []byte
+
+	routerHost string
 
 	gettingFromInternet   bool
 	lastReceivedMessageId uint64
@@ -32,9 +38,11 @@ type PeerHttp struct {
 	httpClientLong        *http.Client
 }
 
-func NewPeerHttp() *PeerHttp {
+func NewPeerHttp(network *Network, routerHost string) *PeerHttp {
 	var c PeerHttp
 	c.enabled = true
+	c.network = network
+	c.routerHost = routerHost
 	c.longPollingDelay = 12 * time.Second
 
 	{
@@ -117,8 +125,8 @@ func (c *PeerHttp) thWork() {
 			break
 		}
 
-		c.getFramesFromInternet("127.0.0.1:8084")
-		time.Sleep(100 * time.Millisecond)
+		c.getFramesFromInternet(c.routerHost)
+		time.Sleep(5 * time.Millisecond)
 	}
 }
 
@@ -176,10 +184,23 @@ func (c *PeerHttp) getFramesFromInternet(routerHost string) {
 			}
 			if len(responses) > 0 {
 				for _, f := range responses {
-					c.httpCall(c.httpClient, "127.0.0.1:8084", "w", f.Marshal())
+					//c.httpCall(c.httpClient, routerHost, "w", f.Marshal())
+					c.send(f.Marshal())
 				}
 			}
 		}
+	}
+}
+
+func (c *PeerHttp) send(frame []byte) {
+	addr := "#" + strings.ToLower(base32.StdEncoding.EncodeToString(frame[70:70+30]))
+	addrs := c.network.GetNodesAddressesByAddress(addr)
+	//countHosts := len(addrs)/2 + 1
+	countHosts := len(addrs)
+	for i := 0; i < countHosts; i++ {
+		routerHost := addrs[i]
+		//fmt.Println("Router host:", routerHost)
+		go c.httpCall(c.httpClient, routerHost, "w", frame)
 	}
 }
 
@@ -190,10 +211,6 @@ func (c *PeerHttp) httpCall(httpClient *http.Client, routerHost string, function
 
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
-	{
-		fw, _ := writer.CreateFormField("fn")
-		fw.Write([]byte(function))
-	}
 	{
 		fw, _ := writer.CreateFormField("d")
 		frame64 := base64.StdEncoding.EncodeToString(frame)

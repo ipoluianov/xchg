@@ -16,8 +16,8 @@ type Peer struct {
 	stopping     bool
 	network      *Network
 
-	peerUdp  *PeerUdp
-	peerHttp *PeerHttp
+	peerUdp   *PeerUdp
+	peersHttp []*PeerHttp
 
 	udpEnabled  bool
 	httpEnabled bool
@@ -74,8 +74,8 @@ func NewPeer(privateKey *rsa.PrivateKey) *Peer {
 	c.nextSessionId = 1
 	c.udpEnabled = true
 	c.httpEnabled = true
-	c.network = NewNetworkLocalhost()
-	//c.network = NewNetworkDefault()
+	//c.network = NewNetworkLocalhost()
+	c.network = NewNetworkDefault()
 
 	c.privateKey = privateKey
 	if c.privateKey == nil {
@@ -84,7 +84,8 @@ func NewPeer(privateKey *rsa.PrivateKey) *Peer {
 	c.localAddress = AddressForPublicKey(&c.privateKey.PublicKey)
 
 	c.peerUdp = NewPeerUdp()
-	c.peerHttp = NewPeerHttp()
+	//c.peerHttp = NewPeerHttp(c.network)
+	c.peersHttp = make([]*PeerHttp, 0)
 
 	return &c
 }
@@ -115,7 +116,12 @@ func (c *Peer) Start() (err error) {
 	}
 
 	if c.httpEnabled {
-		c.peerHttp.Start(c, AddressBSForPublicKey(&c.privateKey.PublicKey))
+		routerHosts := c.network.GetNodesAddressesByAddress(c.localAddress)
+		for _, h := range routerHosts {
+			peerHttp := NewPeerHttp(c.network, h)
+			peerHttp.Start(c, AddressBSForPublicKey(&c.privateKey.PublicKey))
+			c.peersHttp = append(c.peersHttp, peerHttp)
+		}
 	}
 
 	go c.thWork()
@@ -135,7 +141,9 @@ func (c *Peer) Stop() (err error) {
 		c.peerUdp.Stop()
 	}
 	if c.httpEnabled {
-		c.peerHttp.Stop()
+		for _, p := range c.peersHttp {
+			p.Stop()
+		}
 	}
 
 	c.stopping = true

@@ -21,7 +21,7 @@ func NewSimpleClient(address string) *SimpleClient {
 
 func (c *SimpleClient) Version() (result string, err error) {
 	var resultBS []byte
-	resultBS, err = c.client.Call(c.address, "pass", "version", nil, time.Second)
+	resultBS, err = c.client.Call(c.address, "pass", "version", nil, 2*time.Second)
 	result = string(resultBS)
 	return
 }

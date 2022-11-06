@@ -5,12 +5,11 @@ import (
 	"crypto/rsa"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"log"
 	"time"
 )
 
-func (c *Peer) onEdgeReceivedCall(sessionId uint64, data []byte) (response []byte) {
+func (c *Peer) onEdgeReceivedCall(sessionId uint64, data []byte) (response []byte, dontSendResponse bool) {
 
 	var err error
 	// Find the session
@@ -50,6 +49,7 @@ func (c *Peer) onEdgeReceivedCall(sessionId uint64, data []byte) (response []byt
 		err = session.snakeCounter.TestAndDeclare(int(callNonce))
 		if err != nil {
 			response = prepareResponseError(errors.New(ERR_XCHG_SRV_CONN_WRONG_NONCE))
+			dontSendResponse = true
 			return
 		}
 		data = data[8:]
@@ -189,7 +189,7 @@ func (c *Peer) purgeSessions() {
 }
 
 func prepareResponseError(err error) []byte {
-	fmt.Println("CALL ERROR:", err)
+	//fmt.Println("CALL ERROR:", err)
 
 	errBS := make([]byte, 0)
 	if err != nil {

@@ -41,11 +41,12 @@ type Transaction struct {
 	Data []byte
 
 	// Execution Result
-	BeginDT         time.Time
-	ReceivedDataLen int
-	Complete        bool
-	Result          []byte
-	Err             error
+	BeginDT        time.Time
+	ReceivedFrames []*Transaction
+	//ReceivedDataLen int
+	Complete bool
+	Result   []byte
+	Err      error
 }
 
 const (
@@ -92,6 +93,8 @@ func NewTransaction(frameType byte, srcAddress string, destAddress string, trans
 	}
 
 	c.Data = data
+
+	c.ReceivedFrames = make([]*Transaction, 0)
 	return &c
 }
 
@@ -161,4 +164,33 @@ func (c *Transaction) Marshal() (result []byte) {
 func (c *Transaction) String() string {
 	res := fmt.Sprint(c.TransactionId) + "t:" + fmt.Sprint(c.FrameType) + " dl:" + fmt.Sprint(len(c.Data))
 	return res
+}
+
+func (c *Transaction) AppendReceivedData(transaction *Transaction) {
+	if len(c.ReceivedFrames) < 1000 {
+		found := false
+		for _, trvTr := range c.ReceivedFrames {
+			if trvTr.Offset == transaction.Offset {
+				found = true
+			}
+		}
+		if !found {
+			c.ReceivedFrames = append(c.ReceivedFrames, transaction)
+		}
+	}
+
+	receivedDataLen := 0
+	for _, trvTr := range c.ReceivedFrames {
+		receivedDataLen += int(len(trvTr.Data))
+	}
+
+	if receivedDataLen == int(transaction.TotalSize) {
+		if len(c.Result) != int(transaction.TotalSize) {
+			c.Result = make([]byte, transaction.TotalSize)
+		}
+		for _, trvTr := range c.ReceivedFrames {
+			copy(c.Result[trvTr.Offset:], trvTr.Data)
+		}
+		c.Complete = true
+	}
 }

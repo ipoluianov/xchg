@@ -39,7 +39,7 @@ func (c *SimpleServer) ServerProcessorCall(function string, parameter []byte) (r
 	switch function {
 	case "version":
 		//response = []byte("simple server 2.42 0123456789|0123456789|0123456789|0123456789")
-		response = make([]byte, 3000)
+		response = make([]byte, 10)
 		rand.Read(response)
 	case "json-api":
 		type InputStruct struct {

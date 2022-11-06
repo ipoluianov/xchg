@@ -77,15 +77,8 @@ func (c *RemotePeer) processFrame11(conn net.PacketConn, sourceAddress *net.UDPA
 
 	c.mtx.Lock()
 	if t, ok := c.outgoingTransactions[transaction.TransactionId]; ok {
-		if transaction.Err == nil {
-			if len(t.Result) != int(transaction.TotalSize) {
-				t.Result = make([]byte, transaction.TotalSize)
-			}
-			copy(t.Result[transaction.Offset:], transaction.Data)
-			t.ReceivedDataLen += len(transaction.Data)
-			if t.ReceivedDataLen >= int(transaction.TotalSize) {
-				t.Complete = true
-			}
+		if transaction.Err == nil && transaction.TotalSize < 1024*1024 {
+			t.AppendReceivedData(transaction)
 		} else {
 			t.Result = transaction.Data
 			t.Err = transaction.Err
@@ -109,9 +102,9 @@ func (c *RemotePeer) setConnectionPoint(udpAddr *net.UDPAddr, routerHost string,
 	if udpAddr != nil {
 		c.remotePeerUdp.SetConnectionPoint(udpAddr)
 	}
-	if routerHost != "" {
+	/*if routerHost != "" {
 		c.remotePeerHttp.SetConnectionPoint(routerHost)
-	}
+	}*/
 	c.remotePublicKey = publicKey
 	c.mtx.Unlock()
 	fmt.Println("Received Address for", c.remoteAddress, "from", udpAddr, routerHost)
@@ -125,7 +118,9 @@ func (c *RemotePeer) Call(conn net.PacketConn, function string, data []byte, tim
 
 	c.remotePeerUdp.Check(conn)
 	if !c.remotePeerUdp.IsValid() {
-		c.remotePeerHttp.Check()
+		if c.remotePublicKey == nil {
+			c.remotePeerHttp.Check()
+		}
 	}
 
 	if sessionId == 0 {
@@ -184,11 +179,11 @@ func (c *RemotePeer) auth(conn net.PacketConn, timeout time.Duration) (err error
 		return
 	}
 
-	/*if remotePublicKey == nil {
+	if remotePublicKey == nil {
 		err = errors.New(ERR_XCHG_CL_CONN_AUTH_NO_REMOTE_PUBLIC_KEY)
-		c.requestRemotePublicKey(conn)
+		//c.requestRemotePublicKey(conn)
 		return
-	}*/
+	}
 
 	localPublicKeyBS := RSAPublicKeyToDer(&localPrivateKey.PublicKey)
 
@@ -429,7 +424,7 @@ func (c *RemotePeer) executeTransaction(conn net.PacketConn, sessionId uint64, d
 	c.mtx.Unlock()
 
 	c.remotePeerUdp.ResetConnectionPoint()
-	c.remotePeerHttp.ResetConnectionPoint()
+	//c.remotePeerHttp.ResetConnectionPoint()
 
 	return nil, errors.New(ERR_XCHG_PEER_CONN_TR_TIMEOUT)
 }
