@@ -15,18 +15,19 @@ import (
 )
 
 type RemotePeerHttp struct {
-	mtx           sync.Mutex
-	network       *Network
-	nonces        *Nonces
-	httpClient    *http.Client
-	privateKey    *rsa.PrivateKey
-	routerHost    string
-	remoteAddress string
+	mtx                          sync.Mutex
+	network                      *Network
+	nonces                       *Nonces
+	httpClient                   *http.Client
+	privateKey                   *rsa.PrivateKey
+	routerHost                   string
+	remoteAddress                string
+	lastResetConnectionPointerDT time.Time
 }
 
-func NewRemotePeerHttp(nonces *Nonces, remoteAddress string, privateKey *rsa.PrivateKey) *RemotePeerHttp {
+func NewRemotePeerHttp(nonces *Nonces, network *Network, remoteAddress string, privateKey *rsa.PrivateKey) *RemotePeerHttp {
 	var c RemotePeerHttp
-	c.network = NewNetworkDefault()
+	c.network = network
 	c.nonces = nonces
 	c.remoteAddress = remoteAddress
 	c.privateKey = privateKey
@@ -39,12 +40,36 @@ func NewRemotePeerHttp(nonces *Nonces, remoteAddress string, privateKey *rsa.Pri
 }
 
 func (c *RemotePeerHttp) Send(frame []byte) error {
+	//fmt.Println("HTTP SEND")
+
+	beginWaiting := time.Now()
+	for time.Now().Sub(beginWaiting) < 300*time.Millisecond {
+		if len(c.routerHost) > 0 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
 	_, err := c.httpCall(c.routerHost, "w", frame)
+	//fmt.Println("HTTP SEND END")
 	return err
 }
 
 func (c *RemotePeerHttp) Check() {
 	go c.checkInternetConnectionPoint()
+}
+
+func (c *RemotePeerHttp) ResetConnectionPoint() {
+	c.mtx.Lock()
+	now := time.Now()
+	if now.Sub(c.lastResetConnectionPointerDT) > 2*time.Second {
+		if c.routerHost != "" {
+			fmt.Println("ResetConnectionPoint")
+		}
+		c.routerHost = ""
+		c.lastResetConnectionPointerDT = now
+	}
+	c.mtx.Unlock()
 }
 
 func (c *RemotePeerHttp) SetConnectionPoint(routerHost string) {
@@ -81,6 +106,8 @@ func (c *RemotePeerHttp) getNextRouter() string {
 }
 
 func (c *RemotePeerHttp) httpCall(routerHost string, function string, frame []byte) (result []byte, err error) {
+	// Waiting for router host
+
 	if len(routerHost) == 0 {
 		return
 	}

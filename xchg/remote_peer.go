@@ -49,7 +49,7 @@ func NewRemotePeer(remoteAddress string, authData string, privateKey *rsa.Privat
 	c.network = network
 	c.nonces = NewNonces(100)
 
-	c.remotePeerHttp = NewRemotePeerHttp(c.nonces, c.remoteAddress, c.privateKey)
+	c.remotePeerHttp = NewRemotePeerHttp(c.nonces, c.network, c.remoteAddress, c.privateKey)
 	c.remotePeerUdp = NewRemotePeerUdp(c.nonces, c.remoteAddress, c.privateKey)
 
 	return &c
@@ -114,7 +114,7 @@ func (c *RemotePeer) setConnectionPoint(udpAddr *net.UDPAddr, routerHost string,
 	}
 	c.remotePublicKey = publicKey
 	c.mtx.Unlock()
-	fmt.Println("Received Address for", c.remoteAddress, "from", udpAddr)
+	fmt.Println("Received Address for", c.remoteAddress, "from", udpAddr, routerHost)
 }
 
 func (c *RemotePeer) Call(conn net.PacketConn, function string, data []byte, timeout time.Duration) (result []byte, err error) {
@@ -427,6 +427,9 @@ func (c *RemotePeer) executeTransaction(conn net.PacketConn, sessionId uint64, d
 	c.mtx.Lock()
 	delete(c.outgoingTransactions, t.TransactionId)
 	c.mtx.Unlock()
+
+	c.remotePeerUdp.ResetConnectionPoint()
+	c.remotePeerHttp.ResetConnectionPoint()
 
 	return nil, errors.New(ERR_XCHG_PEER_CONN_TR_TIMEOUT)
 }

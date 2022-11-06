@@ -139,7 +139,7 @@ func NewNetworkDefault() *Network {
 
 func NewNetworkLocalhost() *Network {
 	network := NewNetwork()
-	s1 := "127.0.0.1:8484"
+	s1 := "127.0.0.1:8084"
 
 	for r := 0; r < 16; r++ {
 		rangePrefix := fmt.Sprintf("%X", r)

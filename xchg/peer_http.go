@@ -148,6 +148,7 @@ func (c *PeerHttp) getFramesFromInternet(routerHost string) {
 
 		res, err := c.httpCall(c.httpClientLong, routerHost, "r", getMessageRequest)
 		if err != nil {
+			//fmt.Println("HTTP Error: ", err)
 			return
 		}
 		if len(res) >= 8 {

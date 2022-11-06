@@ -74,8 +74,8 @@ func NewPeer(privateKey *rsa.PrivateKey) *Peer {
 	c.nextSessionId = 1
 	c.udpEnabled = true
 	c.httpEnabled = true
-	//c.network = NewNetworkLocalhost()
-	c.network = NewNetworkDefault()
+	c.network = NewNetworkLocalhost()
+	//c.network = NewNetworkDefault()
 
 	c.privateKey = privateKey
 	if c.privateKey == nil {
@@ -110,8 +110,14 @@ func (c *Peer) Start() (err error) {
 	}
 	c.mtx.Unlock()
 
-	c.peerUdp.Start(c)
-	c.peerHttp.Start(c, AddressBSForPublicKey(&c.privateKey.PublicKey))
+	if c.udpEnabled {
+		c.peerUdp.Start(c)
+	}
+
+	if c.httpEnabled {
+		c.peerHttp.Start(c, AddressBSForPublicKey(&c.privateKey.PublicKey))
+	}
+
 	go c.thWork()
 
 	return
@@ -125,8 +131,12 @@ func (c *Peer) Stop() (err error) {
 		return
 	}
 
-	c.peerUdp.Stop()
-	c.peerHttp.Stop()
+	if c.udpEnabled {
+		c.peerUdp.Stop()
+	}
+	if c.httpEnabled {
+		c.peerHttp.Stop()
+	}
 
 	c.stopping = true
 	started := c.started
