@@ -11,12 +11,16 @@ import (
 
 type SimpleServer struct {
 	serverConnection *xchg.Peer
+	defaultResponse  []byte
 }
 
 func NewSimpleServer(privateKey *rsa.PrivateKey) *SimpleServer {
 	var c SimpleServer
 	c.serverConnection = xchg.NewPeer(privateKey)
 	c.serverConnection.SetProcessor(&c)
+
+	c.defaultResponse = make([]byte, 100)
+	rand.Read(c.defaultResponse)
 	return &c
 }
 
@@ -39,8 +43,9 @@ func (c *SimpleServer) ServerProcessorCall(function string, parameter []byte) (r
 	switch function {
 	case "version":
 		//response = []byte("simple server 2.42 0123456789|0123456789|0123456789|0123456789")
-		response = make([]byte, 10)
-		rand.Read(response)
+		//response = make([]byte, 3000)
+		//rand.Read(response)
+		response = c.defaultResponse
 	case "json-api":
 		type InputStruct struct {
 			A int

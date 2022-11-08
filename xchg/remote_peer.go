@@ -236,11 +236,6 @@ func (c *RemotePeer) regularCall(conn net.PacketConn, function string, data []by
 		return
 	}
 
-	/*if remoteConnectionPoint == nil {
-		err = errors.New("no route to peer")
-		return
-	}*/
-
 	encrypted := false
 
 	c.mtx.Lock()
@@ -394,7 +389,7 @@ func (c *RemotePeer) executeTransaction(conn net.PacketConn, sessionId uint64, d
 
 	// Wait for response
 	waitingDurationInMilliseconds := timeout.Milliseconds()
-	waitingTick := int64(10)
+	waitingTick := int64(1)
 	waitingIterationCount := waitingDurationInMilliseconds / waitingTick
 	for i := int64(0); i < waitingIterationCount; i++ {
 		if t.Complete {

@@ -14,12 +14,11 @@ import (
 )
 
 type RemotePeerHttp struct {
-	mtx        sync.Mutex
-	network    *Network
-	nonces     *Nonces
-	httpClient *http.Client
-	privateKey *rsa.PrivateKey
-	//prefRouterHost               string
+	mtx                          sync.Mutex
+	network                      *Network
+	nonces                       *Nonces
+	httpClient                   *http.Client
+	privateKey                   *rsa.PrivateKey
 	remoteAddress                string
 	lastResetConnectionPointerDT time.Time
 }
@@ -33,7 +32,7 @@ func NewRemotePeerHttp(nonces *Nonces, network *Network, remoteAddress string, p
 	tr := &http.Transport{}
 	jar, _ := cookiejar.New(nil)
 	c.httpClient = &http.Client{Transport: tr, Jar: jar}
-	c.httpClient.Timeout = 2 * time.Second
+	c.httpClient.Timeout = 1 * time.Second
 	return &c
 }
 
@@ -95,7 +94,7 @@ func (c *RemotePeerHttp) httpCall(routerHost string, function string, frame []by
 
 	addr := "http://" + routerHost
 
-	response, err := c.Post(addr+"/api/"+function, writer.FormDataContentType(), &body, "https://"+addr)
+	response, err := c.Post(addr+"/api/"+function, writer.FormDataContentType(), &body, addr)
 
 	if err != nil {
 		//fmt.Println("HTTP error:", err)
@@ -119,6 +118,5 @@ func (c *RemotePeerHttp) Post(url, contentType string, body io.Reader, host stri
 		return nil, err
 	}
 	req.Header.Set("Content-Type", contentType)
-	req.Header.Set("Origin", host)
 	return c.httpClient.Do(req)
 }

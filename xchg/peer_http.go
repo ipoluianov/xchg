@@ -184,7 +184,6 @@ func (c *PeerHttp) getFramesFromInternet(routerHost string) {
 			}
 			if len(responses) > 0 {
 				for _, f := range responses {
-					//c.httpCall(c.httpClient, routerHost, "w", f.Marshal())
 					c.send(f.Marshal())
 				}
 			}
@@ -199,7 +198,6 @@ func (c *PeerHttp) send(frame []byte) {
 	countHosts := len(addrs)
 	for i := 0; i < countHosts; i++ {
 		routerHost := addrs[i]
-		//fmt.Println("Router host:", routerHost)
 		go c.httpCall(c.httpClient, routerHost, "w", frame)
 	}
 }
@@ -243,6 +241,5 @@ func (c *PeerHttp) Post(httpClient *http.Client, url, contentType string, body i
 		return nil, err
 	}
 	req.Header.Set("Content-Type", contentType)
-	req.Header.Set("Origin", host)
 	return httpClient.Do(req)
 }
