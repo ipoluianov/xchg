@@ -74,8 +74,8 @@ func NewPeer(privateKey *rsa.PrivateKey) *Peer {
 	c.nextSessionId = 1
 	c.udpEnabled = true
 	c.httpEnabled = true
-	c.network = NewNetworkLocalhost()
-	//c.network = NewNetworkDefault()
+	//c.network = NewNetworkLocalhost()
+	c.network = NewNetworkDefault()
 
 	c.privateKey = privateKey
 	if c.privateKey == nil {
