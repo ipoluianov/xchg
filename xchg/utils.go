@@ -85,12 +85,16 @@ func RSAPublicKeyToDer(publicKey *rsa.PublicKey) (publicKeyDer []byte) {
 	if publicKey == nil {
 		return
 	}
-	publicKeyDer = x509.MarshalPKCS1PublicKey(publicKey)
+	publicKeyDer, _ = x509.MarshalPKIXPublicKey(publicKey)
 	return
 }
 
 func RSAPublicKeyFromDer(publicKeyDer []byte) (publicKey *rsa.PublicKey, err error) {
-	publicKey, err = x509.ParsePKCS1PublicKey(publicKeyDer)
+	publicKeyAny, err := x509.ParsePKIXPublicKey(publicKeyDer)
+	publicKey, ok := publicKeyAny.(*rsa.PublicKey)
+	if !ok {
+		err = errors.New("wrong public key")
+	}
 	return
 }
 

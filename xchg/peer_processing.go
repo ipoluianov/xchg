@@ -123,7 +123,7 @@ func (c *Peer) processFrame10(conn net.PacketConn, sourceAddress *net.UDPAddr, f
 	}
 
 	var ok bool
-	incomingTransactionCode := fmt.Sprint(sourceAddress.String(), "-", transaction.TransactionId)
+	incomingTransactionCode := fmt.Sprint(transaction.SrcAddress, "-", transaction.TransactionId)
 	if incomingTransaction, ok = c.incomingTransactions[incomingTransactionCode]; !ok {
 		incomingTransaction = NewTransaction(transaction.FrameType, AddressForPublicKey(&c.privateKey.PublicKey), string(transaction.SrcAddress[:]), transaction.TransactionId, transaction.SessionId, 0, int(transaction.TotalSize), make([]byte, 0))
 		incomingTransaction.BeginDT = time.Now()
@@ -218,6 +218,8 @@ func (c *Peer) processFrame20(conn net.PacketConn, sourceAddress *net.UDPAddr, f
 		return
 	}
 
+	fmt.Println("20 received", transaction)
+
 	nonce := transaction.Data[:16]
 	nonceHash := sha256.Sum256(nonce)
 
@@ -230,7 +232,7 @@ func (c *Peer) processFrame20(conn net.PacketConn, sourceAddress *net.UDPAddr, f
 	publicKeyBS := RSAPublicKeyToDer(&c.privateKey.PublicKey)
 
 	// And signature
-	signature, err := rsa.SignPKCS1v15(rand.Reader, c.privateKey, crypto.SHA256, nonceHash[:])
+	signature, err := rsa.SignPSS(rand.Reader, c.privateKey, crypto.SHA256, nonceHash[:], nil)
 	if err != nil {
 		return
 	}

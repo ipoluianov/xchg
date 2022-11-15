@@ -3,6 +3,7 @@ package xchg
 import (
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
 	"encoding/binary"
 	"errors"
 	"log"
@@ -81,13 +82,15 @@ func (c *Peer) onEdgeReceivedCall(sessionId uint64, data []byte) (response []byt
 
 	var resp []byte
 
-	switch function {
-	case "/xchg-get-nonce":
-		nonce := c.authNonces.Next()
-		resp = nonce[:]
-	case "/xchg-auth":
-		resp, err = c.processAuth(functionParameter)
-	default:
+	if sessionId == 0 {
+		switch function {
+		case "/xchg-get-nonce":
+			nonce := c.authNonces.Next()
+			resp = nonce[:]
+		case "/xchg-auth":
+			resp, err = c.processAuth(functionParameter)
+		}
+	} else {
 		resp, err = c.processor.ServerProcessorCall(function, functionParameter)
 	}
 
@@ -130,7 +133,7 @@ func (c *Peer) processAuth(functionParameter []byte) (response []byte, err error
 	authFrameSecret := functionParameter[4+remotePublicKeyBSLen:]
 
 	var parameter []byte
-	parameter, err = rsa.DecryptPKCS1v15(rand.Reader, c.privateKey, authFrameSecret)
+	parameter, err = rsa.DecryptOAEP(sha256.New(), rand.Reader, c.privateKey, authFrameSecret, nil)
 	if err != nil {
 		return
 	}
@@ -166,7 +169,7 @@ func (c *Peer) processAuth(functionParameter []byte) (response []byte, err error
 	response = make([]byte, 8+32)
 	binary.LittleEndian.PutUint64(response, sessionId)
 	copy(response[8:], session.aesKey)
-	response, err = rsa.EncryptPKCS1v15(rand.Reader, remotePublicKey, response)
+	response, err = rsa.EncryptOAEP(sha256.New(), rand.Reader, remotePublicKey, response, nil)
 
 	c.mtx.Unlock()
 

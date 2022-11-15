@@ -93,7 +93,7 @@ func (c *RemotePeer) setConnectionPoint(udpAddr *net.UDPAddr, routerHost string,
 		return
 	}
 	nonceHash := sha256.Sum256(nonce)
-	err := rsa.VerifyPKCS1v15(publicKey, crypto.SHA256, nonceHash[:], signature)
+	err := rsa.VerifyPSS(publicKey, crypto.SHA256, nonceHash[:], signature, nil)
 	if err != nil {
 		return
 	}
@@ -192,7 +192,7 @@ func (c *RemotePeer) auth(conn net.PacketConn, timeout time.Duration) (err error
 	copy(authFrameSecret[16:], []byte(authData))
 
 	var encryptedAuthFrame []byte
-	encryptedAuthFrame, err = rsa.EncryptPKCS1v15(rand.Reader, remotePublicKey, []byte(authFrameSecret))
+	encryptedAuthFrame, err = rsa.EncryptOAEP(sha256.New(), rand.Reader, remotePublicKey, []byte(authFrameSecret), nil)
 	if err != nil {
 		err = errors.New(ERR_XCHG_CL_CONN_AUTH_ENC + ":" + err.Error())
 		return
@@ -210,7 +210,7 @@ func (c *RemotePeer) auth(conn net.PacketConn, timeout time.Duration) (err error
 		return
 	}
 
-	result, err = rsa.DecryptPKCS1v15(rand.Reader, localPrivateKey, result)
+	result, err = rsa.DecryptOAEP(sha256.New(), rand.Reader, localPrivateKey, result, nil)
 	if err != nil {
 		err = errors.New(ERR_XCHG_CL_CONN_AUTH_DECR + ":" + err.Error())
 		return

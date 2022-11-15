@@ -38,7 +38,7 @@ func XchgSet(conn net.PacketConn, ipAddress string, timeout time.Duration, priva
 	// copy(request[24:], salt) // TODO: salt
 
 	hash := sha256.Sum256(request[8:32])
-	signature, err := rsa.SignPKCS1v15(rand.Reader, privateKey, crypto.SHA256, hash[:])
+	signature, err := rsa.SignPSS(rand.Reader, privateKey, crypto.SHA256, hash[:], nil)
 	if err != nil {
 		return
 	}
