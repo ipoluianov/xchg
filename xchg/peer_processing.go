@@ -232,7 +232,9 @@ func (c *Peer) processFrame20(conn net.PacketConn, sourceAddress *net.UDPAddr, f
 	publicKeyBS := RSAPublicKeyToDer(&c.privateKey.PublicKey)
 
 	// And signature
-	signature, err := rsa.SignPSS(rand.Reader, c.privateKey, crypto.SHA256, nonceHash[:], nil)
+	signature, err := rsa.SignPSS(rand.Reader, c.privateKey, crypto.SHA256, nonceHash[:], &rsa.PSSOptions{
+		SaltLength: 32,
+	})
 	if err != nil {
 		return
 	}

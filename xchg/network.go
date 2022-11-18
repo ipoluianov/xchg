@@ -21,26 +21,20 @@ type Network struct {
 	fromInternet       bool
 	fromInternetLoaded bool
 
-	Name       string  `json:"name"`
-	EthAddress string  `json:"eth_addr"`
-	SolAddress string  `json:"sol_addr"`
-	Ranges     []*rng  `json:"ranges"`
-	Gateways   []*host `json:"gateways"`
+	Name     string  `json:"name"`
+	Ranges   []*rng  `json:"ranges"`
+	Gateways []*host `json:"gateways"`
 }
 
 type host struct {
-	Address    string `json:"address"`
-	Name       string `json:"name"`
-	EthAddress string `json:"eth_addr"`
-	SolAddress string `json:"sol_addr"`
+	Address string `json:"address"`
+	Name    string `json:"name"`
 }
 
 func NewHost(address string) *host {
 	var c host
 	c.Address = address
 	c.Name = "MainNet"
-	c.EthAddress = "0x60087f17b9dAF691DEd6c40Cb1fA6CE4407fa58C"
-	c.SolAddress = "todo"
 	return &c
 }
 
@@ -193,8 +187,6 @@ func (c *Network) init() {
 	c.Ranges = make([]*rng, 0)
 	c.Gateways = make([]*host, 0)
 	c.Name = "MainNet"
-	c.EthAddress = "0x60087f17b9dAF691DEd6c40Cb1fA6CE4407fa58C"
-	c.SolAddress = "todo"
 }
 
 func (c *Network) AddHostToRange(prefix string, address string) {
@@ -236,6 +228,7 @@ func (c *Network) GetNodesAddressesByAddress(address string) []string {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
+	address = strings.ReplaceAll(address, "#", "")
 	address = strings.ToLower(address)
 	shaAddress := sha256.Sum256([]byte(address))
 

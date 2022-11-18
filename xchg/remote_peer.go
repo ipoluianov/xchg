@@ -95,6 +95,7 @@ func (c *RemotePeer) setConnectionPoint(udpAddr *net.UDPAddr, routerHost string,
 	nonceHash := sha256.Sum256(nonce)
 	err := rsa.VerifyPSS(publicKey, crypto.SHA256, nonceHash[:], signature, nil)
 	if err != nil {
+		fmt.Println("VerifyPSS error", err)
 		return
 	}
 
@@ -278,7 +279,7 @@ func (c *RemotePeer) regularCall(conn net.PacketConn, function string, data []by
 		copy(frame[1+len(function):], data)
 	}
 
-	result, err = c.executeTransaction(conn, sessionId, frame, timeout)
+	result, err = c.executeTransaction(conn, sessionId, frame, timeout, aesKey)
 
 	if NeedToChangeNode(err) {
 		c.Reset()
@@ -345,7 +346,7 @@ func (c *RemotePeer) reset() {
 	c.aesKey = nil
 }
 
-func (c *RemotePeer) executeTransaction(conn net.PacketConn, sessionId uint64, data []byte, timeout time.Duration) (result []byte, err error) {
+func (c *RemotePeer) executeTransaction(conn net.PacketConn, sessionId uint64, data []byte, timeout time.Duration, aesKeyOriginal []byte) (result []byte, err error) {
 	// Get transaction ID
 	var transactionId uint64
 	c.mtx.Lock()
@@ -389,7 +390,7 @@ func (c *RemotePeer) executeTransaction(conn net.PacketConn, sessionId uint64, d
 
 	// Wait for response
 	waitingDurationInMilliseconds := timeout.Milliseconds()
-	waitingTick := int64(1)
+	waitingTick := int64(10)
 	waitingIterationCount := waitingDurationInMilliseconds / waitingTick
 	for i := int64(0); i < waitingIterationCount; i++ {
 		if t.Complete {
@@ -420,6 +421,25 @@ func (c *RemotePeer) executeTransaction(conn net.PacketConn, sessionId uint64, d
 
 	c.remotePeerUdp.ResetConnectionPoint()
 	//c.remotePeerHttp.ResetConnectionPoint()
+
+	c.mtx.Lock()
+
+	allowResetSession := true
+	if len(aesKeyOriginal) == 32 && len(c.aesKey) == 32 {
+		for i := 0; i < 32; i++ {
+			if aesKeyOriginal[i] != c.aesKey[i] {
+				allowResetSession = false
+				break
+			}
+		}
+	}
+
+	if allowResetSession {
+		c.sessionId = 0
+		c.aesKey = nil
+	}
+
+	c.mtx.Unlock()
 
 	return nil, errors.New(ERR_XCHG_PEER_CONN_TR_TIMEOUT)
 }
