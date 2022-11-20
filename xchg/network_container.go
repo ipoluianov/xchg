@@ -154,7 +154,7 @@ func NetworkContainerLoad(zipFileBS []byte, publicKeyBase64 string) (network *Ne
 
 	hash := sha256.Sum256(networkBS)
 	err = rsa.VerifyPSS(publicKey, crypto.SHA256, hash[:], signature, &rsa.PSSOptions{
-		SaltLength: 0,
+		SaltLength: 32,
 	})
 	if err != nil {
 		return
@@ -239,7 +239,7 @@ func NetworkContainerMake(network *Network, encryptedPrivateKeyBase64 string, pr
 	networkBS := network.toBytes()
 	hash := sha256.Sum256(networkBS)
 	signature, err := rsa.SignPSS(rand.Reader, privateKey, crypto.SHA256, hash[:], &rsa.PSSOptions{
-		SaltLength: 0,
+		SaltLength: 32,
 	})
 	if err != nil {
 		return

@@ -93,7 +93,9 @@ func (c *RemotePeer) setConnectionPoint(udpAddr *net.UDPAddr, routerHost string,
 		return
 	}
 	nonceHash := sha256.Sum256(nonce)
-	err := rsa.VerifyPSS(publicKey, crypto.SHA256, nonceHash[:], signature, nil)
+	err := rsa.VerifyPSS(publicKey, crypto.SHA256, nonceHash[:], signature, &rsa.PSSOptions{
+		SaltLength: 32,
+	})
 	if err != nil {
 		fmt.Println("VerifyPSS error", err)
 		return
