@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 )
 
 type Network struct {
@@ -21,9 +22,10 @@ type Network struct {
 	fromInternet       bool
 	fromInternetLoaded bool
 
-	Name     string  `json:"name"`
-	Ranges   []*rng  `json:"ranges"`
-	Gateways []*host `json:"gateways"`
+	Name          string   `json:"name"`
+	Timestamp     int64    `json:"timestamp"`
+	InitialPoints []string `json:"initial_points"`
+	Ranges        []*rng   `json:"ranges"`
 }
 
 type host struct {
@@ -104,31 +106,15 @@ func NewNetworkFromFileOrCreate(fileName string) (network *Network) {
 
 	bs, err = ioutil.ReadFile(fileName)
 	if err != nil {
-		network = NewNetworkDefault()
+		network = NewNetwork()
 		network.SaveToFile(fileName)
 	} else {
 		network, err = NewNetworkFromBytes(bs)
 		if err != nil {
-			network = NewNetworkDefault()
+			network = NewNetwork()
 		}
 	}
 	return
-}
-
-func NewNetworkDefault() *Network {
-	network := NewNetwork()
-
-	s1 := "54.37.73.160:8084"
-	s2 := "54.37.73.229:8084"
-	//s3 := "134.0.115.16:8084"
-
-	for r := 0; r < 16; r++ {
-		rangePrefix := fmt.Sprintf("%X", r)
-		network.AddHostToRange(rangePrefix, s1)
-		network.AddHostToRange(rangePrefix, s2)
-		//network.AddHostToRange(rangePrefix, s3)
-	}
-	return network
 }
 
 func NewNetworkLocalhost() *Network {
@@ -184,9 +170,14 @@ func (c *Network) SaveToFile(fileName string) error {
 }
 
 func (c *Network) init() {
-	c.Ranges = make([]*rng, 0)
-	c.Gateways = make([]*host, 0)
 	c.Name = "MainNet"
+	c.Timestamp = time.Now().Unix()
+
+	c.Ranges = make([]*rng, 0)
+
+	c.InitialPoints = make([]string, 0)
+	c.InitialPoints = append(c.InitialPoints, "http://xchgx.net/network.zip")
+	c.InitialPoints = append(c.InitialPoints, "http://xchg.gazer.cloud/network.zip")
 }
 
 func (c *Network) AddHostToRange(prefix string, address string) {
