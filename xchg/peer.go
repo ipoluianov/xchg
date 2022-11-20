@@ -75,7 +75,6 @@ func NewPeer(privateKey *rsa.PrivateKey) *Peer {
 	c.udpEnabled = true
 	c.httpEnabled = true
 	c.network = NewNetworkLocalhost()
-	//c.network = NewNetworkDefault()
 
 	c.privateKey = privateKey
 	if c.privateKey == nil {
@@ -116,6 +115,7 @@ func (c *Peer) Start() (err error) {
 	}
 
 	if c.httpEnabled {
+		c.network, _ = NetworkContainerLoadFromInternet()
 		routerHosts := c.network.GetNodesAddressesByAddress(c.localAddress)
 		for _, h := range routerHosts {
 			peerHttp := NewPeerHttp(c.network, h)

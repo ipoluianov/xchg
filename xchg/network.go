@@ -5,11 +5,9 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"math/rand"
 	"net"
-	"net/http"
 	"sort"
 	"strings"
 	"sync"
@@ -67,15 +65,6 @@ func NewNetwork() *Network {
 	return &c
 }
 
-func NewNetworkFromInternet() *Network {
-	var c Network
-	c.init()
-	c.fromInternet = true
-	c.fromInternetLoaded = false
-	go c.loadNetworkFromInternet()
-	return &c
-}
-
 func NewNetworkFromBytes(rawContent []byte) (*Network, error) {
 	var c Network
 	c.init()
@@ -128,41 +117,6 @@ func NewNetworkLocalhost() *Network {
 	return network
 }
 
-func (c *Network) ReloadFromInternet() {
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
-	c.fromInternet = true
-	c.fromInternetLoaded = false
-}
-
-func (c *Network) loadNetworkFromInternet() {
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
-
-	if !c.fromInternet {
-		return
-	}
-
-	if c.fromInternetLoaded {
-		return
-	}
-
-	resp, err := http.Get("https://xchgx.net/network.json")
-	if err != nil {
-		return
-	}
-	var networkBS []byte
-	networkBS, err = io.ReadAll(resp.Body)
-	resp.Body.Close()
-	if err != nil {
-		return
-	}
-	err = json.Unmarshal(networkBS, c)
-	if err == nil {
-		c.fromInternetLoaded = true
-	}
-}
-
 func (c *Network) SaveToFile(fileName string) error {
 	bs := c.toBytes()
 	err := ioutil.WriteFile(fileName, bs, 0666)
@@ -176,8 +130,6 @@ func (c *Network) init() {
 	c.Ranges = make([]*rng, 0)
 
 	c.InitialPoints = make([]string, 0)
-	c.InitialPoints = append(c.InitialPoints, "http://xchgx.net/network.zip")
-	c.InitialPoints = append(c.InitialPoints, "http://xchg.gazer.cloud/network.zip")
 }
 
 func (c *Network) AddHostToRange(prefix string, address string) {
