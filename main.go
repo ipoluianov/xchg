@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/pem"
 	"fmt"
 	"time"
 
@@ -68,7 +69,17 @@ func ttt2() {
 	fmt.Println("VERIFY:", err)
 }
 
+func rrr() {
+	block, err := pem.Decode([]byte(`-----BEGIN RSA PRIVATE KEY-----
+MIIFowIBAAKCAQEAts0ysLt9nx953i9dNziFugE7MEqacBijJvIH4OY8j5c93NCOZpYn2bZ9eIin7xGaO1Zhtpez2xWP7WYBR6wZPjmxG1mY52lVWtpCiVDpY1f5Oz3Q8ENgUJpu1nMCwRPIysTu6YIfv2CsuMteLwg74dVUUViGJ/N2kYz2cuzJKAbnlxDSHbn7p2Ut5viAKH7IU2FPh2kvpKd10hlNC5iDRd+IPnGePEF1jFXKRBYf1iaV053tvdMw8J40skrCsYw16jcCyo+dulLLoEHntxuzhRkh8p2C2SaCkr8rw4KkMIsDVsI+cF9HHFl9Zd6pxi0i0DRdNjTGHpEcwS64tdyypwKCAQEAjPwLmVSxGTVcd2kOOpWkRYXHkYIoREYsJtBKFUFc+d3Kf3B2M1ahm37snDbBVle8HQGNURcFRvYFUDH40L9BpMU3/AEJNYj+pJhq8p7tsYnbFb6iU3uTX/cLfueq+yB4HzLtlDigpag47jkjBaETFiTC6A4fQda63pzaQl6u8ee7bdj33PR9V7PbejqQIxZPz4h94lMcKjwh8Oai8WpnuSJjniX8tV2L4FpLpgduGe3yloeqMt2PHyC9zUcIhCjq1ByhyZx/heWjiU9v/n8B/dy6yykyWJorrZm/R9CuHfzNqKJTxHotXm83zYI4b/jUsozUFZyzThFqKmn+u63PyQKCAQEAjPwLmVSxGTVcd2kOOpWkRYXHkYIoREYsJtBKFUFc+d3Kf3B2M1ahm37snDbBVle8HQGNURcFRvYFUDH40L9BpMU3/AEJNYj+pJhq8p7tsYnbFb6iU3uTX/cLfueq+yB4HzLtlDigpag47jkjBaETFiTC6A4fQda63pzaQl6u8ee7bdj33PR9V7PbejqQIxZPz4h94lMcKjwh8Oai8WpnuSJjniX8tV2L4FpLpgduGe3yloeqMt2PHyC9zUcIhCjq1ByhyZx/heWjiU9v/n8B/dy6yykyWJorrZm/R9CuHfzNqKJTxHotXm83zYI4b/jUsozUFZyzThFqKmn+u63PyQKBgQDgvlr7jKDgMl79ZtSUkPbi8L36tNWdyxHo3JuueV0umhojHZS/MWNTQlDiQN4EXa8nfs8y9lGCCafVIXZ8ybaeRE0z8KB13JUeItpBDGkYrpDdr24+QKyKveilgH6eJMncigBVQpmGTssJARhGaBZY57F4Fr/EJw/O1ssFsHcGiwKBgQDQOY/1xCy7WLx9oHVkBPAw12Up+GPlvILBGIQRVDym5nYaFKIgHPaCcyeQjqCRaaBd+YIe9ARn1agcyplcRVAj4xQYMDOOGiNFK6oQa4ZFLYWDXYGk7dNitwOq5cxjH5GA91UKhCm2cooFkoE+bdQ74mprMNh4dCqRjoiV3/Xj1QKBgCkGNl9ypS8norVI3wcbiyWT4mnwNoouNl+2XWi02LCYCqtcS/m2jzX0hgU26BAN9doUyMe5tNky4AMEr7dJrt8nApy3kOLS2Bl/LS3wkQKjYuhEjLAqaBSPY/dKBFLjzkFGo5bsqE+e9Gr5WzAG8gVajcepB2pL4xPTm423T5LPAoGAcvOUOgV2/GZciK4QoIrpXs1KmAT8gVO0i41RO4/Ze/o2sOc7KadTn2ibKv7SPfSmB7s6zoO/+uLE0EA4sevB9k3iRgg2LfjYB9O3KyFxGreqwX7Zl4eD7zdB2xLJ5t8CoMPqOsgDjylkcPcUSravN/Ai99Ibb0QSTBD37mWZhZECgYBF0hM7Z69vvjxSCU8PbJVapRy6/lUT72RndKli3VjZKApicdyCgFGMpM8L+uwLOB2Eu2hItXMH6rwRJshIsZGB7SkUbS75367qDebRKhTAqli6MiqW+hoVdMdRDdysTrK4Xt9ZRxuB3PwBWPGMNBqcRQOUMHv4laKROOJJ7IDvug==
+-----END RSA PRIVATE KEY-----`))
+	fmt.Println(err)
+	fmt.Println(block.Type)
+}
+
 func main() {
+	rrr()
+	return
 	//ttt()
 	//ttt2()
 	//	return

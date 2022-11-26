@@ -123,12 +123,12 @@ func (c *Peer) processAuth(functionParameter []byte) (response []byte, err error
 		return
 	}
 
-	remotePublicKeyBS := functionParameter[4 : 4+remotePublicKeyBSLen]
-	var remotePublicKey *rsa.PublicKey
+	remoteAESKey := functionParameter[4 : 4+remotePublicKeyBSLen]
+	/*var remotePublicKey *rsa.PublicKey
 	remotePublicKey, err = RSAPublicKeyFromDer(remotePublicKeyBS)
 	if err != nil {
 		return
-	}
+	}*/
 
 	authFrameSecret := functionParameter[4+remotePublicKeyBSLen:]
 
@@ -169,7 +169,9 @@ func (c *Peer) processAuth(functionParameter []byte) (response []byte, err error
 	response = make([]byte, 8+32)
 	binary.LittleEndian.PutUint64(response, sessionId)
 	copy(response[8:], session.aesKey)
-	response, err = rsa.EncryptOAEP(sha256.New(), rand.Reader, remotePublicKey, response, nil)
+	//response, err = rsa.EncryptOAEP(sha256.New(), rand.Reader, remotePublicKey, response, nil)
+	//response, err = rsa.EncryptOAEP(sha256.New(), rand.Reader, remotePublicKey, response, nil)
+	response, err = EncryptAESGCM(response, remoteAESKey)
 
 	c.mtx.Unlock()
 
