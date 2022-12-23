@@ -177,6 +177,7 @@ func (c *RemotePeer) auth(conn net.PacketConn, timeout time.Duration) (err error
 	authData := make([]byte, len(c.authData))
 	copy(authData, []byte(c.authData))
 	c.mtx.Unlock()
+
 	if c.privateKey == nil {
 		err = errors.New(ERR_XCHG_CL_CONN_AUTH_NO_LOCAL_PRIVATE_KEY)
 		return
@@ -188,11 +189,22 @@ func (c *RemotePeer) auth(conn net.PacketConn, timeout time.Duration) (err error
 		return
 	}
 
+	tempAESKey := make([]byte, 32)
+	rand.Read(tempAESKey)
+	hash := sha256.Sum256(tempAESKey)
+	signature, err := rsa.SignPSS(rand.Reader, localPrivateKey, crypto.SHA256, hash[:], &rsa.PSSOptions{
+		SaltLength: 32,
+	})
+
 	localPublicKeyBS := RSAPublicKeyToDer(&localPrivateKey.PublicKey)
 
-	authFrameSecret := make([]byte, 16+len(authData))
-	copy(authFrameSecret, nonce)
-	copy(authFrameSecret[16:], []byte(authData))
+	authFrameSecret := make([]byte, 16+32+256+4+len(localPublicKeyBS)+len(authData))
+	copy(authFrameSecret[0:], nonce)
+	copy(authFrameSecret[16:], tempAESKey)
+	copy(authFrameSecret[16+32:], signature)
+	binary.LittleEndian.PutUint32(authFrameSecret[16+32+256:], uint32(len(localPublicKeyBS)))
+	copy(authFrameSecret[16+32+256+4:], localPublicKeyBS)
+	copy(authFrameSecret[16+32+256+4+len(localPublicKeyBS):], authData)
 
 	var encryptedAuthFrame []byte
 	encryptedAuthFrame, err = rsa.EncryptOAEP(sha256.New(), rand.Reader, remotePublicKey, []byte(authFrameSecret), nil)
@@ -201,13 +213,8 @@ func (c *RemotePeer) auth(conn net.PacketConn, timeout time.Duration) (err error
 		return
 	}
 
-	authFrame := make([]byte, 4+len(localPublicKeyBS)+len(encryptedAuthFrame))
-	binary.LittleEndian.PutUint32(authFrame, uint32(len(localPublicKeyBS)))
-	copy(authFrame[4:], localPublicKeyBS)
-	copy(authFrame[4+len(localPublicKeyBS):], encryptedAuthFrame)
-
 	var result []byte
-	result, err = c.regularCall(conn, "/xchg-auth", authFrame, nil, timeout)
+	result, err = c.regularCall(conn, "/xchg-auth", encryptedAuthFrame, nil, timeout)
 	if err != nil {
 		err = errors.New(ERR_XCHG_CL_CONN_AUTH_AUTH + ":" + err.Error())
 		return

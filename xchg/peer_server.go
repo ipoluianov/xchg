@@ -1,6 +1,7 @@
 package xchg
 
 import (
+	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
@@ -112,33 +113,13 @@ func (c *Peer) onEdgeReceivedCall(sessionId uint64, data []byte) (response []byt
 }
 
 func (c *Peer) processAuth(functionParameter []byte) (response []byte, err error) {
-	if len(functionParameter) < 4 {
-		err = errors.New(ERR_XCHG_SRV_CONN_AUTH_DATA_LEN4)
-		return
-	}
-
-	remotePublicKeyBSLen := binary.LittleEndian.Uint32(functionParameter)
-	if len(functionParameter) < 4+int(remotePublicKeyBSLen) {
-		err = errors.New(ERR_XCHG_SRV_CONN_AUTH_DATA_LEN_PK)
-		return
-	}
-
-	remoteAESKey := functionParameter[4 : 4+remotePublicKeyBSLen]
-	/*var remotePublicKey *rsa.PublicKey
-	remotePublicKey, err = RSAPublicKeyFromDer(remotePublicKeyBS)
-	if err != nil {
-		return
-	}*/
-
-	authFrameSecret := functionParameter[4+remotePublicKeyBSLen:]
-
 	var parameter []byte
-	parameter, err = rsa.DecryptOAEP(sha256.New(), rand.Reader, c.privateKey, authFrameSecret, nil)
+	parameter, err = rsa.DecryptOAEP(sha256.New(), rand.Reader, c.privateKey, functionParameter, nil)
 	if err != nil {
 		return
 	}
 
-	if len(parameter) < 16 {
+	if len(parameter) < 16+32+256+4 {
 		err = errors.New(ERR_XCHG_SRV_CONN_AUTH_DATA_LEN_NONCE)
 		return
 	}
@@ -149,7 +130,30 @@ func (c *Peer) processAuth(functionParameter []byte) (response []byte, err error
 		return
 	}
 
-	authData := parameter[16:]
+	tempAESKey := parameter[16 : 16+32]
+	signature := parameter[16+32 : 16+32+256]
+	remotePublicKeyBSLen := binary.LittleEndian.Uint32(parameter[16+32+256:])
+
+	if len(parameter) < 16+32+256+4+int(remotePublicKeyBSLen) {
+		err = errors.New(ERR_XCHG_SRV_CONN_AUTH_DATA_LEN_NONCE)
+		return
+	}
+
+	remotePublicKeyBS := parameter[16+32+256+4 : 16+32+256+4+remotePublicKeyBSLen]
+	remotePublicKey, err := RSAPublicKeyFromDer(remotePublicKeyBS)
+	if err != nil {
+		return
+	}
+
+	tempAESKeyHash := sha256.Sum256(tempAESKey)
+	err = rsa.VerifyPSS(remotePublicKey, crypto.SHA256, tempAESKeyHash[:], signature, &rsa.PSSOptions{
+		SaltLength: 32,
+	})
+	if err != nil {
+		return
+	}
+
+	authData := parameter[16+32+256+4+remotePublicKeyBSLen:]
 	err = c.processor.ServerProcessorAuth(authData)
 	if err != nil {
 		return
@@ -169,9 +173,7 @@ func (c *Peer) processAuth(functionParameter []byte) (response []byte, err error
 	response = make([]byte, 8+32)
 	binary.LittleEndian.PutUint64(response, sessionId)
 	copy(response[8:], session.aesKey)
-	//response, err = rsa.EncryptOAEP(sha256.New(), rand.Reader, remotePublicKey, response, nil)
-	//response, err = rsa.EncryptOAEP(sha256.New(), rand.Reader, remotePublicKey, response, nil)
-	response, err = EncryptAESGCM(response, remoteAESKey)
+	response, err = EncryptAESGCM(response, tempAESKey)
 
 	c.mtx.Unlock()
 
