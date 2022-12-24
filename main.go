@@ -343,11 +343,11 @@ func main() {
 
 		serverAddress := xchg.AddressForPublicKey(&serverPrivateKey.PublicKey)
 		fmt.Println(serverAddress)
-		//client := xchg_samples.NewSimpleClient(serverAddress)
+		client := xchg_samples.NewSimpleClient(serverAddress)
 
 		for {
 			time.Sleep(50 * time.Millisecond)
-			/*var err error
+			var err error
 			fmt.Println("processing ...")
 			res, err := client.Version()
 			if err != nil {
@@ -357,7 +357,7 @@ func main() {
 				count++
 				fmt.Println(res)
 				fmt.Println("================== RESULT OK ================")
-			}*/
+			}
 		}
 	}
 
@@ -368,7 +368,7 @@ func main() {
 		}
 	}()*/
 
-	fn()
+	go fn()
 
 	for {
 		time.Sleep(1 * time.Second)
