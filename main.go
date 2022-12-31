@@ -15,6 +15,7 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/ipoluianov/xchg/temp"
 	"github.com/ipoluianov/xchg/xchg"
 	"github.com/ipoluianov/xchg/xchg_samples"
 )
@@ -321,7 +322,8 @@ func ttt2() {
 		return
 	}
 
-	decrData, err := rsa.DecryptOAEP(sha256.New(), rand.Reader, privateKey, encData, nil)
+	//decrData, err := rsa.DecryptOAEP(sha256.New(), nil, privateKey, encData, nil)
+	decrData, err := temp.DecryptOAEP(sha256.New(), nil, privateKey, encData, nil)
 	if err != nil {
 		fmt.Println("ERR:", err)
 		return
@@ -333,6 +335,9 @@ func ttt2() {
 }
 
 func main() {
+	ttt2()
+	return
+
 	count := 0
 	errs := 0
 

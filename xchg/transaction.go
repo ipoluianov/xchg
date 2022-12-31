@@ -12,16 +12,9 @@ import (
 
 type Transaction struct {
 	// Transport Header - 8 bytes
-	Length     uint32 // 0
-	CRC        uint32 // 4
-	FrameType  byte   // 8
-	Reserved9  byte   // 9
-	Reserved10 byte   // 10
-	Reserved11 byte   // 11
-	Reserved12 byte   // 12
-	Reserved13 byte   // 13
-	Reserved14 byte   // 14
-	Reserved15 byte   // 15
+	Length    uint32 // 0
+	CRC       uint32 // 4
+	FrameType byte   // 8
 
 	// Call header - 32 bytes
 	TransactionId uint64
@@ -61,13 +54,6 @@ func NewTransaction(frameType byte, srcAddress string, destAddress string, trans
 	c.Length = uint32(TransactionHeaderSize + len(data))
 	c.CRC = 0
 	c.FrameType = frameType
-	c.Reserved9 = 0
-	c.Reserved10 = 0
-	c.Reserved11 = 0
-	c.Reserved12 = 0
-	c.Reserved13 = 0
-	c.Reserved14 = 0
-	c.Reserved15 = 0
 
 	c.TransactionId = transactionId
 	c.SessionId = sessionId
@@ -108,13 +94,6 @@ func Parse(frame []byte) (tr *Transaction, err error) {
 	tr.Length = binary.LittleEndian.Uint32(frame[0:])
 	tr.CRC = binary.LittleEndian.Uint32(frame[4:])
 	tr.FrameType = frame[8]
-	tr.Reserved9 = frame[9]
-	tr.Reserved10 = frame[10]
-	tr.Reserved11 = frame[11]
-	tr.Reserved12 = frame[12]
-	tr.Reserved13 = frame[13]
-	tr.Reserved14 = frame[14]
-	tr.Reserved15 = frame[15]
 
 	tr.TransactionId = binary.LittleEndian.Uint64(frame[16:])
 	tr.SessionId = binary.LittleEndian.Uint64(frame[24:])
@@ -137,13 +116,6 @@ func (c *Transaction) Marshal() (result []byte) {
 	binary.LittleEndian.PutUint32(result[0:], uint32(len(result))) // Length
 	binary.LittleEndian.PutUint32(result[4:], 0)                   // CRC
 	result[8] = c.FrameType
-	result[9] = c.Reserved9
-	result[10] = c.Reserved10
-	result[11] = c.Reserved11
-	result[12] = c.Reserved12
-	result[13] = c.Reserved13
-	result[14] = c.Reserved14
-	result[15] = c.Reserved15
 
 	binary.LittleEndian.PutUint64(result[16:], c.TransactionId)
 	binary.LittleEndian.PutUint64(result[24:], c.SessionId)

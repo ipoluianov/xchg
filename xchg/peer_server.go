@@ -6,8 +6,13 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"log"
 	"time"
+)
+
+const (
+	INTERNAL_ERROR = "#internal_error#"
 )
 
 func (c *Peer) onEdgeReceivedCall(sessionId uint64, data []byte) (response []byte, dontSendResponse bool) {
@@ -86,9 +91,17 @@ func (c *Peer) onEdgeReceivedCall(sessionId uint64, data []byte) (response []byt
 		switch function {
 		case "/xchg-get-nonce":
 			nonce := c.authNonces.Next()
+			fmt.Println("xchg-get-nonce", nonce)
 			resp = nonce[:]
 		case "/xchg-auth":
 			resp, err = c.processAuth(functionParameter)
+			if err != nil {
+				if err.Error() == INTERNAL_ERROR {
+					dontSendResponse = true
+					return
+				}
+				return
+			}
 		}
 	} else {
 		resp, err = c.processor.ServerProcessorCall(function, functionParameter)
@@ -113,19 +126,20 @@ func (c *Peer) onEdgeReceivedCall(sessionId uint64, data []byte) (response []byt
 
 func (c *Peer) processAuth(functionParameter []byte) (response []byte, err error) {
 	if len(functionParameter) < 4 {
-		err = errors.New("wrong len")
+		err = errors.New(INTERNAL_ERROR)
 		return
 	}
 
 	remotePublicKeyBSLen := binary.LittleEndian.Uint32(functionParameter[0:])
 	if len(functionParameter) < 4+int(remotePublicKeyBSLen) {
-		err = errors.New("wrong len")
+		err = errors.New(INTERNAL_ERROR)
 		return
 	}
 
 	remotePublicKeyBS := functionParameter[4 : 4+remotePublicKeyBSLen]
 	remotePublicKey, err := RSAPublicKeyFromDer(remotePublicKeyBS)
 	if err != nil {
+		err = errors.New(INTERNAL_ERROR)
 		return
 	}
 
@@ -134,17 +148,18 @@ func (c *Peer) processAuth(functionParameter []byte) (response []byte, err error
 	var parameter []byte
 	parameter, err = rsa.DecryptOAEP(sha256.New(), rand.Reader, c.privateKey, encryptedAuthFrame, nil)
 	if err != nil {
+		err = errors.New(INTERNAL_ERROR)
 		return
 	}
 
 	if len(parameter) < 16 {
-		err = errors.New("wrong len")
+		err = errors.New(INTERNAL_ERROR)
 		return
 	}
 
 	nonce := parameter[0:16]
 	if !c.authNonces.Check(nonce) {
-		err = errors.New(ERR_XCHG_SRV_CONN_AUTH_WRONG_NONCE)
+		err = errors.New(INTERNAL_ERROR)
 		return
 	}
 

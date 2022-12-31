@@ -15,10 +15,8 @@ import (
 
 func (c *Peer) processFrame(conn net.PacketConn, sourceAddress *net.UDPAddr, routerHost string, frame []byte) (responseFrames []*Transaction) {
 	if len(frame) < 8 {
-		//fmt.Println("processFrame from", sourceAddress, frame)
 		return
 	}
-	//fmt.Println("processFrame from", sourceAddress, frame[8])
 
 	frameType := frame[8]
 
@@ -47,54 +45,6 @@ func (c *Peer) processFrame(conn net.PacketConn, sourceAddress *net.UDPAddr, rou
 	}
 
 	return
-}
-
-// ----------------------------------------
-// Get Data for Native Address
-// ----------------------------------------
-
-func (c *Peer) processFrame06(conn net.PacketConn, sourceAddress *net.UDPAddr, frame []byte) {
-	// nothing to do
-}
-
-func (c *Peer) processFrame07(conn net.PacketConn, sourceAddress *net.UDPAddr, frame []byte) {
-	if frame[1] != 0 {
-		return
-	}
-
-	/*receivedAddr := ""
-	data := make([]byte, 0)
-
-	for i := 8; i < len(frame); i++ {
-		if frame[i] == '=' {
-			receivedAddr = string(frame[8:i])
-			data = frame[i+1:]
-			break
-		}
-	}
-
-	c.mtx.Lock()
-
-	for _, peer := range c.remotePeers {
-		if peer.remoteAddress == receivedAddr {
-			peer.setInternetConnectionPoint(sourceAddress, data)
-			break
-		}
-	}
-
-	c.mtx.Unlock()*/
-}
-
-// ----------------------------------------
-// Resolve Custom Address
-// ----------------------------------------
-
-func (c *Peer) processFrame08(conn net.PacketConn, sourceAddress *net.UDPAddr, frame []byte) {
-	// nothing to do
-}
-
-func (c *Peer) processFrame09(conn net.PacketConn, sourceAddress *net.UDPAddr, frame []byte) {
-	// todo: set native address for the custom address
 }
 
 // ----------------------------------------
@@ -139,19 +89,6 @@ func (c *Peer) processFrame10(conn net.PacketConn, sourceAddress *net.UDPAddr, f
 		c.mtx.Unlock()
 		return
 	}
-
-	//fmt.Println("RECEIVED TRANSACTION:", incomingTransaction.TransactionId)
-
-	/*if len(incomingTransaction.Data) != int(incomingTransaction.TotalSize) {
-		incomingTransaction.Data = make([]byte, int(incomingTransaction.TotalSize))
-	}
-	copy(incomingTransaction.Data[transaction.Offset:], transaction.Data)
-	incomingTransaction.ReceivedDataLen += len(transaction.Data)
-
-	if incomingTransaction.ReceivedDataLen < int(incomingTransaction.TotalSize) {
-		c.mtx.Unlock()
-		return
-	}*/
 
 	delete(c.incomingTransactions, incomingTransactionCode)
 	c.mtx.Unlock()
