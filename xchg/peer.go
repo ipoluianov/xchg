@@ -9,12 +9,13 @@ import (
 )
 
 type Peer struct {
-	mtx          sync.Mutex
-	privateKey   *rsa.PrivateKey
-	localAddress string
-	started      bool
-	stopping     bool
-	network      *Network
+	mtx            sync.Mutex
+	privateKey     *rsa.PrivateKey
+	localAddress   string
+	started        bool
+	stopping       bool
+	network        *Network
+	useLocalRouter bool
 
 	peerUdp   *PeerUdp
 	peersHttp []*PeerHttp
@@ -101,6 +102,13 @@ func (c *Peer) StartHttpOnly() error {
 	return c.Start()
 }
 
+func (c *Peer) StartHttpOnlyLocalRouter() error {
+	c.udpEnabled = false
+	c.httpEnabled = true
+	c.useLocalRouter = true
+	return c.Start()
+}
+
 func (c *Peer) Start() (err error) {
 	c.mtx.Lock()
 	if c.started {
@@ -115,7 +123,11 @@ func (c *Peer) Start() (err error) {
 	}
 
 	if c.httpEnabled {
-		c.network, _ = NetworkContainerLoadFromInternet()
+		if !c.useLocalRouter {
+			c.network, _ = NetworkContainerLoadFromInternet()
+		} else {
+			c.network = NewNetworkLocalhost()
+		}
 		routerHosts := c.network.GetNodesAddressesByAddress(c.localAddress)
 		for _, h := range routerHosts {
 			peerHttp := NewPeerHttp(c.network, h)
