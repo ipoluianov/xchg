@@ -2,11 +2,11 @@ package xchg
 
 import (
 	"bytes"
-	"crypto/rsa"
 	"encoding/base64"
 	"io"
 	"io/ioutil"
 	"mime/multipart"
+	"net"
 	"net/http"
 	"net/http/cookiejar"
 	"sync"
@@ -14,21 +14,15 @@ import (
 )
 
 type RemotePeerHttp struct {
-	mtx                          sync.Mutex
-	network                      *Network
-	nonces                       *Nonces
-	httpClient                   *http.Client
-	privateKey                   *rsa.PrivateKey
-	remoteAddress                string
+	mtx sync.Mutex
+	//network    *Network
+	httpClient *http.Client
+
 	lastResetConnectionPointerDT time.Time
 }
 
-func NewRemotePeerHttp(nonces *Nonces, network *Network, remoteAddress string, privateKey *rsa.PrivateKey) *RemotePeerHttp {
+func NewRemotePeerHttp() *RemotePeerHttp {
 	var c RemotePeerHttp
-	c.network = network
-	c.nonces = nonces
-	c.remoteAddress = remoteAddress
-	c.privateKey = privateKey
 	tr := &http.Transport{}
 	jar, _ := cookiejar.New(nil)
 	c.httpClient = &http.Client{Transport: tr, Jar: jar}
@@ -36,40 +30,35 @@ func NewRemotePeerHttp(nonces *Nonces, network *Network, remoteAddress string, p
 	return &c
 }
 
-func (c *RemotePeerHttp) Send(frame []byte) (err error) {
-	addrs := c.network.GetNodesAddressesByAddress(c.remoteAddress)
+func (c *RemotePeerHttp) Send(peerContext PeerContext, network *Network, tr *Transaction) (err error) {
+	addrs := network.GetNodesAddressesByAddress(tr.DestAddressString())
 	for _, a := range addrs {
-		go c.httpCall(a, "w", frame)
+		go c.httpCall(a, "w", tr.Marshal())
 	}
 	return
 }
 
-func (c *RemotePeerHttp) Check() {
-	go c.checkInternetConnectionPoint()
+func (c *RemotePeerHttp) SetRemoteUDPAddress(udpAddress *net.UDPAddr) {
 }
 
-func (c *RemotePeerHttp) checkInternetConnectionPoint() (err error) {
-	nonce := c.nonces.Next()
-	addressBS := []byte(c.remoteAddress)
-	transaction := NewTransaction(0x20, AddressForPublicKey(&c.privateKey.PublicKey), c.remoteAddress, 0, 0, 0, 0, nil)
-	transaction.Data = make([]byte, 16+len(addressBS))
-	copy(transaction.Data[0:], nonce[:])
-	copy(transaction.Data[16:], addressBS)
+func (c *RemotePeerHttp) Check(peerContext PeerContext, frame20 *Transaction, network *Network, remotePublicKeyExists bool) error {
+	if remotePublicKeyExists {
+		return nil
+	}
+	go c.checkInternetConnectionPoint(frame20, network)
+	return nil
+}
 
-	addrs := c.network.GetNodesAddressesByAddress(c.remoteAddress)
+func (c *RemotePeerHttp) DeclareError(peerContext PeerContext) {
+}
+
+func (c *RemotePeerHttp) checkInternetConnectionPoint(frame20 *Transaction, network *Network) (err error) {
+	addrs := network.GetNodesAddressesByAddress(frame20.DestAddressString())
 	for _, a := range addrs {
-		go c.httpCall(a, "w", transaction.Marshal())
+		go c.httpCall(a, "w", frame20.Marshal())
 	}
 
 	return
-}
-
-func (c *RemotePeerHttp) getNextRouter() string {
-	addrs := c.network.GetNodesAddressesByAddress(c.remoteAddress)
-	if len(addrs) == 0 {
-		return ""
-	}
-	return addrs[0]
 }
 
 func (c *RemotePeerHttp) httpCall(routerHost string, function string, frame []byte) (result []byte, err error) {

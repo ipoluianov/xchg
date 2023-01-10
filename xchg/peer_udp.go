@@ -14,6 +14,7 @@ type PeerUdp struct {
 	peerProcessor  PeerProcessor
 	currentUDPPort int
 	conn           net.PacketConn
+	localAddressBS []byte
 
 	enabled  bool
 	started  bool
@@ -26,7 +27,7 @@ func NewPeerUdp() *PeerUdp {
 	return &c
 }
 
-func (c *PeerUdp) Start(peerProcessor PeerProcessor) (err error) {
+func (c *PeerUdp) Start(peerProcessor PeerProcessor, localAddressBS []byte) (err error) {
 	if !c.enabled {
 		return
 	}

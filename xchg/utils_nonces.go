@@ -3,7 +3,6 @@ package xchg
 import (
 	"crypto/rand"
 	"encoding/binary"
-	"fmt"
 	"sync"
 )
 
@@ -50,7 +49,6 @@ func (c *Nonces) Check(nonce []byte) bool {
 	result := true
 	c.mtx.Lock()
 	index := int(binary.LittleEndian.Uint32(nonce[:]))
-	fmt.Println("Check nonce:", nonce, "real:", c.nonces[index])
 	if index >= 0 && index < len(c.nonces) {
 		for i := 0; i < 16; i++ {
 			if c.nonces[index][i] != nonce[i] {

@@ -1,7 +1,6 @@
 package xchg
 
 import (
-	"crypto/rsa"
 	"errors"
 	"net"
 	"strconv"
@@ -10,89 +9,72 @@ import (
 )
 
 type RemotePeerUdp struct {
-	mtx                  sync.Mutex
-	nonces               *Nonces
-	privateKey           *rsa.PrivateKey
-	remoteAddress        string
-	allowLocalConnection bool
-	lanConnectionPoint   *net.UDPAddr
+	mtx              sync.Mutex
+	remoteUDPAddress *net.UDPAddr
 }
 
-func NewRemotePeerUdp(nonces *Nonces, remoteAddress string, privateKey *rsa.PrivateKey) *RemotePeerUdp {
+func NewRemotePeerUdp() *RemotePeerUdp {
 	var c RemotePeerUdp
-	c.nonces = nonces
-	c.remoteAddress = remoteAddress
-	c.privateKey = privateKey
-	c.allowLocalConnection = true
 	return &c
 }
 
-func (c *RemotePeerUdp) Send(conn net.PacketConn, frame []byte) error {
+func (c *RemotePeerUdp) Send(peerContext PeerContext, network *Network, tr *Transaction) error {
+	if peerContext.udpConn == nil {
+		return errors.New("no UDP endpoint")
+	}
+
 	c.mtx.Lock()
-	lanConnectionPoint := c.lanConnectionPoint
+	remoteUDPAddress := c.remoteUDPAddress
 	c.mtx.Unlock()
 
-	if c.lanConnectionPoint == nil {
+	if c.remoteUDPAddress == nil {
 		return errors.New("no LAN connection point")
 	}
 
-	_, err := conn.WriteTo(frame, lanConnectionPoint)
+	_, err := peerContext.udpConn.WriteTo(tr.Marshal(), remoteUDPAddress)
 	return err
 }
 
-func (c *RemotePeerUdp) IsValid() (result bool) {
+func (c *RemotePeerUdp) Check(peerContext PeerContext, frame20 *Transaction, network *Network, remotePublicKeyExists bool) error {
+	go c.checkLANConnectionPoint(peerContext, frame20)
 	c.mtx.Lock()
-	result = c.lanConnectionPoint != nil
+	result := c.remoteUDPAddress != nil
 	c.mtx.Unlock()
-	return
-}
-
-func (c *RemotePeerUdp) Check(conn net.PacketConn) {
-	go c.checkLANConnectionPoint(conn)
-}
-
-func (c *RemotePeerUdp) SetConnectionPoint(udpAddress *net.UDPAddr) {
-	c.mtx.Lock()
-	c.lanConnectionPoint = udpAddress
-	c.mtx.Unlock()
-}
-
-func (c *RemotePeerUdp) ResetConnectionPoint() {
-	c.mtx.Lock()
-	c.lanConnectionPoint = nil
-	c.mtx.Unlock()
-}
-
-func (c *RemotePeerUdp) checkLANConnectionPoint(conn net.PacketConn) (err error) {
-	if conn == nil {
-		return
+	if !result {
+		return errors.New("not ready")
 	}
+	return nil
+}
 
-	if !c.allowLocalConnection {
+func (c *RemotePeerUdp) SetRemoteUDPAddress(udpAddress *net.UDPAddr) {
+	c.mtx.Lock()
+	c.remoteUDPAddress = udpAddress
+	c.mtx.Unlock()
+}
+
+func (c *RemotePeerUdp) DeclareError(peerContext PeerContext) {
+	c.mtx.Lock()
+	c.remoteUDPAddress = nil
+	c.mtx.Unlock()
+}
+
+func (c *RemotePeerUdp) checkLANConnectionPoint(peerContext PeerContext, frame20 *Transaction) (err error) {
+	if peerContext.udpConn == nil {
 		return
 	}
 
 	c.mtx.Lock()
-	lanConnectionPoint := c.lanConnectionPoint
+	remoteUDPAddress := c.remoteUDPAddress
 	c.mtx.Unlock()
-	if lanConnectionPoint != nil {
+	if remoteUDPAddress != nil {
 		return
 	}
-
-	nonce := c.nonces.Next()
-
-	addressBS := []byte(c.remoteAddress)
-
-	transaction := NewTransaction(0x20, AddressForPublicKey(&c.privateKey.PublicKey), c.remoteAddress, 0, 0, 0, 0, nil)
-	transaction.Data = make([]byte, 16+len(addressBS))
-	copy(transaction.Data[0:], nonce[:])
-	copy(transaction.Data[16:], addressBS)
 
 	for i := PEER_UDP_START_PORT; i < PEER_UDP_END_PORT; i++ {
 		c.mtx.Lock()
-		lanConnectionPoint = c.lanConnectionPoint
+		remoteUDPAddress = c.remoteUDPAddress
 		c.mtx.Unlock()
-		if lanConnectionPoint != nil {
+		if remoteUDPAddress != nil {
 			break
 		}
 
@@ -102,7 +84,7 @@ func (c *RemotePeerUdp) checkLANConnectionPoint(conn net.PacketConn) (err error)
 		if err != nil {
 			break
 		}
-		_, err = conn.WriteTo(transaction.Marshal(), broadcastAddress)
+		_, err = peerContext.udpConn.WriteTo(frame20.Marshal(), broadcastAddress)
 		if err != nil {
 			break
 		}

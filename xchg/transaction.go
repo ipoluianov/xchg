@@ -84,6 +84,14 @@ func NewTransaction(frameType byte, srcAddress string, destAddress string, trans
 	return &c
 }
 
+func (c *Transaction) SrcAddressString() string {
+	return "#" + base32.StdEncoding.EncodeToString(c.SrcAddress[:])
+}
+
+func (c *Transaction) DestAddressString() string {
+	return "#" + base32.StdEncoding.EncodeToString(c.DestAddress[:])
+}
+
 func Parse(frame []byte) (tr *Transaction, err error) {
 	if len(frame) < TransactionHeaderSize {
 		err = errors.New("wrong frame")

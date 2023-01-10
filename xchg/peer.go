@@ -8,6 +8,11 @@ import (
 	"time"
 )
 
+type PeerTransport interface {
+	Start(peerProcessor PeerProcessor, localAddressBS []byte) error
+	Stop() error
+}
+
 type Peer struct {
 	mtx            sync.Mutex
 	privateKey     *rsa.PrivateKey
@@ -17,8 +22,7 @@ type Peer struct {
 	network        *Network
 	useLocalRouter bool
 
-	peerUdp   *PeerUdp
-	peersHttp []*PeerHttp
+	peerTransports []PeerTransport
 
 	udpEnabled  bool
 	httpEnabled bool
@@ -83,9 +87,9 @@ func NewPeer(privateKey *rsa.PrivateKey) *Peer {
 	}
 	c.localAddress = AddressForPublicKey(&c.privateKey.PublicKey)
 
-	c.peerUdp = NewPeerUdp()
-	//c.peerHttp = NewPeerHttp(c.network)
-	c.peersHttp = make([]*PeerHttp, 0)
+	// Create peer transports
+	c.peerTransports = make([]PeerTransport, 1)
+	c.peerTransports[0] = NewPeerUdp()
 
 	return &c
 }
@@ -118,10 +122,28 @@ func (c *Peer) Start() (err error) {
 	}
 	c.mtx.Unlock()
 
-	if c.udpEnabled {
-		c.peerUdp.Start(c)
+	c.updateHttpPeers()
+	for _, transport := range c.peerTransports {
+		transport.Start(c, AddressBSForPublicKey(&c.privateKey.PublicKey))
 	}
 
+	go c.thWork()
+	return
+}
+
+func (c *Peer) UDPConn() net.PacketConn {
+	var conn net.PacketConn
+	for _, transport := range c.peerTransports {
+		udpConn, ok := transport.(*PeerUdp)
+		if ok {
+			conn = udpConn.Conn()
+			break
+		}
+	}
+	return conn
+}
+
+func (c *Peer) updateHttpPeers() {
 	if c.httpEnabled {
 		if !c.useLocalRouter {
 			c.network, _ = NetworkContainerLoadFromInternet()
@@ -131,14 +153,10 @@ func (c *Peer) Start() (err error) {
 		routerHosts := c.network.GetNodesAddressesByAddress(c.localAddress)
 		for _, h := range routerHosts {
 			peerHttp := NewPeerHttp(c.network, h)
-			peerHttp.Start(c, AddressBSForPublicKey(&c.privateKey.PublicKey))
-			c.peersHttp = append(c.peersHttp, peerHttp)
+			//peerHttp.Start(c, )
+			c.peerTransports = append(c.peerTransports, peerHttp)
 		}
 	}
-
-	go c.thWork()
-
-	return
 }
 
 func (c *Peer) Stop() (err error) {
@@ -149,13 +167,8 @@ func (c *Peer) Stop() (err error) {
 		return
 	}
 
-	if c.udpEnabled {
-		c.peerUdp.Stop()
-	}
-	if c.httpEnabled {
-		for _, p := range c.peersHttp {
-			p.Stop()
-		}
+	for _, transport := range c.peerTransports {
+		transport.Stop()
 	}
 
 	c.stopping = true
