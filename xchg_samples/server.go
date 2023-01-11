@@ -9,12 +9,14 @@ import (
 
 type Server struct {
 	serverConnection *xchg.Peer
+	privateKey       *rsa.PrivateKey
 	accessKey        string
 	processor        func(function string, parameter []byte) (response []byte, err error)
 }
 
 func StartServer(privateKey *rsa.PrivateKey, accessKey string, processor func(function string, parameter []byte) (response []byte, err error)) *Server {
 	var c Server
+	c.privateKey = privateKey
 	c.serverConnection = xchg.NewPeer(privateKey)
 	c.serverConnection.SetProcessor(&c)
 	c.processor = processor
@@ -24,7 +26,13 @@ func StartServer(privateKey *rsa.PrivateKey, accessKey string, processor func(fu
 
 func StartServerFast(accessKey string, processor func(function string, parameter []byte) (response []byte, err error)) *Server {
 	privateKey, _ := xchg.GenerateRSAKey()
-	return StartServer(privateKey, accessKey, processor)
+	s := StartServer(privateKey, accessKey, processor)
+	s.privateKey = privateKey
+	return s
+}
+
+func (c *Server) Address() string {
+	return xchg.AddressForPublicKey(&c.privateKey.PublicKey)
 }
 
 func (c *Server) Stop() {
