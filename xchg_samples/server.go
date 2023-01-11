@@ -17,6 +17,7 @@ type Server struct {
 func StartServer(privateKey *rsa.PrivateKey, accessKey string, processor func(function string, parameter []byte) (response []byte, err error)) *Server {
 	var c Server
 	c.privateKey = privateKey
+	c.accessKey = accessKey
 	c.serverConnection = xchg.NewPeer(privateKey)
 	c.serverConnection.SetProcessor(&c)
 	c.processor = processor
