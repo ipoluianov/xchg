@@ -36,6 +36,15 @@ func (c *RemotePeerUdp) Send(peerContext PeerContext, network *Network, tr *Tran
 }
 
 func (c *RemotePeerUdp) Check(peerContext PeerContext, frame20 *Transaction, network *Network, remotePublicKeyExists bool) error {
+	if peerContext.udpConn == nil {
+		return errors.New("no UDP connection point")
+	}
+	c.mtx.Lock()
+	remoteUDPAddress := c.remoteUDPAddress
+	c.mtx.Unlock()
+	if remoteUDPAddress != nil {
+		return nil
+	}
 	go c.checkLANConnectionPoint(peerContext, frame20)
 	c.mtx.Lock()
 	result := c.remoteUDPAddress != nil
@@ -52,10 +61,17 @@ func (c *RemotePeerUdp) SetRemoteUDPAddress(udpAddress *net.UDPAddr) {
 	c.mtx.Unlock()
 }
 
-func (c *RemotePeerUdp) DeclareError(peerContext PeerContext) {
-	c.mtx.Lock()
-	c.remoteUDPAddress = nil
-	c.mtx.Unlock()
+func (c *RemotePeerUdp) Id() string {
+	return "udp"
+}
+
+func (c *RemotePeerUdp) DeclareError(peerContext PeerContext, sentViaTransportMap map[string]struct{}) {
+	_, ok := sentViaTransportMap[c.Id()]
+	if ok {
+		c.mtx.Lock()
+		c.remoteUDPAddress = nil
+		c.mtx.Unlock()
+	}
 }
 
 func (c *RemotePeerUdp) checkLANConnectionPoint(peerContext PeerContext, frame20 *Transaction) (err error) {
@@ -88,7 +104,7 @@ func (c *RemotePeerUdp) checkLANConnectionPoint(peerContext PeerContext, frame20
 		if err != nil {
 			break
 		}
-		time.Sleep(10 * time.Millisecond)
+		time.Sleep(1 * time.Millisecond)
 	}
 	return
 }

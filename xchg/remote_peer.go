@@ -14,8 +14,9 @@ import (
 )
 
 type RemotePeerTransport interface {
+	Id() string
 	Check(peerContext PeerContext, frame20 *Transaction, network *Network, remotePublicKeyExists bool) error
-	DeclareError(peerContext PeerContext)
+	DeclareError(peerContext PeerContext, sentViaTransportMap map[string]struct{})
 	Send(peerContext PeerContext, network *Network, tr *Transaction) error
 	SetRemoteUDPAddress(udpAddress *net.UDPAddr)
 }
@@ -53,8 +54,8 @@ func NewRemotePeer(remoteAddress string, authData string, privateKey *rsa.Privat
 	c.nonces = NewNonces(100)
 
 	c.remotePeerTransports = make([]RemotePeerTransport, 3)
-	c.remotePeerTransports[0] = NewRemotePeerHttp()
-	c.remotePeerTransports[1] = NewRemotePeerUdp()
+	c.remotePeerTransports[0] = NewRemotePeerUdp()
+	c.remotePeerTransports[1] = NewRemotePeerHttp()
 	c.remotePeerTransports[2] = NewRemotePeerTcp()
 	return &c
 }
@@ -365,9 +366,13 @@ func (c *RemotePeer) executeTransaction(peerContext PeerContext, sessionId uint6
 	c.mtx.Unlock()
 
 	// Send transaction
+	sentCount := 0
+	sendCounter := 0
+	sentViaTransportMap := make(map[string]struct{})
 	offset := 0
 	blockSize := 1024
 	for offset < len(data) {
+		sendCounter++
 		currentBlockSize := blockSize
 		restDataLen := len(data) - offset
 		if restDataLen < currentBlockSize {
@@ -379,6 +384,8 @@ func (c *RemotePeer) executeTransaction(peerContext PeerContext, sessionId uint6
 		for _, transport := range c.remotePeerTransports {
 			err = transport.Send(peerContext, c.network, blockTransaction)
 			if err == nil {
+				sentCount++
+				sentViaTransportMap[transport.Id()] = struct{}{}
 				break
 			}
 		}
@@ -391,6 +398,10 @@ func (c *RemotePeer) executeTransaction(peerContext PeerContext, sessionId uint6
 		}
 		offset += currentBlockSize
 		//fmt.Println("executeTransaction send ", currentBlockSize, c.internalId)
+	}
+
+	if sendCounter != sentCount {
+		return nil, errors.New("no route")
 	}
 
 	// Wait for response
@@ -424,8 +435,9 @@ func (c *RemotePeer) executeTransaction(peerContext PeerContext, sessionId uint6
 	delete(c.outgoingTransactions, t.TransactionId)
 	c.mtx.Unlock()
 
+	fmt.Println("exec transaction timeout")
 	for _, transport := range c.remotePeerTransports {
-		transport.DeclareError(peerContext)
+		transport.DeclareError(peerContext, sentViaTransportMap)
 	}
 
 	c.mtx.Lock()

@@ -162,6 +162,14 @@ func (c *PeerUdp) thUdpServer() {
 			continue
 		}
 		udpAddr, ok := addr.(*net.UDPAddr)
+
+		////////////////////////////////////////
+		// Test
+		if (time.Now().Unix() % 30) < 15 {
+			continue
+		}
+		////////////////////////////////////////
+
 		if ok {
 			frame := make([]byte, n)
 			copy(frame, buffer[:n])

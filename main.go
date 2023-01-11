@@ -22,7 +22,7 @@ func main() {
 		client := xchg_samples.NewSimpleClient(serverAddress)
 
 		for {
-			time.Sleep(50 * time.Millisecond)
+			//time.Sleep(5 * time.Millisecond)
 			var err error
 			_, err = client.Version()
 			if err != nil {
@@ -33,7 +33,10 @@ func main() {
 		}
 	}
 
-	go fn()
+	for i := 0; i < 50; i++ {
+		go fn()
+		time.Sleep(10 * time.Millisecond)
+	}
 
 	for {
 		time.Sleep(1 * time.Second)

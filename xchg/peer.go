@@ -67,7 +67,7 @@ type Session struct {
 
 const (
 	PEER_UDP_START_PORT = 42000
-	PEER_UDP_END_PORT   = 45900
+	PEER_UDP_END_PORT   = 42500
 )
 
 func NewPeer(privateKey *rsa.PrivateKey) *Peer {

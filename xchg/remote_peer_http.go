@@ -30,6 +30,10 @@ func NewRemotePeerHttp() *RemotePeerHttp {
 	return &c
 }
 
+func (c *RemotePeerHttp) Id() string {
+	return "http"
+}
+
 func (c *RemotePeerHttp) Send(peerContext PeerContext, network *Network, tr *Transaction) (err error) {
 	addrs := network.GetNodesAddressesByAddress(tr.DestAddressString())
 	for _, a := range addrs {
@@ -49,7 +53,7 @@ func (c *RemotePeerHttp) Check(peerContext PeerContext, frame20 *Transaction, ne
 	return nil
 }
 
-func (c *RemotePeerHttp) DeclareError(peerContext PeerContext) {
+func (c *RemotePeerHttp) DeclareError(peerContext PeerContext, sentViaTransportMap map[string]struct{}) {
 }
 
 func (c *RemotePeerHttp) checkInternetConnectionPoint(frame20 *Transaction, network *Network) (err error) {

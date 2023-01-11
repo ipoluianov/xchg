@@ -17,11 +17,15 @@ func NewRemotePeerTcp() *RemotePeerTcp {
 	return &c
 }
 
+func (c *RemotePeerTcp) Id() string {
+	return "tcp"
+}
+
 func (c *RemotePeerTcp) Check(peerContext PeerContext, frame20 *Transaction, network *Network, remotePublicKeyExists bool) error {
 	return nil
 }
 
-func (c *RemotePeerTcp) DeclareError(peerContext PeerContext) {
+func (c *RemotePeerTcp) DeclareError(peerContext PeerContext, sentViaTransportMap map[string]struct{}) {
 }
 
 func (c *RemotePeerTcp) Send(peerContext PeerContext, network *Network, tr *Transaction) error {
