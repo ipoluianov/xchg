@@ -165,9 +165,9 @@ func (c *PeerUdp) thUdpServer() {
 
 		////////////////////////////////////////
 		// Test
-		if (time.Now().Unix() % 30) < 15 {
+		/*if (time.Now().Unix() % 30) < 15 {
 			continue
-		}
+		}*/
 		////////////////////////////////////////
 
 		if ok {
