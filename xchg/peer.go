@@ -88,8 +88,7 @@ func NewPeer(privateKey *rsa.PrivateKey) *Peer {
 	c.localAddress = AddressForPublicKey(&c.privateKey.PublicKey)
 
 	// Create peer transports
-	c.peerTransports = make([]PeerTransport, 1)
-	c.peerTransports[0] = NewPeerUdp()
+	c.peerTransports = make([]PeerTransport, 0)
 
 	return &c
 }
@@ -121,6 +120,10 @@ func (c *Peer) Start() (err error) {
 		return
 	}
 	c.mtx.Unlock()
+
+	if c.udpEnabled {
+		c.peerTransports = append(c.peerTransports, NewPeerUdp())
+	}
 
 	c.updateHttpPeers()
 	for _, transport := range c.peerTransports {
