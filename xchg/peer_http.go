@@ -128,6 +128,7 @@ func (c *PeerHttp) thWork() {
 		c.getFramesFromInternet(c.routerHost)
 		time.Sleep(5 * time.Millisecond)
 	}
+	c.started = false
 }
 
 func (c *PeerHttp) getFramesFromInternet(routerHost string) {
