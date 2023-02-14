@@ -98,7 +98,7 @@ func (c *PeerHttp) Stop() (err error) {
 		c.mtx.Lock()
 		started = c.started
 		c.mtx.Unlock()
-		if time.Now().Sub(dtBegin) > 1000*time.Second {
+		if time.Now().Sub(dtBegin) > 1000*time.Millisecond {
 			break
 		}
 	}
