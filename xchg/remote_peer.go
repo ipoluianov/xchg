@@ -53,10 +53,9 @@ func NewRemotePeer(remoteAddress string, authData string, privateKey *rsa.Privat
 	c.network = network
 	c.nonces = NewNonces(100)
 
-	c.remotePeerTransports = make([]RemotePeerTransport, 3)
-	c.remotePeerTransports[0] = NewRemotePeerUdp()
-	c.remotePeerTransports[1] = NewRemotePeerHttp()
-	c.remotePeerTransports[2] = NewRemotePeerTcp()
+	c.remotePeerTransports = make([]RemotePeerTransport, 2)
+	c.remotePeerTransports[0] = NewRemotePeerHttp()
+	c.remotePeerTransports[1] = NewRemotePeerTcp()
 	return &c
 }
 

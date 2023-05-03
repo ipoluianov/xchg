@@ -1,12 +1,10 @@
 package xchg
 
 import (
-	"net"
 	"time"
 )
 
 type PeerContext struct {
-	udpConn net.PacketConn
 	network *Network
 }
 
@@ -18,7 +16,6 @@ func (c *Peer) Call(remoteAddress string, authData string, function string, data
 		c.remotePeers[remoteAddress] = remotePeer
 	}
 	var peerContext PeerContext
-	peerContext.udpConn = c.UDPConn()
 	peerContext.network = c.network
 	c.mtx.Unlock()
 	result, err = remotePeer.Call(peerContext, function, data, timeout)

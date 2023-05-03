@@ -6,6 +6,8 @@ import (
 	"net"
 	"sync"
 	"time"
+
+	"github.com/ipoluianov/xchg/router"
 )
 
 type PeerTransport interface {
@@ -30,9 +32,6 @@ type Peer struct {
 	// Client
 	remotePeers map[string]*RemotePeer
 
-	gettingFromInternet   bool
-	lastReceivedMessageId uint64
-
 	// Server
 	incomingTransactions  map[string]*Transaction
 	sessionsById          map[uint64]*Session
@@ -41,7 +40,7 @@ type Peer struct {
 	processor             ServerProcessor
 	lastPurgeSessionsTime time.Time
 
-	declareAddressInInternetLastTime time.Time
+	router *router.Router
 }
 
 type PeerProcessor interface {
@@ -121,29 +120,16 @@ func (c *Peer) Start() (err error) {
 	}
 	c.mtx.Unlock()
 
-	if c.udpEnabled {
-		c.peerTransports = append(c.peerTransports, NewPeerUdp())
-	}
-
 	c.updateHttpPeers()
 	for _, transport := range c.peerTransports {
 		transport.Start(c, AddressBSForPublicKey(&c.privateKey.PublicKey))
 	}
 
+	c.router = router.NewRouter()
+	c.router.Start()
+
 	go c.thWork()
 	return
-}
-
-func (c *Peer) UDPConn() net.PacketConn {
-	var conn net.PacketConn
-	for _, transport := range c.peerTransports {
-		udpConn, ok := transport.(*PeerUdp)
-		if ok {
-			conn = udpConn.Conn()
-			break
-		}
-	}
-	return conn
 }
 
 func (c *Peer) updateHttpPeers() {
@@ -178,13 +164,19 @@ func (c *Peer) Stop() (err error) {
 	started := c.started
 	c.mtx.Unlock()
 
+	if c.router != nil {
+		c.router.Stop()
+		c.router = nil
+	}
+
 	dtBegin := time.Now()
 	for started {
 		time.Sleep(100 * time.Millisecond)
 		c.mtx.Lock()
 		started = c.started
 		c.mtx.Unlock()
-		if time.Now().Sub(dtBegin) > 1000*time.Millisecond {
+
+		if time.Since(dtBegin) > 1000*time.Millisecond {
 			break
 		}
 	}
