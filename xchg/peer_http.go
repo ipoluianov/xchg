@@ -185,16 +185,19 @@ func (c *PeerHttp) getFramesFromInternet(routerHost string) {
 			}
 			if len(responses) > 0 {
 				for _, f := range responses {
-					c.send(f.Marshal())
+					c.send(f.Marshal(), f.FromLocalNode)
 				}
 			}
 		}
 	}
 }
 
-func (c *PeerHttp) send(frame []byte) {
+func (c *PeerHttp) send(frame []byte, onlyToLocalRouter bool) {
 	addr := "#" + strings.ToLower(base32.StdEncoding.EncodeToString(frame[70:70+30]))
 	addrs := c.network.GetNodesAddressesByAddress(addr)
+	if onlyToLocalRouter {
+		addrs = c.network.GetLocalNodes()
+	}
 	//countHosts := len(addrs)/2 + 1
 	countHosts := len(addrs)
 	for i := 0; i < countHosts; i++ {

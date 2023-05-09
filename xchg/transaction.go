@@ -33,6 +33,8 @@ type Transaction struct {
 	// Data
 	Data []byte
 
+	FromLocalNode bool
+
 	// Execution Result
 	BeginDT        time.Time
 	ReceivedFrames []*Transaction
@@ -157,6 +159,10 @@ func (c *Transaction) AppendReceivedData(transaction *Transaction) {
 		if !found {
 			c.ReceivedFrames = append(c.ReceivedFrames, transaction)
 		}
+	}
+
+	if transaction.FromLocalNode {
+		c.FromLocalNode = true
 	}
 
 	receivedDataLen := 0

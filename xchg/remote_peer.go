@@ -63,16 +63,16 @@ func (c *RemotePeer) RemoteAddress() string {
 	return c.remoteAddress
 }
 
-func (c *RemotePeer) processFrame(conn net.PacketConn, sourceAddress *net.UDPAddr, frame []byte) {
+func (c *RemotePeer) processFrame(routerHost string, frame []byte) {
 	frameType := frame[8]
 
 	switch frameType {
 	case FrameTypeResponse:
-		c.processFrame11(conn, sourceAddress, frame)
+		c.processFrame11(routerHost, frame)
 	}
 }
 
-func (c *RemotePeer) processFrame11(conn net.PacketConn, sourceAddress *net.UDPAddr, frame []byte) {
+func (c *RemotePeer) processFrame11(routerHost string, frame []byte) {
 	transaction, err := Parse(frame)
 	if err != nil {
 		fmt.Println(err)

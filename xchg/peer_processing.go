@@ -22,13 +22,13 @@ func (c *Peer) processFrame(conn net.PacketConn, sourceAddress *net.UDPAddr, rou
 
 	// Call Request
 	if frameType == 0x10 {
-		responseFrames = c.processFrame10(conn, sourceAddress, frame)
+		responseFrames = c.processFrame10(routerHost, frame)
 		return
 	}
 
 	// Call Response
 	if frameType == 0x11 {
-		c.processFrame11(conn, sourceAddress, frame)
+		c.processFrame11(routerHost, frame)
 		return
 	}
 
@@ -51,7 +51,7 @@ func (c *Peer) processFrame(conn net.PacketConn, sourceAddress *net.UDPAddr, rou
 // Incoming Call - Server Role
 // ----------------------------------------
 
-func (c *Peer) processFrame10(conn net.PacketConn, sourceAddress *net.UDPAddr, frame []byte) (responseFrames []*Transaction) {
+func (c *Peer) processFrame10(routerHost string, frame []byte) (responseFrames []*Transaction) {
 	var processor ServerProcessor
 
 	responseFrames = make([]*Transaction, 0)
@@ -59,6 +59,12 @@ func (c *Peer) processFrame10(conn net.PacketConn, sourceAddress *net.UDPAddr, f
 	transaction, err := Parse(frame)
 	if err != nil {
 		return
+	}
+
+	if c.network != nil {
+		if c.network.IsLocalNode(routerHost) {
+			transaction.FromLocalNode = true
+		}
 	}
 
 	c.mtx.Lock()
@@ -112,6 +118,7 @@ func (c *Peer) processFrame10(conn net.PacketConn, sourceAddress *net.UDPAddr, f
 				blockTransaction := NewTransaction(0x11, AddressForPublicKey(&c.privateKey.PublicKey), srcAddress, trResponse.TransactionId, trResponse.SessionId, offset, len(resp), trResponse.Data[offset:offset+currentBlockSize])
 				blockTransaction.Offset = uint32(offset)
 				blockTransaction.TotalSize = uint32(len(trResponse.Data))
+				blockTransaction.FromLocalNode = incomingTransaction.FromLocalNode
 				responseFrames = append(responseFrames, blockTransaction)
 				offset += currentBlockSize
 			}
@@ -120,7 +127,7 @@ func (c *Peer) processFrame10(conn net.PacketConn, sourceAddress *net.UDPAddr, f
 	return
 }
 
-func (c *Peer) processFrame11(conn net.PacketConn, sourceAddress *net.UDPAddr, frame []byte) {
+func (c *Peer) processFrame11(routerHost string, frame []byte) {
 	tr, err := Parse(frame)
 	if err != nil {
 		return
@@ -137,7 +144,7 @@ func (c *Peer) processFrame11(conn net.PacketConn, sourceAddress *net.UDPAddr, f
 	}
 	c.mtx.Unlock()
 	if remotePeer != nil {
-		remotePeer.processFrame(conn, sourceAddress, frame)
+		remotePeer.processFrame(routerHost, frame)
 	}
 }
 
