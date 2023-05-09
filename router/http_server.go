@@ -11,13 +11,11 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-
-	"github.com/gorilla/mux"
 )
 
 type HttpServer struct {
-	srv                  *http.Server
-	r                    *mux.Router
+	srv *http.Server
+	//r                    *mux.Router
 	server               *Router
 	longPollingTimeout   time.Duration
 	longPollingTickDelay time.Duration
@@ -39,17 +37,11 @@ func NewHttpServer() *HttpServer {
 func (c *HttpServer) Start(server *Router, port int) {
 	c.server = server
 
-	c.r = mux.NewRouter()
-	c.r.HandleFunc("/api/w", c.processW)
-	c.r.HandleFunc("/api/r", c.processR)
-	c.r.HandleFunc("/api/debug", c.processDebug)
-	c.r.HandleFunc("/api/stat", c.processStat)
-	c.r.NotFoundHandler = http.HandlerFunc(c.processFile)
 	c.srv = &http.Server{
 		Addr: ":" + fmt.Sprint(port),
 	}
 
-	c.srv.Handler = c.r
+	c.srv.Handler = c
 	go c.thListen()
 }
 
@@ -66,6 +58,27 @@ func (c *HttpServer) Stop() error {
 		c.err = err
 	}
 	return err
+}
+
+func (c *HttpServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+
+	if r.RequestURI == "/api/w" {
+		c.processW(w, r)
+		return
+	}
+	if r.RequestURI == "/api/r" {
+		c.processR(w, r)
+		return
+	}
+	if r.RequestURI == "/api/debug" {
+		c.processDebug(w, r)
+		return
+	}
+	if r.RequestURI == "/api/stat" {
+		c.processStat(w, r)
+		return
+	}
+	c.processFile(w, r)
 }
 
 func (c *HttpServer) processDebug(w http.ResponseWriter, r *http.Request) {
