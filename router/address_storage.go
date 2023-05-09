@@ -5,22 +5,22 @@ import (
 	"time"
 )
 
-type AddressStorage struct {
+type Storage struct {
 	mtx         sync.Mutex
 	TouchDT     time.Time
 	maxMessages int
 	messages    []*Message
 }
 
-func NewAddressStorage() *AddressStorage {
-	var c AddressStorage
+func NewStorage() *Storage {
+	var c Storage
 	c.maxMessages = 1000
 	c.messages = make([]*Message, 0, c.maxMessages+1)
 	c.TouchDT = time.Now()
 	return &c
 }
 
-func (c *AddressStorage) Clear() {
+func (c *Storage) Clear() {
 	now := time.Now()
 	c.mtx.Lock()
 	oldMessages := c.messages
@@ -33,14 +33,14 @@ func (c *AddressStorage) Clear() {
 	c.mtx.Unlock()
 }
 
-func (c *AddressStorage) MessagesCount() (count int) {
+func (c *Storage) MessagesCount() (count int) {
 	c.mtx.Lock()
 	count = len(c.messages)
 	c.mtx.Unlock()
 	return
 }
 
-func (c *AddressStorage) Put(id uint64, frame []byte) {
+func (c *Storage) Put(id uint64, frame []byte) {
 	c.mtx.Lock()
 	msg := NewMessage(id, frame)
 	c.messages = append(c.messages, msg)
@@ -51,7 +51,7 @@ func (c *AddressStorage) Put(id uint64, frame []byte) {
 	c.mtx.Unlock()
 }
 
-func (c *AddressStorage) GetMessage(afterId uint64, maxSize uint64) (data []byte, lastId uint64, count int) {
+func (c *Storage) GetMessage(afterId uint64, maxSize uint64) (data []byte, lastId uint64, count int) {
 
 	data = make([]byte, 0)
 	lastId = afterId

@@ -31,7 +31,7 @@ type Router struct {
 	//network *Network
 	nextId uint64
 
-	addresses map[string]*AddressStorage
+	addresses map[string]*Storage
 
 	// Statistics
 	stat       RouterStatistics
@@ -92,7 +92,7 @@ const (
 
 func NewRouter() *Router {
 	var c Router
-	c.addresses = make(map[string]*AddressStorage)
+	c.addresses = make(map[string]*Storage)
 
 	c.statLastDT = time.Now()
 	c.clearAddressesLastDT = time.Now()
@@ -204,7 +204,7 @@ func (c *Router) thClearAddresses() {
 	now := time.Now()
 	if now.Sub(c.clearAddressesLastDT) >= 1*time.Second {
 		c.mtx.Lock()
-		addresses := make([]*AddressStorage, 0)
+		addresses := make([]*Storage, 0)
 		for address, addressStorage := range c.addresses {
 			if now.Sub(addressStorage.TouchDT) > 10*time.Second {
 				delete(c.addresses, address)
@@ -224,7 +224,7 @@ func (c *Router) thClearAddresses() {
 
 func (c *Router) Put(frame []byte) {
 	var ok bool
-	var addressStorage *AddressStorage
+	var addressStorage *Storage
 
 	addressDestBS := frame[70:100]
 	addressDest := "#" + strings.ToLower(base32.StdEncoding.EncodeToString(addressDestBS))
@@ -233,7 +233,7 @@ func (c *Router) Put(frame []byte) {
 	c.mtx.Lock()
 	addressStorage, ok = c.addresses[addressDest]
 	if !ok || addressStorage == nil {
-		addressStorage = NewAddressStorage()
+		addressStorage = NewStorage()
 		c.addresses[addressDest] = addressStorage
 	}
 	id := c.nextId
@@ -248,7 +248,7 @@ func (c *Router) Put(frame []byte) {
 // Get message request
 func (c *Router) GetMessages(frame []byte) (response []byte, count int, err error) {
 	var ok bool
-	var addressStorage *AddressStorage
+	var addressStorage *Storage
 
 	if len(frame) < 46 {
 		err = errors.New("wrong frame size")

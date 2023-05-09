@@ -21,7 +21,7 @@ func StartServer(privateKey *rsa.PrivateKey, accessKey string, processor func(fu
 	c.serverConnection = xchg.NewPeer(privateKey)
 	c.serverConnection.SetProcessor(&c)
 	c.processor = processor
-	c.serverConnection.StartHttpOnly()
+	c.serverConnection.Start(true)
 	return &c
 }
 

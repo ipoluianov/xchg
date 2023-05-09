@@ -16,18 +16,14 @@ type PeerTransport interface {
 }
 
 type Peer struct {
-	mtx            sync.Mutex
-	privateKey     *rsa.PrivateKey
-	localAddress   string
-	started        bool
-	stopping       bool
-	network        *Network
-	useLocalRouter bool
+	mtx          sync.Mutex
+	privateKey   *rsa.PrivateKey
+	localAddress string
+	started      bool
+	stopping     bool
+	network      *Network
 
 	peerTransports []PeerTransport
-
-	udpEnabled  bool
-	httpEnabled bool
 
 	// Client
 	remotePeers map[string]*RemotePeer
@@ -40,7 +36,11 @@ type Peer struct {
 	processor             ServerProcessor
 	lastPurgeSessionsTime time.Time
 
-	router *router.Router
+	httpServer1 *router.HttpServer
+	httpServer2 *router.HttpServer
+
+	router1 *router.Router
+	router2 *router.Router
 }
 
 type PeerProcessor interface {
@@ -76,8 +76,6 @@ func NewPeer(privateKey *rsa.PrivateKey) *Peer {
 	c.authNonces = NewNonces(100)
 	c.sessionsById = make(map[uint64]*Session)
 	c.nextSessionId = 1
-	c.udpEnabled = true
-	c.httpEnabled = true
 	c.network = NewNetworkLocalhost()
 
 	c.privateKey = privateKey
@@ -92,26 +90,7 @@ func NewPeer(privateKey *rsa.PrivateKey) *Peer {
 	return &c
 }
 
-func (c *Peer) StartUDPOnly() error {
-	c.udpEnabled = true
-	c.httpEnabled = false
-	return c.Start()
-}
-
-func (c *Peer) StartHttpOnly() error {
-	c.udpEnabled = false
-	c.httpEnabled = true
-	return c.Start()
-}
-
-func (c *Peer) StartHttpOnlyLocalRouter() error {
-	c.udpEnabled = false
-	c.httpEnabled = true
-	c.useLocalRouter = true
-	return c.Start()
-}
-
-func (c *Peer) Start() (err error) {
+func (c *Peer) Start(enableLocalRouter bool) (err error) {
 	c.mtx.Lock()
 	if c.started {
 		c.mtx.Unlock()
@@ -125,26 +104,33 @@ func (c *Peer) Start() (err error) {
 		transport.Start(c, AddressBSForPublicKey(&c.privateKey.PublicKey))
 	}
 
-	c.router = router.NewRouter()
-	c.router.Start()
+	if enableLocalRouter {
+
+		c.router1 = router.NewRouter()
+		c.router1.Start()
+
+		c.router2 = router.NewRouter()
+		c.router2.Start()
+
+		c.httpServer1 = router.NewHttpServer()
+		c.httpServer1.Start(c.router1, 42001)
+
+		c.httpServer2 = router.NewHttpServer()
+		c.httpServer2.Start(c.router1, 42002)
+	}
 
 	go c.thWork()
 	return
 }
 
 func (c *Peer) updateHttpPeers() {
-	if c.httpEnabled {
-		if !c.useLocalRouter {
-			c.network, _ = NetworkContainerLoadFromInternet()
-		} else {
-			c.network = NewNetworkLocalhost()
-		}
-		routerHosts := c.network.GetNodesAddressesByAddress(c.localAddress)
-		for _, h := range routerHosts {
-			peerHttp := NewPeerHttp(c.network, h)
-			//peerHttp.Start(c, )
-			c.peerTransports = append(c.peerTransports, peerHttp)
-		}
+	c.network, _ = NetworkContainerLoadFromInternet()
+	// c.network = NewNetworkLocalhost()
+
+	routerHosts := c.network.GetNodesAddressesByAddress(c.localAddress)
+	for _, h := range routerHosts {
+		peerHttp := NewPeerHttp(c.network, h)
+		c.peerTransports = append(c.peerTransports, peerHttp)
 	}
 }
 
@@ -164,9 +150,24 @@ func (c *Peer) Stop() (err error) {
 	started := c.started
 	c.mtx.Unlock()
 
-	if c.router != nil {
-		c.router.Stop()
-		c.router = nil
+	if c.router1 != nil {
+		c.router1.Stop()
+		c.router1 = nil
+	}
+
+	if c.router2 != nil {
+		c.router2.Stop()
+		c.router2 = nil
+	}
+
+	if c.httpServer1 != nil {
+		c.httpServer1.Stop()
+		c.httpServer1 = nil
+	}
+
+	if c.httpServer2 != nil {
+		c.httpServer2.Stop()
+		c.httpServer2 = nil
 	}
 
 	dtBegin := time.Now()
@@ -189,14 +190,6 @@ func (c *Peer) Stop() (err error) {
 	}
 
 	return
-}
-
-func (c *Peer) IsUdpEnabled() bool {
-	return c.udpEnabled
-}
-
-func (c *Peer) IsHttpEnabled() bool {
-	return c.httpEnabled
 }
 
 func (c *Peer) Network() *Network {

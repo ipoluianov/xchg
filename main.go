@@ -33,7 +33,7 @@ func main() {
 		}
 	}
 
-	for i := 0; i < 50; i++ {
+	for i := 0; i < 30; i++ {
 		go fn()
 		time.Sleep(10 * time.Millisecond)
 	}

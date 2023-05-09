@@ -207,6 +207,11 @@ func (c *Network) GetNodesAddressesByAddress(address string) []string {
 		return rnd[i] < rnd[j]
 	})
 
+	// local router
+	addresses = append(addresses, "localhost:42001")
+	addresses = append(addresses, "localhost:42002")
+	addresses = append(addresses, "localhost:42003")
+
 	return addresses
 }
 

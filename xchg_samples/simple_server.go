@@ -26,7 +26,7 @@ func NewSimpleServer(privateKey *rsa.PrivateKey) *SimpleServer {
 }
 
 func (c *SimpleServer) Start() {
-	c.serverConnection.StartHttpOnly()
+	c.serverConnection.Start(true)
 }
 
 func (c *SimpleServer) Stop() {
