@@ -47,7 +47,7 @@ func (c *Server) ServerProcessorAuth(authData []byte) (err error) {
 	return errors.New(xchg.ERR_XCHG_ACCESS_DENIED)
 }
 
-func (c *Server) ServerProcessorCall(function string, parameter []byte) (response []byte, err error) {
+func (c *Server) ServerProcessorCall(authData []byte, function string, parameter []byte) (response []byte, err error) {
 	if c.processor != nil {
 		return c.processor(function, parameter)
 	}

@@ -104,7 +104,11 @@ func (c *Peer) onEdgeReceivedCall(sessionId uint64, data []byte) (response []byt
 			}
 		}
 	} else {
-		resp, err = c.processor.ServerProcessorCall(function, functionParameter)
+		authData := make([]byte, 0)
+		if session != nil {
+			authData = session.authData
+		}
+		resp, err = c.processor.ServerProcessorCall(authData, function, functionParameter)
 	}
 
 	if err != nil {
@@ -178,6 +182,7 @@ func (c *Peer) processAuth(functionParameter []byte) (response []byte, err error
 	session.lastAccessDT = time.Now()
 	session.aesKey = make([]byte, 32)
 	session.snakeCounter = NewSnakeCounter(100, 0)
+	session.authData = authData
 	rand.Read(session.aesKey)
 	c.sessionsById[sessionId] = session
 	response = make([]byte, 8+32)

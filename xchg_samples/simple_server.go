@@ -40,7 +40,7 @@ func (c *SimpleServer) ServerProcessorAuth(authData []byte) (err error) {
 	return errors.New(xchg.ERR_XCHG_ACCESS_DENIED)
 }
 
-func (c *SimpleServer) ServerProcessorCall(function string, parameter []byte) (response []byte, err error) {
+func (c *SimpleServer) ServerProcessorCall(authData []byte, function string, parameter []byte) (response []byte, err error) {
 	switch function {
 	case "version":
 		//response = []byte("simple server 2.42 0123456789|0123456789|0123456789|0123456789")

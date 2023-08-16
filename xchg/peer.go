@@ -49,7 +49,7 @@ type PeerProcessor interface {
 
 type ServerProcessor interface {
 	ServerProcessorAuth(authData []byte) (err error)
-	ServerProcessorCall(function string, parameter []byte) (response []byte, err error)
+	ServerProcessorCall(authData []byte, function string, parameter []byte) (response []byte, err error)
 }
 
 const (
@@ -60,6 +60,7 @@ const (
 type Session struct {
 	id           uint64
 	aesKey       []byte
+	authData     []byte
 	lastAccessDT time.Time
 	snakeCounter *SnakeCounter
 }
