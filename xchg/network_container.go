@@ -29,7 +29,9 @@ const (
 func NetworkContainerLoadStaticDefault() (network *Network, err error) {
 	var zipFileBS []byte
 	zipFileBS, err = base64.StdEncoding.DecodeString(NetworkContainerDefault)
-	return NetworkContainerLoad(zipFileBS, NetworkContainerPublicKey)
+	network, err = NetworkContainerLoad(zipFileBS, NetworkContainerPublicKey)
+	network.Source = "STATIC"
+	return network, err
 }
 
 func NetworkContainerLoadFromInternet() (network *Network, err error) {
@@ -48,7 +50,7 @@ func NetworkContainerLoadFromInternet() (network *Network, err error) {
 
 	for _, initialPoint := range network.InitialPoints {
 		var response *http.Response
-		response, err = httpClient.Get(initialPoint)
+		response, err = httpClient.Get(initialPoint + "?" + fmt.Sprint(time.Now().Unix()))
 		if err != nil {
 			continue
 		}
@@ -68,6 +70,7 @@ func NetworkContainerLoadFromInternet() (network *Network, err error) {
 		if err != nil {
 			continue
 		}
+		n.Source = initialPoint
 		networks = append(networks, n)
 	}
 
@@ -79,7 +82,7 @@ func NetworkContainerLoadFromInternet() (network *Network, err error) {
 	// Get latest network
 	fmt.Println("loaded networks:")
 	for _, n := range networks {
-		fmt.Println(n.Timestamp)
+		fmt.Println(n.Timestamp, n.Name, n.Source)
 		if n.Timestamp > network.Timestamp {
 			network = n
 		}

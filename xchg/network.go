@@ -17,6 +17,8 @@ import (
 type Network struct {
 	mtx sync.Mutex
 
+	Source string
+
 	fromInternet       bool
 	fromInternetLoaded bool
 

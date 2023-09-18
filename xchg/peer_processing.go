@@ -8,12 +8,11 @@ import (
 	"encoding/base32"
 	"errors"
 	"fmt"
-	"net"
 	"strings"
 	"time"
 )
 
-func (c *Peer) processFrame(conn net.PacketConn, sourceAddress *net.UDPAddr, routerHost string, frame []byte) (responseFrames []*Transaction) {
+func (c *Peer) processFrame(routerHost string, frame []byte) (responseFrames []*Transaction) {
 	if len(frame) < 8 {
 		return
 	}
@@ -34,13 +33,13 @@ func (c *Peer) processFrame(conn net.PacketConn, sourceAddress *net.UDPAddr, rou
 
 	// ARP request
 	if frameType == 0x20 {
-		responseFrames = c.processFrame20(conn, sourceAddress, frame)
+		responseFrames = c.processFrame20(frame)
 		return
 	}
 
 	// ARP response
 	if frameType == 0x21 {
-		c.processFrame21(conn, routerHost, sourceAddress, frame)
+		c.processFrame21(routerHost, frame)
 		return
 	}
 
@@ -149,7 +148,7 @@ func (c *Peer) processFrame11(routerHost string, frame []byte) {
 }
 
 // ARP LAN request
-func (c *Peer) processFrame20(conn net.PacketConn, sourceAddress *net.UDPAddr, frame []byte) (responseFrames []*Transaction) {
+func (c *Peer) processFrame20(frame []byte) (responseFrames []*Transaction) {
 
 	responseFrames = make([]*Transaction, 0)
 
@@ -195,7 +194,7 @@ func (c *Peer) processFrame20(conn net.PacketConn, sourceAddress *net.UDPAddr, f
 	//_, _ = conn.WriteTo(response.Marshal(), sourceAddress)
 }
 
-func (c *Peer) processFrame21(conn net.PacketConn, routerHost string, sourceAddress *net.UDPAddr, frame []byte) {
+func (c *Peer) processFrame21(routerHost string, frame []byte) {
 	transaction, err := Parse(frame)
 	if err != nil {
 		return
@@ -218,7 +217,7 @@ func (c *Peer) processFrame21(conn net.PacketConn, routerHost string, sourceAddr
 
 	for _, peer := range c.remotePeers {
 		if peer.RemoteAddress() == receivedAddress {
-			peer.setConnectionPoint(sourceAddress, routerHost, receivedPublicKey, transaction.Data[0:16], transaction.Data[16:16+256])
+			peer.setConnectionPoint(routerHost, receivedPublicKey, transaction.Data[0:16], transaction.Data[16:16+256])
 			break
 		}
 	}

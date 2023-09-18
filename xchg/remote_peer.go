@@ -1,14 +1,21 @@
 package xchg
 
 import (
+	"bytes"
 	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
+	"io/ioutil"
+	"mime/multipart"
 	"net"
+	"net/http"
+	"net/http/cookiejar"
 	"sync"
 	"time"
 )
@@ -32,7 +39,7 @@ type RemotePeer struct {
 
 	nonces *Nonces
 
-	remotePeerTransports []RemotePeerTransport
+	httpClient *http.Client
 
 	findingConnection    bool
 	authProcessing       bool
@@ -53,9 +60,13 @@ func NewRemotePeer(remoteAddress string, authData string, privateKey *rsa.Privat
 	c.network = network
 	c.nonces = NewNonces(100)
 
-	c.remotePeerTransports = make([]RemotePeerTransport, 2)
-	c.remotePeerTransports[0] = NewRemotePeerHttp()
-	c.remotePeerTransports[1] = NewRemotePeerTcp()
+	tr := &http.Transport{}
+	jar, _ := cookiejar.New(nil)
+	c.httpClient = &http.Client{Transport: tr, Jar: jar}
+	c.httpClient.Timeout = 1 * time.Second
+
+	//c.remotePeerTransports = make([]RemotePeerTransport, 2)
+	//c.remotePeerTransports[0] = NewRemotePeerHttp()
 	return &c
 }
 
@@ -92,7 +103,7 @@ func (c *RemotePeer) processFrame11(routerHost string, frame []byte) {
 	c.mtx.Unlock()
 }
 
-func (c *RemotePeer) setConnectionPoint(udpAddr *net.UDPAddr, routerHost string, publicKey *rsa.PublicKey, nonce []byte, signature []byte) {
+func (c *RemotePeer) setConnectionPoint(routerHost string, publicKey *rsa.PublicKey, nonce []byte, signature []byte) {
 	if !c.nonces.Check(nonce) {
 		return
 	}
@@ -106,12 +117,9 @@ func (c *RemotePeer) setConnectionPoint(udpAddr *net.UDPAddr, routerHost string,
 	}
 
 	c.mtx.Lock()
-	for _, transport := range c.remotePeerTransports {
-		transport.SetRemoteUDPAddress(udpAddr)
-	}
 	c.remotePublicKey = publicKey
 	c.mtx.Unlock()
-	fmt.Println("Received Address for", c.remoteAddress, "from", udpAddr, routerHost)
+	fmt.Println("Received Address for", c.remoteAddress, "from", routerHost)
 }
 
 func (c *RemotePeer) Call(peerContext PeerContext, function string, data []byte, timeout time.Duration) (result []byte, err error) {
@@ -126,9 +134,8 @@ func (c *RemotePeer) Call(peerContext PeerContext, function string, data []byte,
 	transaction.Data = make([]byte, 16+len(addressBS))
 	copy(transaction.Data[0:], nonce[:])
 	copy(transaction.Data[16:], addressBS)
-	for _, transport := range c.remotePeerTransports {
-		transport.Check(peerContext, transaction, c.network, c.remotePublicKey != nil)
-	}
+
+	c.Check(peerContext, transaction, c.network, c.remotePublicKey != nil)
 
 	if sessionId == 0 {
 		err = c.auth(peerContext, 1000*time.Millisecond)
@@ -367,7 +374,6 @@ func (c *RemotePeer) executeTransaction(peerContext PeerContext, sessionId uint6
 	// Send transaction
 	sentCount := 0
 	sendCounter := 0
-	sentViaTransportMap := make(map[string]struct{})
 	offset := 0
 	blockSize := 1024
 	for offset < len(data) {
@@ -380,13 +386,10 @@ func (c *RemotePeer) executeTransaction(peerContext PeerContext, sessionId uint6
 
 		blockTransaction := NewTransaction(FrameTypeCall, AddressForPublicKey(&c.privateKey.PublicKey), c.remoteAddress, transactionId, sessionId, offset, len(data), data[offset:offset+currentBlockSize])
 
-		for _, transport := range c.remotePeerTransports {
-			err = transport.Send(peerContext, c.network, blockTransaction)
-			if err == nil {
-				sentCount++
-				sentViaTransportMap[transport.Id()] = struct{}{}
-				break
-			}
+		err = c.Send(peerContext, c.network, blockTransaction)
+		if err == nil {
+			sentCount++
+			break
 		}
 
 		if err != nil {
@@ -435,9 +438,6 @@ func (c *RemotePeer) executeTransaction(peerContext PeerContext, sessionId uint6
 	c.mtx.Unlock()
 
 	fmt.Println("exec transaction timeout")
-	for _, transport := range c.remotePeerTransports {
-		transport.DeclareError(peerContext, sentViaTransportMap)
-	}
 
 	c.mtx.Lock()
 
@@ -459,4 +459,78 @@ func (c *RemotePeer) executeTransaction(peerContext PeerContext, sessionId uint6
 	c.mtx.Unlock()
 
 	return nil, errors.New(ERR_XCHG_PEER_CONN_TR_TIMEOUT)
+}
+
+func (c *RemotePeer) httpCall(routerHost string, function string, frame []byte) (result []byte, err error) {
+	// Waiting for router host
+
+	if len(routerHost) == 0 {
+		return
+	}
+
+	if len(frame) < 128 {
+		return
+	}
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	{
+		fw, _ := writer.CreateFormField("d")
+		frame64 := base64.StdEncoding.EncodeToString(frame)
+		fw.Write([]byte(frame64))
+	}
+	writer.Close()
+
+	addr := "http://" + routerHost
+
+	response, err := c.Post(addr+"/api/"+function, writer.FormDataContentType(), &body, addr)
+
+	if err != nil {
+		//fmt.Println("HTTP error:", err)
+		return
+	} else {
+		var content []byte
+		content, err = ioutil.ReadAll(response.Body)
+		if err != nil {
+			response.Body.Close()
+			return
+		}
+		result, err = base64.StdEncoding.DecodeString(string(content))
+		response.Body.Close()
+	}
+	return
+}
+
+func (c *RemotePeer) Post(url, contentType string, body io.Reader, host string) (resp *http.Response, err error) {
+	req, err := http.NewRequest("POST", url, body)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", contentType)
+	return c.httpClient.Do(req)
+}
+
+func (c *RemotePeer) Send(peerContext PeerContext, network *Network, tr *Transaction) (err error) {
+	addrs := network.GetNodesAddressesByAddress(tr.DestAddressString())
+	for _, a := range addrs {
+		go c.httpCall(a, "w", tr.Marshal())
+	}
+	return
+}
+
+func (c *RemotePeer) Check(peerContext PeerContext, frame20 *Transaction, network *Network, remotePublicKeyExists bool) error {
+	if remotePublicKeyExists {
+		return nil
+	}
+	go c.checkInternetConnectionPoint(frame20, network)
+	return nil
+}
+
+func (c *RemotePeer) checkInternetConnectionPoint(frame20 *Transaction, network *Network) (err error) {
+	addrs := network.GetNodesAddressesByAddress(frame20.DestAddressString())
+	for _, a := range addrs {
+		go c.httpCall(a, "w", frame20.Marshal())
+	}
+
+	return
 }
