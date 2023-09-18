@@ -6,7 +6,6 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"log"
 	"time"
 )
@@ -91,7 +90,7 @@ func (c *Peer) onEdgeReceivedCall(sessionId uint64, data []byte) (response []byt
 		switch function {
 		case "/xchg-get-nonce":
 			nonce := c.authNonces.Next()
-			fmt.Println("xchg-get-nonce", nonce)
+			//fmt.Println("xchg-get-nonce", nonce)
 			resp = nonce[:]
 		case "/xchg-auth":
 			resp, err = c.processAuth(functionParameter)

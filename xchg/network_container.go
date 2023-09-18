@@ -80,9 +80,9 @@ func NetworkContainerLoadFromInternet() (network *Network, err error) {
 	}
 
 	// Get latest network
-	fmt.Println("loaded networks:")
+	//fmt.Println("loaded networks:")
 	for _, n := range networks {
-		fmt.Println(n.Timestamp, n.Name, n.Source)
+		//fmt.Println(n.Timestamp, n.Name, n.Source)
 		if n.Timestamp > network.Timestamp {
 			network = n
 		}
