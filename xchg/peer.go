@@ -163,7 +163,11 @@ func (c *Peer) Start(enableLocalRouter bool) (err error) {
 func (c *Peer) updateHttpPeers() {
 	network, _ := NetworkContainerLoadFromInternet()
 	c.mtx.Lock()
-	c.network = network
+	if network != nil {
+		if network.Timestamp > c.network.Timestamp {
+			c.network = network
+		}
+	}
 	c.mtx.Unlock()
 }
 
@@ -388,4 +392,17 @@ func (c *Peer) Post(httpClient *http.Client, url, contentType string, body io.Re
 	}
 	req.Header.Set("Content-Type", contentType)
 	return httpClient.Do(req)
+}
+
+func (c *Peer) Call(remoteAddress string, authData string, function string, data []byte, timeout time.Duration) (result []byte, err error) {
+	c.mtx.Lock()
+	remotePeer, remotePeerOk := c.remotePeers[remoteAddress]
+	if !remotePeerOk || remotePeer == nil {
+		remotePeer = NewRemotePeer(remoteAddress, authData, c.privateKey)
+		c.remotePeers[remoteAddress] = remotePeer
+	}
+	network := c.network
+	c.mtx.Unlock()
+	result, err = remotePeer.Call(network, function, data, timeout)
+	return
 }

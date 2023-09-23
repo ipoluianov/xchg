@@ -22,9 +22,9 @@ import (
 
 type RemotePeerTransport interface {
 	Id() string
-	Check(peerContext PeerContext, frame20 *Transaction, network *Network, remotePublicKeyExists bool) error
-	DeclareError(peerContext PeerContext, sentViaTransportMap map[string]struct{})
-	Send(peerContext PeerContext, network *Network, tr *Transaction) error
+	Check(frame20 *Transaction, network *Network, remotePublicKeyExists bool) error
+	DeclareError(sentViaTransportMap map[string]struct{})
+	Send(network *Network, tr *Transaction) error
 	SetRemoteUDPAddress(udpAddress *net.UDPAddr)
 }
 
@@ -32,7 +32,7 @@ type RemotePeer struct {
 	mtx           sync.Mutex
 	remoteAddress string
 	authData      string
-	network       *Network
+	//network       *Network
 
 	privateKey      *rsa.PrivateKey
 	remotePublicKey *rsa.PublicKey
@@ -50,14 +50,14 @@ type RemotePeer struct {
 	nextTransactionId    uint64
 }
 
-func NewRemotePeer(remoteAddress string, authData string, privateKey *rsa.PrivateKey, network *Network) *RemotePeer {
+func NewRemotePeer(remoteAddress string, authData string, privateKey *rsa.PrivateKey) *RemotePeer {
 	var c RemotePeer
 	c.privateKey = privateKey
 	c.remoteAddress = remoteAddress
 	c.authData = authData
 	c.outgoingTransactions = make(map[uint64]*Transaction)
 	c.nextTransactionId = 1
-	c.network = network
+	//c.network = network
 	c.nonces = NewNonces(100)
 
 	tr := &http.Transport{}
@@ -122,7 +122,7 @@ func (c *RemotePeer) setConnectionPoint(routerHost string, publicKey *rsa.Public
 	fmt.Println("Received Address for", c.remoteAddress, "from", routerHost)
 }
 
-func (c *RemotePeer) Call(peerContext PeerContext, function string, data []byte, timeout time.Duration) (result []byte, err error) {
+func (c *RemotePeer) Call(network *Network, function string, data []byte, timeout time.Duration) (result []byte, err error) {
 	c.mtx.Lock()
 	sessionId := c.sessionId
 	c.mtx.Unlock()
@@ -135,10 +135,10 @@ func (c *RemotePeer) Call(peerContext PeerContext, function string, data []byte,
 	copy(transaction.Data[0:], nonce[:])
 	copy(transaction.Data[16:], addressBS)
 
-	c.Check(peerContext, transaction, c.network, c.remotePublicKey != nil)
+	c.Check(transaction, network, c.remotePublicKey != nil)
 
 	if sessionId == 0 {
-		err = c.auth(peerContext, 1000*time.Millisecond)
+		err = c.auth(network, 1000*time.Millisecond)
 		if err != nil {
 			return
 		}
@@ -150,12 +150,12 @@ func (c *RemotePeer) Call(peerContext PeerContext, function string, data []byte,
 	copy(aesKey, c.aesKey)
 	c.mtx.Unlock()
 
-	result, err = c.regularCall(peerContext, function, data, aesKey, timeout)
+	result, err = c.regularCall(network, function, data, aesKey, timeout)
 
 	return
 }
 
-func (c *RemotePeer) auth(peerContext PeerContext, timeout time.Duration) (err error) {
+func (c *RemotePeer) auth(network *Network, timeout time.Duration) (err error) {
 	c.mtx.Lock()
 	if c.authProcessing {
 		c.mtx.Unlock()
@@ -172,7 +172,7 @@ func (c *RemotePeer) auth(peerContext PeerContext, timeout time.Duration) (err e
 	}()
 
 	var nonce []byte
-	nonce, err = c.regularCall(peerContext, "/xchg-get-nonce", nil, nil, timeout)
+	nonce, err = c.regularCall(network, "/xchg-get-nonce", nil, nil, timeout)
 	if err != nil {
 		err = errors.New(ERR_XCHG_CL_CONN_AUTH_GET_NONCE + ":" + err.Error())
 		return
@@ -218,7 +218,7 @@ func (c *RemotePeer) auth(peerContext PeerContext, timeout time.Duration) (err e
 	copy(authFrame[4+len(localPublicKeyBS):], encryptedAuthFrame)
 
 	var result []byte
-	result, err = c.regularCall(peerContext, "/xchg-auth", authFrame, nil, timeout)
+	result, err = c.regularCall(network, "/xchg-auth", authFrame, nil, timeout)
 	if err != nil {
 		err = errors.New(ERR_XCHG_CL_CONN_AUTH_AUTH + ":" + err.Error())
 		return
@@ -244,7 +244,7 @@ func (c *RemotePeer) auth(peerContext PeerContext, timeout time.Duration) (err e
 	return
 }
 
-func (c *RemotePeer) regularCall(peerContext PeerContext, function string, data []byte, aesKey []byte, timeout time.Duration) (result []byte, err error) {
+func (c *RemotePeer) regularCall(network *Network, function string, data []byte, aesKey []byte, timeout time.Duration) (result []byte, err error) {
 	if len(function) > 255 {
 		err = errors.New(ERR_XCHG_CL_CONN_CALL_WRONG_FUNCTION_LEN)
 		return
@@ -292,7 +292,7 @@ func (c *RemotePeer) regularCall(peerContext PeerContext, function string, data 
 		copy(frame[1+len(function):], data)
 	}
 
-	result, err = c.executeTransaction(peerContext, sessionId, frame, timeout, aesKey)
+	result, err = c.executeTransaction(network, sessionId, frame, timeout, aesKey)
 
 	if NeedToChangeNode(err) {
 		c.Reset()
@@ -359,7 +359,7 @@ func (c *RemotePeer) reset() {
 	c.aesKey = nil
 }
 
-func (c *RemotePeer) executeTransaction(peerContext PeerContext, sessionId uint64, data []byte, timeout time.Duration, aesKeyOriginal []byte) (result []byte, err error) {
+func (c *RemotePeer) executeTransaction(network *Network, sessionId uint64, data []byte, timeout time.Duration, aesKeyOriginal []byte) (result []byte, err error) {
 	// Get transaction ID
 	var transactionId uint64
 	c.mtx.Lock()
@@ -386,7 +386,7 @@ func (c *RemotePeer) executeTransaction(peerContext PeerContext, sessionId uint6
 
 		blockTransaction := NewTransaction(FrameTypeCall, AddressForPublicKey(&c.privateKey.PublicKey), c.remoteAddress, transactionId, sessionId, offset, len(data), data[offset:offset+currentBlockSize])
 
-		err = c.Send(peerContext, c.network, blockTransaction)
+		err = c.Send(network, blockTransaction)
 		if err == nil {
 			sentCount++
 			break
@@ -510,7 +510,7 @@ func (c *RemotePeer) Post(url, contentType string, body io.Reader, host string) 
 	return c.httpClient.Do(req)
 }
 
-func (c *RemotePeer) Send(peerContext PeerContext, network *Network, tr *Transaction) (err error) {
+func (c *RemotePeer) Send(network *Network, tr *Transaction) (err error) {
 	addrs := network.GetNodesAddressesByAddress(tr.DestAddressString())
 	for _, a := range addrs {
 		go c.httpCall(a, "w", tr.Marshal())
@@ -518,7 +518,7 @@ func (c *RemotePeer) Send(peerContext PeerContext, network *Network, tr *Transac
 	return
 }
 
-func (c *RemotePeer) Check(peerContext PeerContext, frame20 *Transaction, network *Network, remotePublicKeyExists bool) error {
+func (c *RemotePeer) Check(frame20 *Transaction, network *Network, remotePublicKeyExists bool) error {
 	if remotePublicKeyExists {
 		return nil
 	}
