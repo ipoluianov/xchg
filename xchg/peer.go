@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"mime/multipart"
@@ -284,7 +285,7 @@ func (c *Peer) getFramesFromRouter(router string) {
 		binary.LittleEndian.PutUint64(getMessageRequest[8:], 1024*1024)
 		copy(getMessageRequest[16:], c.localAddressBS)
 
-		//fmt.Println("GETTING from", router)
+		fmt.Println("GETTING from", router)
 		res, err := c.httpCall(c.httpClientLong, router, "r", getMessageRequest)
 		if err != nil {
 			//fmt.Println("HTTP Error: ", err)
