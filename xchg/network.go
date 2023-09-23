@@ -116,6 +116,7 @@ func NewNetworkLocalhost() *Network {
 		rangePrefix := fmt.Sprintf("%X", r)
 		network.AddHostToRange(rangePrefix, s1)
 	}
+	network.Timestamp = 1
 	return network
 }
 
