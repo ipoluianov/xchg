@@ -196,6 +196,8 @@ func (c *Peer) processAuth(functionParameter []byte) (response []byte, err error
 }
 
 func (c *Peer) purgeSessions() {
+	c.logger.Println("Peer::purgeSessions")
+
 	now := time.Now()
 	c.mtx.Lock()
 	if now.Sub(c.lastPurgeSessionsTime).Seconds() > 60 {

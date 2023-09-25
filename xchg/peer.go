@@ -25,6 +25,10 @@ type PeerTransport interface {
 	Stop() error
 }
 
+type Logger interface {
+	Println(v ...interface{})
+}
+
 type Peer struct {
 	mtx          sync.Mutex
 	privateKey   *rsa.PrivateKey
@@ -39,6 +43,9 @@ type Peer struct {
 	longPollingDelay time.Duration
 
 	localAddressBS []byte
+
+	logger         Logger
+	routerStatRead map[string]int
 
 	//peerTransports []PeerTransport
 
@@ -90,14 +97,17 @@ const (
 	PEER_UDP_END_PORT   = 42500
 )
 
-func NewPeer(privateKey *rsa.PrivateKey) *Peer {
+func NewPeer(privateKey *rsa.PrivateKey, logger Logger) *Peer {
 	var c Peer
+	c.logger = logger
 	c.remotePeers = make(map[string]*RemotePeer)
 	c.incomingTransactions = make(map[string]*Transaction)
 	c.authNonces = NewNonces(100)
 	c.sessionsById = make(map[uint64]*Session)
 	c.nextSessionId = 1
 	c.network = NewNetworkLocalhost()
+
+	c.routerStatRead = make(map[string]int)
 
 	c.gettingFromInternet = make(map[string]bool)
 	c.longPollingDelay = 12 * time.Second
@@ -129,6 +139,7 @@ func NewPeer(privateKey *rsa.PrivateKey) *Peer {
 }
 
 func (c *Peer) Start(enableLocalRouter bool) (err error) {
+	c.logger.Println("Peer::Start")
 	c.mtx.Lock()
 	if c.started {
 		c.mtx.Unlock()
@@ -161,17 +172,22 @@ func (c *Peer) Start(enableLocalRouter bool) (err error) {
 }
 
 func (c *Peer) updateHttpPeers() {
+	c.logger.Println("Peer::updateHttpPeers")
+
 	network, _ := NetworkContainerLoadFromInternet()
 	c.mtx.Lock()
 	if network != nil {
 		if network.Timestamp > c.network.Timestamp {
 			c.network = network
+			c.logger.Println("Peer::updateHttpPeers", "new network detected", network.Name)
 		}
 	}
 	c.mtx.Unlock()
 }
 
 func (c *Peer) Stop() (err error) {
+	c.logger.Println("Peer::Stop")
+
 	c.mtx.Lock()
 	if !c.started {
 		c.mtx.Unlock()
@@ -236,6 +252,8 @@ func (c *Peer) SetProcessor(processor ServerProcessor) {
 func (c *Peer) thWork() {
 	c.started = true
 	lastNetworkUpdateDT := time.Now()
+	lastPurgeSessionsDT := time.Now()
+	lastStatDT := time.Now()
 	for {
 		// Stopping
 		c.mtx.Lock()
@@ -246,17 +264,36 @@ func (c *Peer) thWork() {
 		}
 
 		go c.getFramesFromInternet()
-		c.purgeSessions()
+
+		if time.Since(lastPurgeSessionsDT) > 5*time.Second {
+			c.purgeSessions()
+			lastPurgeSessionsDT = time.Now()
+		}
+
 		if time.Since(lastNetworkUpdateDT) > 30*time.Second {
-			//fmt.Println("Loading network from internet ...")
 			c.updateHttpPeers()
 			lastNetworkUpdateDT = time.Now()
+		}
+
+		if time.Since(lastStatDT) > 10*time.Second {
+			c.fixStat()
+			lastStatDT = time.Now()
 		}
 
 		time.Sleep(10 * time.Millisecond)
 
 		//fmt.Println(c.network)
 	}
+}
+
+func (c *Peer) fixStat() {
+	c.mtx.Lock()
+	c.logger.Println("-------STAT------")
+	for key, value := range c.routerStatRead {
+		c.logger.Println("Router read", key, "=", value)
+	}
+	c.logger.Println()
+	c.mtx.Unlock()
 }
 
 func (c *Peer) getFramesFromRouter(router string) {
@@ -276,6 +313,10 @@ func (c *Peer) getFramesFromRouter(router string) {
 		c.mtx.Unlock()
 	}()
 	/////////////////////////////////////////////
+	//c.logger.Println("Peer::getFramesFromRouter", router)
+	c.mtx.Lock()
+	c.routerStatRead[router]++
+	c.mtx.Unlock()
 
 	// Get message
 	{

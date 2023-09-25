@@ -17,7 +17,7 @@ type SimpleServer struct {
 
 func NewSimpleServer(privateKey *rsa.PrivateKey) *SimpleServer {
 	var c SimpleServer
-	c.serverConnection = xchg.NewPeer(privateKey)
+	c.serverConnection = xchg.NewPeer(privateKey, xchg.NewDefaultLogger())
 	c.serverConnection.SetProcessor(&c)
 
 	c.defaultResponse = make([]byte, 10)

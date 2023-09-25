@@ -18,7 +18,7 @@ func StartServer(privateKey *rsa.PrivateKey, accessKey string, processor func(fu
 	var c Server
 	c.privateKey = privateKey
 	c.accessKey = accessKey
-	c.serverConnection = xchg.NewPeer(privateKey)
+	c.serverConnection = xchg.NewPeer(privateKey, xchg.NewDefaultLogger())
 	c.serverConnection.SetProcessor(&c)
 	c.processor = processor
 	c.serverConnection.Start(true)
