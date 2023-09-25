@@ -52,6 +52,7 @@ func NetworkContainerLoadFromInternet() (network *Network, err error) {
 		var response *http.Response
 		response, err = httpClient.Get(initialPoint + "?" + fmt.Sprint(time.Now().Unix()))
 		if err != nil {
+			//fmt.Println("network", initialPoint, "err=", err)
 			continue
 		}
 
@@ -74,13 +75,15 @@ func NetworkContainerLoadFromInternet() (network *Network, err error) {
 		networks = append(networks, n)
 	}
 
+	httpClient.CloseIdleConnections()
+
 	// No fresh networks - use default static network
 	if len(networks) < 1 {
 		return
 	}
 
 	// Get latest network
-	//fmt.Println("loaded networks:")
+	// logger.Println("loaded networks:")
 	for _, n := range networks {
 		//fmt.Println(n.Timestamp, n.Name, n.Source)
 		if n.Timestamp > network.Timestamp {

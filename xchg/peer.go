@@ -175,6 +175,8 @@ func (c *Peer) updateHttpPeers() {
 	c.logger.Println("Peer::updateHttpPeers")
 
 	network, _ := NetworkContainerLoadFromInternet()
+	c.logger.Println("Network container", network.Name)
+
 	c.mtx.Lock()
 	if network != nil {
 		if network.Timestamp > c.network.Timestamp {
