@@ -50,7 +50,7 @@ type Peer struct {
 	//peerTransports []PeerTransport
 
 	gettingFromInternet   map[string]bool
-	lastReceivedMessageId uint64
+	lastReceivedMessageId map[string]uint64
 
 	// Client
 	remotePeers map[string]*RemotePeer
@@ -108,6 +108,7 @@ func NewPeer(privateKey *rsa.PrivateKey, logger Logger) *Peer {
 	c.sessionsById = make(map[uint64]*Session)
 	c.nextSessionId = 1
 	c.network = NewNetworkLocalhost()
+	c.lastReceivedMessageId = make(map[string]uint64)
 
 	c.routerStatRead = make(map[string]int)
 
@@ -170,7 +171,7 @@ func (c *Peer) Start(enableLocalRouter bool) (err error) {
 	}
 
 	go c.thWork()
-	go c.thUDP()
+	//go c.thUDP()
 	return
 }
 
@@ -246,34 +247,35 @@ func (c *Peer) Stop() (err error) {
 	return
 }
 
-func (c *Peer) thUDP() {
-	c.logger.Println("UDR started")
-	addr, _ := net.ResolveUDPAddr("udp", ":8585")
-	var err error
-	c.udpConn, err = net.ListenUDP("udp", addr)
-	if err != nil {
-		c.logger.Println("ERROR:", err)
-		return
-	}
-
-	for !c.stopping {
-		buffer := make([]byte, 4000)
-		c.logger.Println("UDR reading ...", addr)
-		bytesRead, remoteAddr, err := c.udpConn.ReadFromUDP(buffer)
+/*
+	func (c *Peer) thUDP() {
+		c.logger.Println("UDR started")
+		addr, _ := net.ResolveUDPAddr("udp", ":8585")
+		var err error
+		c.udpConn, err = net.ListenUDP("udp", addr)
 		if err != nil {
-			c.logger.Println("ReadFromUDP error:", err)
-			break
+			c.logger.Println("ERROR:", err)
+			return
 		}
-		incoming := string(buffer[0:bytesRead])
-		c.processFrame("UDP", buffer[0:bytesRead])
-		c.logger.Println("RECEIVED UDP", incoming, "from", remoteAddr.String())
-	}
 
-	if c.udpConn != nil {
-		c.udpConn.Close()
-	}
-}
+		for !c.stopping {
+			buffer := make([]byte, 4000)
+			c.logger.Println("UDR reading ...", addr)
+			bytesRead, remoteAddr, err := c.udpConn.ReadFromUDP(buffer)
+			if err != nil {
+				c.logger.Println("ReadFromUDP error:", err)
+				break
+			}
+			incoming := string(buffer[0:bytesRead])
+			c.processFrame("UDP", buffer[0:bytesRead])
+			c.logger.Println("RECEIVED UDP", incoming, "from", remoteAddr.String())
+		}
 
+		if c.udpConn != nil {
+			c.udpConn.Close()
+		}
+	}
+*/
 func (c *Peer) Network() *Network {
 	return c.network
 }
@@ -315,7 +317,7 @@ func (c *Peer) thWork() {
 		}
 
 		if time.Since(lastDeclareUDPPointDT) > 10*time.Second {
-			c.declareUDPPoint()
+			//c.declareUDPPoint()
 			lastDeclareUDPPointDT = time.Now()
 		}
 
@@ -335,33 +337,34 @@ func (c *Peer) fixStat() {
 	c.mtx.Unlock()
 }
 
-func (c *Peer) declareUDPPoint() {
-	c.logger.Println("-------DECLARE UDP------")
-	c.mtx.Lock()
-	network := c.network
-	c.mtx.Unlock()
+/*
+	func (c *Peer) declareUDPPoint() {
+		c.logger.Println("-------DECLARE UDP------")
+		c.mtx.Lock()
+		network := c.network
+		c.mtx.Unlock()
 
-	if network == nil {
-		return
-	}
-
-	if c.udpConn == nil {
-		c.logger.Println("c.udpConn == nil")
-		return
-	}
-
-	routers := network.GetNodesAddressesByAddress(c.localAddress)
-	for _, router := range routers {
-		//signalAddress := "x03.gazer.cloud:8484"
-		remote, _ := net.ResolveUDPAddr("udp", router)
-		bytesWritten, err := c.udpConn.WriteTo([]byte(c.localAddress), remote)
-		if err != nil {
-			c.logger.Println("UDP send error:", err)
+		if network == nil {
+			return
 		}
-		c.logger.Println(bytesWritten, " bytes written")
-	}
-}
 
+		if c.udpConn == nil {
+			c.logger.Println("c.udpConn == nil")
+			return
+		}
+
+		routers := network.GetNodesAddressesByAddress(c.localAddress)
+		for _, router := range routers {
+			//signalAddress := "x03.gazer.cloud:8484"
+			remote, _ := net.ResolveUDPAddr("udp", router)
+			bytesWritten, err := c.udpConn.WriteTo([]byte(c.localAddress), remote)
+			if err != nil {
+				c.logger.Println("UDP send error:", err)
+			}
+			c.logger.Println(bytesWritten, " bytes written")
+		}
+	}
+*/
 func (c *Peer) getFramesFromRouter(router string) {
 	/////////////////////////////////////////////
 	c.mtx.Lock()
@@ -386,8 +389,11 @@ func (c *Peer) getFramesFromRouter(router string) {
 
 	// Get message
 	{
+		c.mtx.Lock()
+		fromMessageId := c.lastReceivedMessageId[router]
+		c.mtx.Unlock()
 		getMessageRequest := make([]byte, 16+30)
-		binary.LittleEndian.PutUint64(getMessageRequest[0:], c.lastReceivedMessageId)
+		binary.LittleEndian.PutUint64(getMessageRequest[0:], fromMessageId)
 		binary.LittleEndian.PutUint64(getMessageRequest[8:], 1024*1024)
 		copy(getMessageRequest[16:], c.localAddressBS)
 
@@ -398,17 +404,25 @@ func (c *Peer) getFramesFromRouter(router string) {
 			return
 		}
 		if len(res) >= 8 {
-			c.lastReceivedMessageId = binary.LittleEndian.Uint64(res[0:])
+			lastReceivedMessageId := binary.LittleEndian.Uint64(res[0:])
+
+			c.mtx.Lock()
+
+			c.lastReceivedMessageId[router] = lastReceivedMessageId
+			c.mtx.Unlock()
 
 			offset := 8
 
 			responses := make([]*Transaction, 0)
 			responsesCount := 0
 
+			framesCount := 0
+
 			for offset < len(res) {
 				if offset+128 <= len(res) {
 					frameLen := int(binary.LittleEndian.Uint32(res[offset:]))
 					if offset+frameLen <= len(res) {
+						framesCount++
 						responseFrames := c.processFrame(router, res[offset:offset+frameLen])
 						responses = append(responses, responseFrames...)
 						responsesCount += len(responseFrames)
@@ -420,6 +434,7 @@ func (c *Peer) getFramesFromRouter(router string) {
 					break
 				}
 			}
+			//c.logger.Println("Received frames:", framesCount)
 			if len(responses) > 0 {
 				for _, f := range responses {
 					c.send(f.Marshal(), f.FromLocalNode)

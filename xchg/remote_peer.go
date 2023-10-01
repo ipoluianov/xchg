@@ -512,8 +512,9 @@ func (c *RemotePeer) Post(url, contentType string, body io.Reader, host string) 
 
 func (c *RemotePeer) Send(network *Network, tr *Transaction) (err error) {
 	addrs := network.GetNodesAddressesByAddress(tr.DestAddressString())
+	bs := tr.Marshal()
 	for _, a := range addrs {
-		go c.httpCall(a, "w", tr.Marshal())
+		go c.httpCall(a, "w", bs)
 	}
 	return
 }
