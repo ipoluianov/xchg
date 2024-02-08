@@ -106,7 +106,7 @@ func (c *Peer) processFrame10(routerHost string, frame []byte) (responseFrames [
 			trResponse := NewTransaction(0x11, AddressForPublicKey(&c.privateKey.PublicKey), srcAddress, incomingTransaction.TransactionId, incomingTransaction.SessionId, 0, len(resp), resp)
 
 			offset := 0
-			blockSize := 1024
+			blockSize := 4 * 1024
 			for offset < len(trResponse.Data) {
 				currentBlockSize := blockSize
 				restDataLen := len(trResponse.Data) - offset
