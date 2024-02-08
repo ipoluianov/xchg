@@ -14,7 +14,7 @@ type Storage struct {
 
 func NewStorage() *Storage {
 	var c Storage
-	c.maxMessages = 1000
+	c.maxMessages = 10000
 	c.messages = make([]*Message, 0, c.maxMessages+1)
 	c.TouchDT = time.Now()
 	return &c

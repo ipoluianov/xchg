@@ -86,7 +86,7 @@ type RouterSpeedStatistics struct {
 
 const (
 	NONCE_COUNT       = 1024 * 1024
-	INPUT_BUFFER_SIZE = 1024 * 1024
+	INPUT_BUFFER_SIZE = 10 * 1024 * 1024
 	STORING_TIMEOUT   = 60 * time.Second
 )
 
